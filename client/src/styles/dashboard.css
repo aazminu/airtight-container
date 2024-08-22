@@ -1,0 +1,78 @@
+.dashContainer{
+    margin-left: 5%;
+    margin-right: 5%;
+}
+.releaseFormContainer{
+    display: flex;
+    column-gap: 1rem;
+    row-gap: 2rem;
+    flex-wrap: wrap;
+    justify-content: left;
+    width:100%;
+}
+.releaseForm{
+    min-width: fit-content;
+    border: 3px solid var(--main-bg-color);
+    border-radius: 15px;
+    padding: 10px;
+    background-color: var(--alternate-bg-color);
+}
+.bubbleContainer{
+    display:flex;
+    flex-wrap: wrap;
+    width: 100%;
+    row-gap: 1rem;
+    column-gap: 1rem;
+    padding: 10px;
+    font-weight: bold;
+}
+.bubble{
+    width:fit-content;
+    height: fit-content;
+    border: 2px solid var(--main-bg-color);
+    background-color: var(--main-bg-color);
+    border-radius: 10px;
+    padding: 5px;
+    white-space: nowrap;
+}
+.bubbleBtn{
+    background-color: inherit;
+    border:none;
+}
+.companyName{
+    display: flex;
+    justify-content: space-between;
+    font-size: 18px;
+}
+.addPrompt input[type=text]{
+    margin-top: 5px;
+    border-radius: 10px;
+    border: 1px solid black;
+    padding: 5px;
+    font-size: 16px;
+}
+.addBtn{
+    padding: 8px;
+    margin-left: 20px;
+    border: 1px solid black;
+    background-color: white;
+    border-radius: 15px;
+    padding-left: 15px;
+    padding-right: 15px;
+    font-weight: bold;
+}
+.addBtn:hover{
+    background-color: var(--main-bg-color);
+}
+.releaseForm form{
+    display:flex;
+    justify-content: space-between;
+}
+.bottomBtn{
+    margin-left: 0px;
+    margin-top: 2rem;
+    margin-bottom: 10px;
+}
+.relSubtitle{
+    font-size:22px;
+}

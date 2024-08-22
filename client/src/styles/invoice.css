@@ -1,0 +1,77 @@
+div.invoice{
+    max-width:950px;
+    max-height:1320px;
+}
+div.invTop{
+    flex:1;
+}
+div.invTitle{
+    float: left;
+}
+div.invLogo{
+    width: 40%;
+    float:right;
+}
+div.invDate{
+    padding-top:20px;
+    clear:left;
+    float:left;
+}
+img.invLogo{
+    width: 100%; /* or any custom size */
+    height: 100%; 
+    object-fit: contain;
+}
+p.invSubHead{
+    color:gray;
+}
+h1.invTitle{
+    color:#B8CCE4;
+    font-size: 60px;
+}
+div.invAddresses{
+    clear:left;
+    float:left;
+    display:flex;
+    width:fit-content;
+    padding-top:80px;
+    padding-bottom: 30px;
+}
+span.invAddress{
+    font-size:16px;
+    padding-left:10px;
+}
+div.invAddresses > p {
+    padding-right: 25px;
+    padding-left: 25px;
+    color:#2192CF;
+}
+div.deliverTo{
+    clear:both;
+}
+div.deliverTo > p {
+    background-color: yellow;
+    width:fit-content;
+    margin-inline:auto;
+    font-weight:bold;
+}
+div.invTable{
+    width: 100%;
+    margin-inline: auto;
+}
+div.invTable > table {
+    width:100%;
+}
+div.invTable > table > thead > tr{
+    background-color:#DBE5F1;
+    border-top:2px solid grey;
+    color: #215868;
+    font-weight: bolder;
+    text-align: center;
+}
+tr.invTableRow > td {
+    border-left: 2px solid grey;
+    border-right: 2px solid grey;
+    padding: 5px;
+    font-size:12px;
+}
