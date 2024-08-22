@@ -5,7 +5,7 @@ function ReleaseNumbers() {
   const { setPopup } = useContext(userContext)
   const [releases, setReleases] = useState([])
   useEffect(() => {
-    fetch("http://localhost:8080/api/v1/releases", {
+    fetch("/api/v1/releases", {
         method: "GET",
         headers: {
             "Content-Type": "application/json",

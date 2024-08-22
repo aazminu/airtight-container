@@ -646,7 +646,7 @@ function AddForm({
     addContainer(newContainer);
   };
   const addContainer = container => {
-    fetch("http://localhost:8080/api/v1/inventory/add", {
+    fetch("/api/v1/inventory/add", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -973,7 +973,7 @@ function InvoiceForm({
     }, this), {
       pretty: true
     });
-    fetch('http://localhost:8080/api/v1/send', {
+    fetch('/api/v1/send', {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -1549,7 +1549,7 @@ function ReleaseForm({
     var final = semi.replace(']', "}");
     console.log("REPLACED", final);
     if (type === 'new') {
-      fetch(`http://localhost:8080/api/v1/releases`, {
+      fetch(`/api/v1/releases`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -1569,7 +1569,7 @@ function ReleaseForm({
       });
     } else if (type === 'existing') {
       console.log("PUTTING");
-      fetch(`http://localhost:8080/api/v1/releases/${company.id}`, {
+      fetch(`/api/v1/releases/${company.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
@@ -1711,7 +1711,7 @@ function SetReleases() {
   const [newName, setNewName] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)("");
   const [add, setAdd] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
-    fetch("http://localhost:8080/api/v1/releases", {
+    fetch("/api/v1/releases", {
       method: "GET",
       headers: {
         "Content-Type": "application/json"
@@ -1729,7 +1729,7 @@ function SetReleases() {
   const deleteCompany = id => {
     let confirm = window.confirm("Are you sure you want to remove this company?");
     if (!confirm) return;
-    fetch(`http://localhost:8080/api/v1/releases/${id}`, {
+    fetch(`/api/v1/releases/${id}`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json"
@@ -1749,7 +1749,7 @@ function SetReleases() {
     setNewName(e.target.value);
   };
   const addNew = e => {
-    fetch(`http://localhost:8080/api/v1/releases`, {
+    fetch(`/api/v1/releases`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -2556,7 +2556,7 @@ function InventoryList() {
   const [inventory, setInventory] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [filters, setFilters] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
-    fetch("http://localhost:8080/api/v1/inventory", {
+    fetch("/api/v1/inventory", {
       method: "GET",
       headers: {
         "Content-Type": "application/json"
@@ -2576,7 +2576,7 @@ function InventoryList() {
     const confirm = window.confirm('Are you sure you want to delete this container?');
     if (!confirm) return;
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/inventory/${id}`, {
+      const res = await fetch(`/api/v1/inventory/${id}`, {
         method: "DELETE"
       });
       setInventory(inventory.filter(container => {
@@ -2832,7 +2832,7 @@ function ReleaseNumbers() {
   _s();
   const [releases, setReleases] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
-    fetch("http://localhost:8080/api/v1/releases", {
+    fetch("/api/v1/releases", {
       method: "GET",
       headers: {
         "Content-Type": "application/json"
@@ -2957,7 +2957,7 @@ function SoldList() {
   const [inventory, setInventory] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [filters, setFilters] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
-    fetch("http://localhost:8080/api/v1/inventory/sold", {
+    fetch("/api/v1/inventory/sold", {
       method: "GET",
       headers: {
         "Content-Type": "application/json"
@@ -2977,7 +2977,7 @@ function SoldList() {
     const confirm = window.confirm('Are you sure you want to delete this container?');
     if (!confirm) return;
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/inventory/sold/${id}`, {
+      const res = await fetch(`/api/v1/inventory/sold/${id}`, {
         method: "DELETE"
       });
       setInventory(inventory.filter(container => {
@@ -2987,7 +2987,7 @@ function SoldList() {
       console.log(error);
     }
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/inventory/sold/available/${id}`, {
+      const res = await fetch(`/api/v1/inventory/sold/available/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
@@ -3250,11 +3250,11 @@ function UpcomingOutbounds({
 }) {
   _s();
   const [boxes, setBoxes] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
-  var url = "http://localhost:8080/api/v1/inventory";
+  var url = "/api/v1/inventory";
   if (type === 'available' || type === 'hold') {
-    url = "http://localhost:8080/api/v1/inventory";
+    url = "/api/v1/inventory";
   } else {
-    url = "http://localhost:8080/api/v1/inventory/sold";
+    url = "/api/v1/inventory/sold";
   }
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     console.log("running");
@@ -3446,7 +3446,7 @@ function DeliverySheet() {
     date: ""
   });
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
-    fetch("http://localhost:8080/api/v1/inventory/sold", {
+    fetch("/api/v1/inventory/sold", {
       method: "GET",
       headers: {
         "Content-Type": "application/json"
@@ -3781,7 +3781,7 @@ function IOReport({
     }, this), {
       pretty: true
     });
-    fetch('http://localhost:8080/api/v1/send', {
+    fetch('/api/v1/send', {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -3981,7 +3981,7 @@ function SendInvoice({
   const [invoiceContainers, setInvoiceContainers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [options, setOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
-    fetch("http://localhost:8080/api/v1/inventory/sold", {
+    fetch("/api/v1/inventory/sold", {
       method: "GET",
       headers: {
         "Content-Type": "application/json"
@@ -4182,7 +4182,7 @@ function Row({
   };
   const postNotes = () => {
     console.log("attempting to post notes:");
-    fetch(`http://localhost:8080/api/v1/inventory/notes/${container.id}`, {
+    fetch(`/api/v1/inventory/notes/${container.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json"
@@ -4200,7 +4200,7 @@ function Row({
     });
   };
   const saveChanges = container => {
-    fetch(`http://localhost:8080/api/v1/inventory/${container.id}`, {
+    fetch(`/api/v1/inventory/${container.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json"
@@ -4223,7 +4223,7 @@ function Row({
       ...prev,
       state: "sold"
     }));
-    fetch(`http://localhost:8080/api/v1/inventory/sold/${container.id}`, {
+    fetch(`/api/v1/inventory/sold/${container.id}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -4277,7 +4277,7 @@ function Row({
       ...prev,
       state: newState
     }));
-    fetch(`http://localhost:8080/api/v1/inventory/state/${currentContainer.id}`, {
+    fetch(`/api/v1/inventory/state/${currentContainer.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json"
@@ -4653,7 +4653,7 @@ function SoldRow({
   const postNotes = () => {
     console.log(currentContainer.invoice_notes);
     console.log("Notes^");
-    fetch(`http://localhost:8080/api/v1/inventory/sold/notes/${currentContainer.id}`, {
+    fetch(`/api/v1/inventory/sold/notes/${currentContainer.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json"
@@ -4672,7 +4672,7 @@ function SoldRow({
   };
   const saveEdits = updatedContainer => {
     console.log('saving');
-    fetch(`http://localhost:8080/api/v1/inventory/sold/${updatedContainer.id}`, {
+    fetch(`/api/v1/inventory/sold/${updatedContainer.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json"
@@ -4699,7 +4699,7 @@ function SoldRow({
     const confirm = window.confirm('Are you sure you want to mark this container as outbound?');
     if (!confirm) return;
     console.log("confirmed");
-    fetch(`http://localhost:8080/api/v1/inventory/state/${currentContainer.inventory_id}`, {
+    fetch(`/api/v1/inventory/state/${currentContainer.inventory_id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json"
@@ -4714,7 +4714,7 @@ function SoldRow({
         return;
       }
     });
-    fetch(`http://localhost:8080/api/v1/inventory/outbound/${currentContainer.id}`, {
+    fetch(`/api/v1/inventory/outbound/${currentContainer.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json"

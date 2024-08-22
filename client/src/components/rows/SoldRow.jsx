@@ -57,7 +57,7 @@ function SoldRow({container, onDelete, outbound}) {
     const postNotes = () => {
       console.log(currentContainer.invoice_notes);
       console.log("Notes^")
-      fetch(`http://localhost:8080/api/v1/inventory/sold/notes/${currentContainer.id}`, {
+      fetch(`/api/v1/inventory/sold/notes/${currentContainer.id}`, {
         method: "PUT",
         headers: {
             "Content-Type": "application/json"
@@ -77,7 +77,7 @@ function SoldRow({container, onDelete, outbound}) {
     }
     const saveEdits = (updatedContainer) => {
       console.log('saving')
-      fetch(`http://localhost:8080/api/v1/inventory/sold/${updatedContainer.id}`, {
+      fetch(`/api/v1/inventory/sold/${updatedContainer.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -103,7 +103,7 @@ function SoldRow({container, onDelete, outbound}) {
       }
       const confirm = window.confirm('Are you sure you want to mark this container as outbound?');
       if(!confirm) return;
-      fetch(`http://localhost:8080/api/v1/inventory/state/${currentContainer.inventory_id}`, {
+      fetch(`/api/v1/inventory/state/${currentContainer.inventory_id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -118,7 +118,7 @@ function SoldRow({container, onDelete, outbound}) {
           return
         }
       })
-      fetch(`http://localhost:8080/api/v1/inventory/outbound/${currentContainer.id}`, {
+      fetch(`/api/v1/inventory/outbound/${currentContainer.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

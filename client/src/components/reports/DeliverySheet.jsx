@@ -17,7 +17,7 @@ function DeliverySheet() {
     date: "",
   })
   useEffect(() => {
-    fetch("http://localhost:8080/api/v1/inventory/sold", {
+    fetch("/api/v1/inventory/sold", {
         method: "GET",
         headers: {
             "Content-Type": "application/json",

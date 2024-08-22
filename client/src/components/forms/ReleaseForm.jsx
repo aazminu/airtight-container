@@ -13,7 +13,7 @@ function ReleaseForm({type, company, deleteCompany}) {
     setReleases(company.number);
   }, [company.number]);
   const postReleases = (final) => {
-    fetch(`http://localhost:8080/api/v1/releases`, {
+    fetch(`/api/v1/releases`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -32,7 +32,7 @@ function ReleaseForm({type, company, deleteCompany}) {
     })
   }
   const putReleases = (final) => {
-    fetch(`http://localhost:8080/api/v1/releases/${company.id}`, {
+    fetch(`/api/v1/releases/${company.id}`, {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",

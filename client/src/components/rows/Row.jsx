@@ -31,7 +31,7 @@ function Row({container, onDelete}) {
 
   const postNotes = () => {
     console.log("attempting to post notes:")
-    fetch(`http://localhost:8080/api/v1/inventory/notes/${container.id}`, {
+    fetch(`/api/v1/inventory/notes/${container.id}`, {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json"
@@ -55,7 +55,7 @@ function Row({container, onDelete}) {
     setShowForm(!showForm);
   }
   const saveChanges = (container) => {
-    fetch(`http://localhost:8080/api/v1/inventory/${container.id}`, {
+    fetch(`/api/v1/inventory/${container.id}`, {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",
@@ -76,7 +76,7 @@ function Row({container, onDelete}) {
     setCurrentContainer(prev=> ({
       ...prev, state: "sold",
     }))
-    fetch(`http://localhost:8080/api/v1/inventory/sold/${container.id}`, {
+    fetch(`/api/v1/inventory/sold/${container.id}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -140,7 +140,7 @@ function Row({container, onDelete}) {
       ...prev, state: newState,
       }
     ));
-    fetch(`http://localhost:8080/api/v1/inventory/state/${currentContainer.id}`, {
+    fetch(`/api/v1/inventory/state/${currentContainer.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",

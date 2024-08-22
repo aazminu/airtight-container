@@ -58,7 +58,7 @@ function AddForm() {
     }
 
     const addContainer = (container) => {
-        fetch("http://localhost:8080/api/v1/inventory/add", {
+        fetch("/api/v1/inventory/add", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
