@@ -1,42 +1,42 @@
-@media screen and (max-width:600px){
-    .addContainer{
-        flex-direction:column;
-        align-content: center;
-        gap: 10px;
-    }
+@media screen and (max-width: 600px) {
+  .addContainer {
+    flex-direction: column;
+    align-content: center;
+    gap: 10px;
+  }
 }
-.addContainer{
-    display: flex;
-    justify-content: space-evenly;
-    padding-top: 50px;
+.addContainer {
+  display: flex;
+  justify-content: space-evenly;
+  padding-top: 50px;
 }
-.addTable{
-    min-width: fit-content;
-    width: 40%; 
-    border: 9px solid var(--main-bg-color);
-    border-spacing: 0;
-    border-collapse: separate;
-    border-radius: 10px;
-    border-left: none;
-    border-right: none;
+.addTable {
+  min-width: fit-content;
+  width: 40%;
+  border: 9px solid var(--main-bg-color);
+  border-spacing: 0;
+  border-collapse: separate;
+  border-radius: 10px;
+  border-left: none;
+  border-right: none;
 }
-.addTable td{
-    padding: 6px;
-    text-align: left;
+.addTable td {
+  padding: 6px;
+  text-align: left;
 }
-.addTable input[type=text]{
-    font-size: 16px;
-    border: 1px solid black;
-    border-radius: 10px;
-    padding:5px;
+.addTable input[type='text'] {
+  font-size: 16px;
+  border: 1px solid black;
+  border-radius: 10px;
+  padding: 5px;
 }
-.infoTable{
-    width:100%
+.infoTable {
+  width: 100%;
 }
-.infoContainer{
-    width: 50%;
+.infoContainer {
+  width: 50%;
 }
-.infoTable td{
-    padding: 10px;
-    white-space: wrap;
+.infoTable td {
+  padding: 10px;
+  white-space: wrap;
 }

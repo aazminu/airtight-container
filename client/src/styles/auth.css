@@ -1,75 +1,75 @@
-.authContainer{
-    height: 100vh;
-    width: 100vw;
+.authContainer {
+  height: 100vh;
+  width: 100vw;
 }
-.formContainer{
-    display: flex;
-    flex-direction: column;
-    width: fit-content;
-    margin: auto;
-    width: 35%;
-    margin-top: 10%;
-    border: 3px solid var(--main-bg-color);
-    border-radius: 15px;
-    background-color: var(--alternate-bg-color);
+.formContainer {
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+  margin: auto;
+  width: 35%;
+  margin-top: 10%;
+  border: 3px solid var(--main-bg-color);
+  border-radius: 15px;
+  background-color: var(--alternate-bg-color);
 }
 .formContainer form {
-    display: flex;
-    flex-direction: column;    
+  display: flex;
+  flex-direction: column;
 }
-.formHeader{
-    align-self: center;
-    background-color: var(--main-bg-color);
-    color: var(--alternate-bg-color);
-    font-size: 32px;
-    font-weight: 700;
-    width: 100%;
-    border-radius: 10px 10px 0px 0px;
-    text-align: center;
-    padding-top: 5px;
-    padding-bottom: 5px;
+.formHeader {
+  align-self: center;
+  background-color: var(--main-bg-color);
+  color: var(--alternate-bg-color);
+  font-size: 32px;
+  font-weight: 700;
+  width: 100%;
+  border-radius: 10px 10px 0px 0px;
+  text-align: center;
+  padding-top: 5px;
+  padding-bottom: 5px;
 }
-.formContainer input{
-    border: 1px solid black;
-    border-radius: 10px;
-    padding: 12px;
-    font-size: 18px;
-    margin: 10px;
+.formContainer input {
+  border: 1px solid black;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 18px;
+  margin: 10px;
 }
-.formBody{
-    padding: 30px;
+.formBody {
+  padding: 30px;
 }
-.authBtn{
-    width: 75%;
-    align-self: center;
-    font-size: 25px;
-    padding: 10px;
-    border: 1px solid black;
-    border-radius: 10px;
-    background-color: var(--main-bg-color);
-    color: white;
-    font-weight: bold;
-    margin-bottom: 10px;
+.authBtn {
+  width: 75%;
+  align-self: center;
+  font-size: 25px;
+  padding: 10px;
+  border: 1px solid black;
+  border-radius: 10px;
+  background-color: var(--main-bg-color);
+  color: white;
+  font-weight: bold;
+  margin-bottom: 10px;
 }
-.authBtn:hover{
-    background-color: #8d3127;
+.authBtn:hover {
+  background-color: #8d3127;
 }
-.authPrompt{
-    border: none;
-    font-size: inherit;
-    color: var(--main-bg-color);
-    font-weight: 700;
+.authPrompt {
+  border: none;
+  font-size: inherit;
+  color: var(--main-bg-color);
+  font-weight: 700;
 }
-.authPrompt:hover{
-    color: #8d3127;
-    text-decoration: underline;
+.authPrompt:hover {
+  color: #8d3127;
+  text-decoration: underline;
 }
-.authOptions{
-    font-size: 18px;
+.authOptions {
+  font-size: 18px;
 }
-.errorMsg{
-    align-self: center;
-    text-align: center;
-    font-weight: normal;
-    color: gray;
+.errorMsg {
+  align-self: center;
+  text-align: center;
+  font-weight: normal;
+  color: gray;
 }

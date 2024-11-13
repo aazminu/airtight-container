@@ -1,5 +1,5 @@
 import React from 'react';
-import { Html, Button, Hr, Text } from "@react-email/components";
+import { Html, Button, Hr, Text } from '@react-email/components';
 
 export function Template(props) {
   return (

@@ -1,23 +1,23 @@
-import React from 'react'
-import { useState, useContext } from 'react'
-import {useNavigate} from 'react-router-dom'
-import { render } from '@react-email/render'
-import Invoice from '../templates/Invoice'
+import React from 'react';
+import { useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { render } from '@react-email/render';
+import Invoice from '../templates/Invoice';
 
-import { userContext } from '../../context/restaurantcontext'
-function InvoiceForm({containerData, generate}) {
+import { userContext } from '../../context/restaurantcontext';
+function InvoiceForm({ containerData, generate }) {
   const date = new Date();
-  
-  const { setPopup } = useContext(userContext)
-  const navigate = useNavigate()
+
+  const { setPopup } = useContext(userContext);
+  const navigate = useNavigate();
   const [invoiceInfo, setInvoiceInfo] = useState({
-    address: "",
-    tsz: "",
-    name: "",
-    email: "",
-    cell: "",
-  })
-  const [toggleEmail, setToggle] = useState(true)
+    address: '',
+    tsz: '',
+    name: '',
+    email: '',
+    cell: ''
+  });
+  const [toggleEmail, setToggle] = useState(true);
   const sendEmail = (sendMail) => {
     let invoiceHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -42,7 +42,9 @@ function InvoiceForm({containerData, generate}) {
         <div class="invAddresses">
           <span class='invAddress'>Airtight Storage Systems Inc<br/> 41 Wilson Avenue <br/> Manalapan, NJ 07726 <br/> 732-792-8111 <br/> michelle@airtightstorage.com</span>
           <p>TO</p>
-          <span class='invAddress'> ${invoiceInfo.name} <br/> ${invoiceInfo.address} <br/> ${invoiceInfo.tsz} <br/> ${invoiceInfo.cell} <br/> ${invoiceInfo.email} </span>
+          <span class='invAddress'> ${invoiceInfo.name} <br/> ${invoiceInfo.address} <br/> ${
+      invoiceInfo.tsz
+    } <br/> ${invoiceInfo.cell} <br/> ${invoiceInfo.email} </span>
         </div>
         <div class="deliverTo">
           <p>DELIVER TO: ${containerData[0].destination}</p>
@@ -251,12 +253,11 @@ function InvoiceForm({containerData, generate}) {
 </html>
 `;
 
-    let insertString = ""
+    let insertString = '';
     let total = 0;
 
     for (let i = 0; i < containerData.length; i++) {
-      let itemizedRow = 
-      `<tr class="invTableRow">
+      let itemizedRow = `<tr class="invTableRow">
         <td>1</td>
         <td>${containerData[i].invoice_notes} ${containerData[i].unit_number}</td>
         <td>${containerData[i].sale_price}</td>
@@ -268,85 +269,139 @@ function InvoiceForm({containerData, generate}) {
           <td></td>
           <td>${containerData[i].trucking_rate}</td>
       </tr>`;
-      insertString = insertString.concat(itemizedRow) 
-      total += parseInt(containerData[i].sale_price) + parseInt(containerData[i].trucking_rate)
+      insertString = insertString.concat(itemizedRow);
+      total += parseInt(containerData[i].sale_price) + parseInt(containerData[i].trucking_rate);
     }
 
-    invoiceHtml = invoiceHtml.replace('~', insertString)
-    invoiceHtml = invoiceHtml.replaceAll('+', total)
+    invoiceHtml = invoiceHtml.replace('~', insertString);
+    invoiceHtml = invoiceHtml.replaceAll('+', total);
 
-    if(!sendMail){
-      navigate('/reports/form', {state:{type:"invoice", container: containerData, details: invoiceInfo, html: invoiceHtml}})
-      window.location.reload()
-      return
+    if (!sendMail) {
+      navigate('/reports/form', {
+        state: {
+          type: 'invoice',
+          container: containerData,
+          details: invoiceInfo,
+          html: invoiceHtml
+        }
+      });
+      window.location.reload();
+      return;
     }
 
     fetch('/api/v1/send', {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         to: 'hlynch02@tufts.edu',
-        subject: 'Testing emails', 
-        html: invoiceHtml,  
+        subject: 'Testing emails',
+        html: invoiceHtml
       }),
       credentials: 'include'
     }).then((res) => {
-      if(!res.ok) setPopup("ERROR Failed to send")
-      else{
-        setPopup("Email sent!")
+      if (!res.ok) setPopup('ERROR Failed to send');
+      else {
+        setPopup('Email sent!');
       }
-    })
+    });
 
-    navigate('/reports/form', {state:{type:"invoice", container: containerData, details: invoiceInfo, html: invoiceHtml}})
-    window.location.reload()
-  }
+    navigate('/reports/form', {
+      state: { type: 'invoice', container: containerData, details: invoiceInfo, html: invoiceHtml }
+    });
+    window.location.reload();
+  };
   const changeName = (e) => {
-    setInvoiceInfo(prev=> ({
-      ...prev, name: e.target.value,
-    }))
-  }
+    setInvoiceInfo((prev) => ({
+      ...prev,
+      name: e.target.value
+    }));
+  };
   const changeEmail = (e) => {
-    setInvoiceInfo(prev=> ({
-      ...prev, email: e.target.value,
-    }))
-  }
+    setInvoiceInfo((prev) => ({
+      ...prev,
+      email: e.target.value
+    }));
+  };
   const changeCell = (e) => {
-    setInvoiceInfo(prev=> ({
-      ...prev, cell: e.target.value,
-    }))
-  }
+    setInvoiceInfo((prev) => ({
+      ...prev,
+      cell: e.target.value
+    }));
+  };
   const changeAddress = (e) => {
-    setInvoiceInfo(prev=> ({
-      ...prev, address: e.target.value,
-    }))
-  }
+    setInvoiceInfo((prev) => ({
+      ...prev,
+      address: e.target.value
+    }));
+  };
   const changeTSZ = (e) => {
-    setInvoiceInfo(prev=> ({
-      ...prev, tsz: e.target.value,
-    }))
-  }
+    setInvoiceInfo((prev) => ({
+      ...prev,
+      tsz: e.target.value
+    }));
+  };
   const generateInvoice = (e) => {
-    e.preventDefault()
-    if(toggleEmail) sendEmail(true)
-    else{
-      sendEmail(false)
+    e.preventDefault();
+    if (toggleEmail) sendEmail(true);
+    else {
+      sendEmail(false);
     }
-  }
+  };
   return (
-    <div className='repForm'>
+    <div className="repForm">
       <form onSubmit={generateInvoice}>
-        <span><input type="text" value={invoiceInfo.name} onChange={changeName} placeholder='Name:'></input></span>
-        <span><input type="text" value={invoiceInfo.email} onChange={changeEmail} placeholder='Email:'></input></span>
-        <span><input type="text" value={invoiceInfo.cell} onChange={changeCell} placeholder='Phone Number:'></input></span>
-        <span><input type="text" value={invoiceInfo.address} onChange={changeAddress} placeholder='Address:'></input></span>
-        <span><input type="text" value={invoiceInfo.tsz} onChange={changeTSZ} placeholder='Town, State, Zipcode:'></input></span>
-        <span className='checkboxLine'><label>Send Email Copy?<input type="checkbox" checked={toggleEmail} onChange={(e) => setToggle(e.target.checked)}></input></label></span>
-        <span><button className='editBtn'>Generate</button></span>
+        <span>
+          <input
+            type="text"
+            value={invoiceInfo.name}
+            onChange={changeName}
+            placeholder="Name:"></input>
+        </span>
+        <span>
+          <input
+            type="text"
+            value={invoiceInfo.email}
+            onChange={changeEmail}
+            placeholder="Email:"></input>
+        </span>
+        <span>
+          <input
+            type="text"
+            value={invoiceInfo.cell}
+            onChange={changeCell}
+            placeholder="Phone Number:"></input>
+        </span>
+        <span>
+          <input
+            type="text"
+            value={invoiceInfo.address}
+            onChange={changeAddress}
+            placeholder="Address:"></input>
+        </span>
+        <span>
+          <input
+            type="text"
+            value={invoiceInfo.tsz}
+            onChange={changeTSZ}
+            placeholder="Town, State, Zipcode:"></input>
+        </span>
+        <span className="checkboxLine">
+          <label>
+            Send Email Copy?
+            <input
+              type="checkbox"
+              checked={toggleEmail}
+              onChange={(e) => setToggle(e.target.checked)}></input>
+          </label>
+        </span>
+        <span>
+          <button className="editBtn">Generate</button>
+        </span>
       </form>
     </div>
-  )
+  );
 }
 
-export default InvoiceForm
+export default InvoiceForm;

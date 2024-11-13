@@ -1,70 +1,71 @@
-.yardContainer{
-    margin-left: auto;
-    margin-right: auto;
-    width:90%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+.yardContainer {
+  margin-left: auto;
+  margin-right: auto;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
-.releaseContainer{
-    display:flex;
-    flex-direction: row;
-    gap: 3rem;
+.releaseContainer {
+  display: flex;
+  flex-direction: row;
+  gap: 3rem;
 }
-.inventoryInfo{
-    width:80%;
-    display:flex;
-    flex-direction: row;
+.inventoryInfo {
+  width: 80%;
+  display: flex;
+  flex-direction: row;
 }
-.releaseTable{
-    border: 8px solid var(--main-bg-color);
-    border-spacing: 0;
-    border-collapse: separate;
-    border-radius: 10px;
-    border-left: none;
-    border-right: none;
-    height: fit-content;
+.releaseTable {
+  border: 8px solid var(--main-bg-color);
+  border-spacing: 0;
+  border-collapse: separate;
+  border-radius: 10px;
+  border-left: none;
+  border-right: none;
+  height: fit-content;
 }
-.releaseTable td, th{
-    padding: 8px;
-    text-align: center;
+.releaseTable td,
+th {
+  padding: 8px;
+  text-align: center;
 }
-.releaseTable td{
-    font-weight: 700;
+.releaseTable td {
+  font-weight: 700;
 }
-.releaseTitle{
-    margin-bottom: 10px;
-    font-weight: 500px;
-    text-align:center;
+.releaseTitle {
+  margin-bottom: 10px;
+  font-weight: 500px;
+  text-align: center;
 }
-.availableContainer{
-    display:flex;
-    flex-direction: column;
-    flex-grow: 1;
-    padding: 15px;
-    align-content: center;
+.availableContainer {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  padding: 15px;
+  align-content: center;
 }
-.holdContainer{
-    display:flex;
-    flex-direction: column;
-    flex-grow: 1;
-    padding: 15px;
+.holdContainer {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  padding: 15px;
 }
-.soldContainer{
-    display:flex;
-    flex-direction: column;
-    flex-grow: 3;
-    padding: 15px;
+.soldContainer {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 3;
+  padding: 15px;
 }
-.yardTable{
-    width:100%;
-    align-self: center;
+.yardTable {
+  width: 100%;
+  align-self: center;
 }
-.yardHead{
-    text-align: center;
-    margin-bottom: 3px;
+.yardHead {
+  text-align: center;
+  margin-bottom: 3px;
 }
-.companyHead{
-    padding-top:1px;
-    height: 20px;
+.companyHead {
+  padding-top: 1px;
+  height: 20px;
 }

@@ -1,83 +1,83 @@
-.reportContainer{
-    display:flex;
-    margin-top: 3%;
-    margin-left: 5%;
-    margin-right: 5%;
-    gap: 3rem;
+.reportContainer {
+  display: flex;
+  margin-top: 3%;
+  margin-left: 5%;
+  margin-right: 5%;
+  gap: 3rem;
 }
-.repContainer{
-    width:fit-content;
-    height: fit-content;
-    padding: 20px;
-    background-color: var(--alternate-bg-color);
-    border: 3px solid var(--main-bg-color);
-    border-radius: 40px;
+.repContainer {
+  width: fit-content;
+  height: fit-content;
+  padding: 20px;
+  background-color: var(--alternate-bg-color);
+  border: 3px solid var(--main-bg-color);
+  border-radius: 40px;
 }
-.break{
-    flex-basis: 100%;
-    height: 0;
-    width:0;
+.break {
+  flex-basis: 100%;
+  height: 0;
+  width: 0;
 }
-.ioContainer{
-    display: flex;
-    
-    flex-direction: column;
-    justify-content: center;
+.ioContainer {
+  display: flex;
+
+  flex-direction: column;
+  justify-content: center;
 }
-.reportTitle{
-    font-weight: 800;
-    font-size: 20px;
+.reportTitle {
+  font-weight: 800;
+  font-size: 20px;
 }
-.dateInputs{
-    display:flex;
-    padding-bottom: 5%;
-    padding-top: 2%;
+.dateInputs {
+  display: flex;
+  padding-bottom: 5%;
+  padding-top: 2%;
 }
-.dateInputs span{
-    padding: 5px;
+.dateInputs span {
+  padding: 5px;
 }
-.repSelect{
-    border: 2px solid var(--main-bg-color);
-    border-radius: 4px;
-    padding: 5px;
-    font-size: 14px;
-    width: 75%;
+.repSelect {
+  border: 2px solid var(--main-bg-color);
+  border-radius: 4px;
+  padding: 5px;
+  font-size: 14px;
+  width: 75%;
 }
-.repSelect option{
-    font-weight: bold;
-    padding: 5px;
+.repSelect option {
+  font-weight: bold;
+  padding: 5px;
 }
-.repSelect:nth-child(even){
-    background-color: var(--alternate-bg-color);
+.repSelect:nth-child(even) {
+  background-color: var(--alternate-bg-color);
 }
-.repForm{
-    margin-top: 3%;
-    margin-bottom: 3%;
-    padding: 5px;
+.repForm {
+  margin-top: 3%;
+  margin-bottom: 3%;
+  padding: 5px;
 }
-.repForm button{
-    margin-top: 3%;
+.repForm button {
+  margin-top: 3%;
 }
-.repForm input[type=text]{
-    padding: 7px;
-    border: 1px solid black;
-    margin: 5px;
-    border-radius: 5px;
-    font-size: 14px;
+.repForm input[type='text'] {
+  padding: 7px;
+  border: 1px solid black;
+  margin: 5px;
+  border-radius: 5px;
+  font-size: 14px;
 }
-.checkboxLine{
-    margin: 5px;
-    margin-left: 3%;
-    font-weight: bold;
-    white-space: nowrap;
-    height: fit-content;
+.checkboxLine {
+  margin: 5px;
+  margin-left: 3%;
+  font-weight: bold;
+  white-space: nowrap;
+  height: fit-content;
 }
-.checkboxLine label{
-    display:flex;
-    margin-left: 1%;
-    margin-top: 1%;
+.checkboxLine label {
+  display: flex;
+  margin-left: 1%;
+  margin-top: 1%;
 }
-.checkboxLine input[type=checkbox]{
+.checkboxLine input[type='checkbox'] {
   /* Add if not using autoprefixer */
   -webkit-appearance: none;
   appearance: none;
@@ -96,42 +96,42 @@
   place-content: center;
   margin-left: 1%;
 }
-.checkboxLine input[type=checkbox]::before{
-  content: "";
+.checkboxLine input[type='checkbox']::before {
+  content: '';
   width: 0.65em;
   height: 0.65em;
   transform: scale(0);
   transition: 120ms transform ease-in-out;
   box-shadow: inset 1em 1em var(--main-bg-color);
 }
-.checkboxLine input[type="checkbox"]:checked::before {
-    transform: scale(1);
+.checkboxLine input[type='checkbox']:checked::before {
+  transform: scale(1);
 }
-.nowrap{
-    white-space: nowrap;
+.nowrap {
+  white-space: nowrap;
 }
-.reportDesc p{
-    margin-top: 5px;
+.reportDesc p {
+  margin-top: 5px;
 }
-.formInputs{
-    display:flex;
-    flex-direction: column;
+.formInputs {
+  display: flex;
+  flex-direction: column;
 }
-.repRow{
-    display:flex;
+.repRow {
+  display: flex;
 }
-.delivDate{
-    width: 50%;
+.delivDate {
+  width: 50%;
 }
-.delivDateRow{
-    gap: 1rem;
-    margin-left: 1%;
-    font-weight: bold;
+.delivDateRow {
+  gap: 1rem;
+  margin-left: 1%;
+  font-weight: bold;
 }
-.delivDateRow label{
-    margin-top: 5px;
+.delivDateRow label {
+  margin-top: 5px;
 }
-.deliverySelect{
-    font-weight:bold;
-    width: 50%;
+.deliverySelect {
+  font-weight: bold;
+  width: 50%;
 }
