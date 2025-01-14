@@ -1,0 +1,65 @@
+.invoiceWrapper {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+.invoiceDetails {
+	display: flex;
+	flex-direction: column;
+	justify-content: left;
+	max-width: min-content;
+}
+.customerTab {
+	min-width: 100%;
+}
+.buttonRow > button {
+	float: right;
+}
+.invoiceListBtn {
+	padding-right: 5%;
+}
+.invoiceSubHead > th {
+	text-align: center;
+	padding-left: 10px;
+	text-wrap: nowrap;
+}
+.invoiceRow > td {
+	text-align: center;
+}
+.borderRow {
+	border: 3px solid darkgray;
+	border-radius: 10px;
+}
+.invoiceCheck {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+.invoiceTable {
+	min-width: 50%;
+	max-width: 70%;
+	border: 9px solid var(--main-bg-color);
+	border-spacing: 0;
+	border-collapse: separate;
+	border-radius: 10px;
+	border-left: none;
+	border-right: none;
+	border-bottom: none;
+}
+.superInvoiceTable {
+	border-bottom: 9px solid var(--main-bg-color);
+}
+.invoiceHeader th {
+	padding: 10px;
+	padding-top: 1px;
+	font-weight: bold;
+}
+.invoiceTable td {
+	padding: 10px;
+}
+.createInvoiceBtn {
+	margin: 0px !important;
+}
+.regenBtn {
+	margin-left: 0px !important;
+}

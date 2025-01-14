@@ -1,25 +1,21 @@
-import React from 'react';
-import { useState, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { render } from '@react-email/render';
-import Invoice from '../templates/Invoice';
+import React from "react";
+import { useEffect, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 
-import { userContext } from '../../context/restaurantcontext';
-function InvoiceForm({ containerData, generate }) {
-  const date = new Date();
+import { userContext } from "../../context/restaurantcontext";
+function InvoiceForm({ invoiceData }) {
+	const date = new Date();
 
-  const { setPopup } = useContext(userContext);
-  const navigate = useNavigate();
-  const [invoiceInfo, setInvoiceInfo] = useState({
-    address: '',
-    tsz: '',
-    name: '',
-    email: '',
-    cell: ''
-  });
-  const [toggleEmail, setToggle] = useState(true);
-  const sendEmail = (sendMail) => {
-    let invoiceHtml = `<!DOCTYPE html>
+	const { setPopup } = useContext(userContext);
+	const navigate = useNavigate();
+	useEffect(() => {
+		generateInvoice();
+	});
+
+	const generateInvoice = () => {
+		// The following is one big template string which is styled to look like
+		// the invoice.
+		let invoiceHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -36,18 +32,22 @@ function InvoiceForm({ containerData, generate }) {
             </div>
         </div>
         <div class="invDate">
-          <p class='invSubHead'>Date: ${date.toDateString().substr(3)}</p>
-          <p class="invSubHead">Invoice#: ${containerData[0].release_number}</p>
+          <p class='invSubHead'>Date: ${date.toDateString().substring(3)}</p>
+          <p class="invSubHead">Invoice#: ${invoiceData.invoice_number}</p>
         </div>
         <div class="invAddresses">
           <span class='invAddress'>Airtight Storage Systems Inc<br/> 41 Wilson Avenue <br/> Manalapan, NJ 07726 <br/> 732-792-8111 <br/> michelle@airtightstorage.com</span>
           <p>TO</p>
-          <span class='invAddress'> ${invoiceInfo.name} <br/> ${invoiceInfo.address} <br/> ${
-      invoiceInfo.tsz
-    } <br/> ${invoiceInfo.cell} <br/> ${invoiceInfo.email} </span>
+          <span class='invAddress'> ${
+				invoiceData.customer.contact_name
+			} <br/> ${invoiceData.customer.contact_address} <br/> ${
+			invoiceData.customer.contact_tsz
+		} <br/> ${invoiceData.customer.contact_phone} <br/> ${
+			invoiceData.customer.contact_email
+		} </span>
         </div>
         <div class="deliverTo">
-          <p>DELIVER TO: ${containerData[0].destination}</p>
+          <p>DELIVER TO: ${invoiceData.containers[0].destination}</p>
         </div>
         <div class="invTable">
           <table>
@@ -91,13 +91,13 @@ function InvoiceForm({ containerData, generate }) {
                     <td colspan="3" class="spanItem bold">
                         Subtotal
                     </td>
-                    <td class="allborder">+</td>
+                    <td class="allborder">*</td>
                   </tr>
                   <tr class="invTableRow noLeft">
                     <td colspan="3" class="spanItem bold">
                         Sales Tax
                     </td>
-                    <td class="allborder"></td>
+                    <td class="allborder">^</td>
                   </tr>
                   <tr class="invTableRow noLeft">
                     <td colspan="3" class="spanItem">
@@ -253,155 +253,81 @@ function InvoiceForm({ containerData, generate }) {
 </html>
 `;
 
-    let insertString = '';
-    let total = 0;
+		let insertString = "";
+		let subTotal = 0;
+		let total = 0;
+		let salesTax = 0;
 
-    for (let i = 0; i < containerData.length; i++) {
-      let itemizedRow = `<tr class="invTableRow">
+		for (let i = 0; i < invoiceData.containers.length; i++) {
+			let itemizedRow = `<tr class="invTableRow">
         <td>1</td>
-        <td>${containerData[i].invoice_notes} ${containerData[i].unit_number}</td>
-        <td>${containerData[i].sale_price}</td>
-        <td>${containerData[i].sale_price}</td>
+        <td>${invoiceData.containers[i].invoice_notes || ""} ${
+				invoiceData.containers[i].unit_number
+			}</td>
+        <td>${invoiceData.containers[i].sale_price}</td>
+        <td>${invoiceData.containers[i].sale_price}</td>
       </tr>
       <tr class="invTableRow">
           <td>1</td>
-          <td>DELIVERY FEE TO ${containerData[i].destination}</td>
+          <td>DELIVERY FEE TO ${invoiceData.containers[i].destination}</td>
           <td></td>
-          <td>${containerData[i].trucking_rate}</td>
+          <td>${invoiceData.containers[i].trucking_rate}</td>
       </tr>`;
-      insertString = insertString.concat(itemizedRow);
-      total += parseInt(containerData[i].sale_price) + parseInt(containerData[i].trucking_rate);
-    }
+			insertString = insertString.concat(itemizedRow);
+			subTotal +=
+				parseInt(invoiceData.containers[i].sale_price) +
+				parseInt(invoiceData.containers[i].trucking_rate);
+		}
 
-    invoiceHtml = invoiceHtml.replace('~', insertString);
-    invoiceHtml = invoiceHtml.replaceAll('+', total);
+		if (invoiceData.invoice_taxed) {
+			salesTax = subTotal * 0.06625;
+			invoiceHtml = invoiceHtml.replace("^", salesTax.toFixed(2));
+		} else invoiceHtml = invoiceHtml.replace("^", "");
 
-    if (!sendMail) {
-      navigate('/reports/form', {
-        state: {
-          type: 'invoice',
-          container: containerData,
-          details: invoiceInfo,
-          html: invoiceHtml
-        }
-      });
-      window.location.reload();
-      return;
-    }
+		total = subTotal + salesTax;
+		invoiceHtml = invoiceHtml.replace("~", insertString);
+		invoiceHtml = invoiceHtml.replace("*", subTotal.toFixed(2));
+		invoiceHtml = invoiceHtml.replace("+", total.toFixed(2));
 
-    fetch('/api/v1/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        to: 'hlynch02@tufts.edu',
-        subject: 'Testing emails',
-        html: invoiceHtml
-      }),
-      credentials: 'include'
-    }).then((res) => {
-      if (!res.ok) setPopup('ERROR Failed to send');
-      else {
-        setPopup('Email sent!');
-      }
-    });
+		fetch("api/v1/send", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				to: invoiceData.send_email
+					? invoiceData.customer.contact_email
+					: "michelle@airtightstorage.com",
+				bcc: [
+					"greg@airtightstorage.com",
+					"michelle@airtightstorage.com",
+					"vagabond7257@gmail.com",
+					"hlynch02@tufts.edu",
+				],
+				subject: `INVOICE to ${
+					invoiceData.customer.contact_name
+				} : ${date.toDateString().substring(3)}`,
+				html: invoiceHtml,
+			}),
+			credentials: "include",
+		}).then((res) => {
+			if (!res.ok) setPopup("ERROR Failed to send");
+			else {
+				setPopup("Email sent!");
+			}
+		});
 
-    navigate('/reports/form', {
-      state: { type: 'invoice', container: containerData, details: invoiceInfo, html: invoiceHtml }
-    });
-    window.location.reload();
-  };
-  const changeName = (e) => {
-    setInvoiceInfo((prev) => ({
-      ...prev,
-      name: e.target.value
-    }));
-  };
-  const changeEmail = (e) => {
-    setInvoiceInfo((prev) => ({
-      ...prev,
-      email: e.target.value
-    }));
-  };
-  const changeCell = (e) => {
-    setInvoiceInfo((prev) => ({
-      ...prev,
-      cell: e.target.value
-    }));
-  };
-  const changeAddress = (e) => {
-    setInvoiceInfo((prev) => ({
-      ...prev,
-      address: e.target.value
-    }));
-  };
-  const changeTSZ = (e) => {
-    setInvoiceInfo((prev) => ({
-      ...prev,
-      tsz: e.target.value
-    }));
-  };
-  const generateInvoice = (e) => {
-    e.preventDefault();
-    if (toggleEmail) sendEmail(true);
-    else {
-      sendEmail(false);
-    }
-  };
-  return (
-    <div className="repForm">
-      <form onSubmit={generateInvoice}>
-        <span>
-          <input
-            type="text"
-            value={invoiceInfo.name}
-            onChange={changeName}
-            placeholder="Name:"></input>
-        </span>
-        <span>
-          <input
-            type="text"
-            value={invoiceInfo.email}
-            onChange={changeEmail}
-            placeholder="Email:"></input>
-        </span>
-        <span>
-          <input
-            type="text"
-            value={invoiceInfo.cell}
-            onChange={changeCell}
-            placeholder="Phone Number:"></input>
-        </span>
-        <span>
-          <input
-            type="text"
-            value={invoiceInfo.address}
-            onChange={changeAddress}
-            placeholder="Address:"></input>
-        </span>
-        <span>
-          <input
-            type="text"
-            value={invoiceInfo.tsz}
-            onChange={changeTSZ}
-            placeholder="Town, State, Zipcode:"></input>
-        </span>
-        <span className="checkboxLine">
-          <label>
-            Send Email Copy?
-            <input
-              type="checkbox"
-              checked={toggleEmail}
-              onChange={(e) => setToggle(e.target.checked)}></input>
-          </label>
-        </span>
-        <span>
-          <button className="editBtn">Generate</button>
-        </span>
-      </form>
-    </div>
-  );
+		navigate("/reports/form", {
+			state: {
+				type: "invoice",
+				container: invoiceData.containers,
+				html: invoiceHtml,
+			},
+		});
+		window.location.reload();
+	};
+
+	return <></>;
 }
 
 export default InvoiceForm;

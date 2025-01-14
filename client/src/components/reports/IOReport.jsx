@@ -20,7 +20,7 @@ function IOReport({ generate }) {
     const html = render(<Template />, {
       pretty: true
     });
-    fetch('/api/v1/send', {
+    fetch('api/v1/send', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

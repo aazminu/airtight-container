@@ -11,7 +11,7 @@ function SoldList() {
   const [displayNum, setDisplayNum] = useState(5);
   const [currentPage, setCurrentPage] = useState([]);
   useEffect(() => {
-    fetch('/api/v1/inventory/sold', {
+    fetch('api/v1/inventory/sold', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json'
@@ -39,7 +39,7 @@ function SoldList() {
     if (!confirm) return;
 
     try {
-      const res = await fetch(`/api/v1/inventory/sold/${id}`, {
+      const res = await fetch(`api/v1/inventory/sold/${id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
@@ -55,7 +55,7 @@ function SoldList() {
       console.log(error);
     }
     try {
-      const res = await fetch(`/api/v1/inventory/sold/available/${id}`, {
+      const res = await fetch(`api/v1/inventory/sold/available/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'

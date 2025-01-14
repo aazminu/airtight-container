@@ -1,78 +1,139 @@
+@media 
 .dashContainer {
-  margin-left: 5%;
-  margin-right: 5%;
+	margin-left: 5%;
+	margin-right: 5%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
 }
 .releaseFormContainer {
-  display: flex;
-  column-gap: 1rem;
-  row-gap: 2rem;
-  flex-wrap: wrap;
-  justify-content: left;
-  width: 100%;
+	display: flex;
+	column-gap: 1rem;
+	row-gap: 2rem;
+	flex-wrap: wrap;
+	justify-content: left;
+	width: 100%;
 }
 .releaseForm {
-  min-width: fit-content;
-  border: 3px solid var(--main-bg-color);
-  border-radius: 15px;
-  padding: 10px;
-  background-color: var(--alternate-bg-color);
+	max-width: fit-content;
+	border: 3px solid var(--main-bg-color);
+	border-radius: 15px;
+	padding: 10px;
+	background-color: var(--alternate-bg-color);
 }
 .bubbleContainer {
-  display: flex;
-  flex-wrap: wrap;
-  width: 100%;
-  row-gap: 1rem;
-  column-gap: 1rem;
-  padding: 10px;
-  font-weight: bold;
+	display: flex;
+	flex-wrap: wrap;
+	width: 100%;
+	row-gap: 1rem;
+	column-gap: 1rem;
+	padding: 10px;
+	font-weight: bold;
 }
 .bubble {
-  width: fit-content;
-  height: fit-content;
-  border: 2px solid var(--main-bg-color);
-  background-color: var(--main-bg-color);
-  border-radius: 10px;
-  padding: 5px;
-  white-space: nowrap;
+	width: fit-content;
+	height: fit-content;
+	border: 2px solid var(--main-bg-color);
+	background-color: var(--main-bg-color);
+	border-radius: 10px;
+	padding: 5px;
+	white-space: nowrap;
 }
 .bubbleBtn {
-  background-color: inherit;
-  border: none;
+	background-color: inherit;
+	border: none;
 }
 .companyName {
-  display: flex;
-  justify-content: space-between;
-  font-size: 18px;
+	display: flex;
+	justify-content: space-between;
+	font-size: 18px;
 }
-.addPrompt input[type='text'] {
-  margin-top: 5px;
-  border-radius: 10px;
-  border: 1px solid black;
-  padding: 5px;
-  font-size: 16px;
+.addPrompt input[type="text"] {
+	margin-top: 5px;
+	border-radius: 10px;
+	border: 1px solid black;
+	padding: 5px;
+	font-size: 15px;
 }
 .addBtn {
-  padding: 8px;
-  margin-left: 20px;
-  border: 1px solid black;
-  background-color: white;
-  border-radius: 15px;
-  padding-left: 15px;
-  padding-right: 15px;
-  font-weight: bold;
+	padding: 8px;
+	margin-left: 20px;
+	border: 1px solid black;
+	background-color: white;
+	border-radius: 15px;
+	padding-left: 15px;
+	padding-right: 15px;
+	font-weight: bold;
 }
 .addBtn:hover {
-  background-color: var(--main-bg-color);
+	background-color: var(--main-bg-color);
 }
 .releaseForm form {
-  display: flex;
-  justify-content: space-between;
+	display: flex;
+	justify-content: space-between;
 }
 .bottomBtn {
-  margin-left: 0px;
-  margin-top: 2rem;
-  margin-bottom: 10px;
+	margin-right: 15px;
+	margin-left: 0px !important;
 }
 .relSubtitle {
-  font-size: 22px;
+	font-size: 22px;
+}
+.selectedOption {
+	background-color: var(--main-bg-color) !important;
+}
+.dashOptions {
+	max-width: fit-content;
+}
+.dashBtn {
+	margin-left: 0px !important;
+}
+.addWrapper {
+	display: flex;
+}
+.addForm {
+	margin-top: 2px;
+}
+.addForm > input {
+	border-radius: 10px;
+	border: 1px solid black;
+	padding: 5px;
+	font-size: 14px;
+}
+.addCompanyBtn {
+	margin-left: 3px !important;
+	padding: 5px;
+}
+
+.boxCount {
+	margin-left: 10px;
+	font-size: 15px;
+}
+.boxCount > label {
+	font-weight: bold;
+}
+.boxCount > input {
+	max-width: 30px;
+	text-align: center;
+	margin-top: 5px;
+	border-radius: 10px;
+	border: 1px solid black;
+	padding: 5px;
+	font-size: 15px;
+}
+.permissionSelect {
+	border: 2px solid var(--main-bg-color);
+	border-radius: 4px;
+	padding: 5px;
+	font-size: 14px;
+	font-weight: bold;
+	min-width: fit-content;
+}
+.userRow > td.center {
+	text-align: center;
+}
+.accountSettingsWrapper {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
 }

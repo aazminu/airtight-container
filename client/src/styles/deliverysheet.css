@@ -1,58 +1,62 @@
 nav {
-  position: sticky;
+	position: sticky;
 }
 .printout {
-  margin-left: auto;
-  margin-right: auto;
-  display: flex;
-  flex-direction: column;
-  align-content: center;
-  max-width: 950px;
-  max-height: 1320px;
+	margin-left: auto;
+	margin-right: auto;
+	display: flex;
+	flex-direction: column;
+	align-content: center;
+	max-width: 950px;
+	max-height: 1320px;
 }
 .header {
-  display: flex;
-  justify-content: center;
-  text-align: center;
+	display: flex;
+	justify-content: center;
+	text-align: center;
 }
 h1.topper {
-  font-size: 20px;
+	font-size: 20px;
 }
 .title {
-  color: red;
-  font-weight: bold;
+	color: red;
+	font-weight: bold;
 }
 .bg {
-  background-color: white;
-  top: 0px;
-  width: max-content;
+	background-color: white;
+	top: 0px;
+	width: max-content;
 }
 div.areadiv {
-  display: block;
-  margin-left: 5%;
+	display: block;
+	margin-left: 5%;
 }
 p.area {
-  font-weight: 500;
-  line-height: 2;
-  position: relative;
-  left: 0px;
-  font-size: 13.7px;
-  text-align: left;
+	font-weight: 500;
+	line-height: 2;
+	position: relative;
+	left: 0px;
+	font-size: 13.7px;
+	text-align: left;
 }
 .bold {
-  font-weight: bold;
+	font-weight: bold;
 }
 span.address {
-  display: inline-block;
-  padding-left: 10px;
+	display: inline-block;
+	padding-left: 10px;
 }
 span.outer {
-  display: flex;
-  width: fit-content;
-  border: solid;
-  padding: 5px;
+	display: flex;
+	width: fit-content;
+	border: solid;
+	padding: 5px;
 }
 .logo {
-  width: fit-content;
-  align-self: center;
+	width: fit-content;
+	align-self: center;
+}
+.important {
+	background-color: yellow;
+	font-size: 20px;
 }

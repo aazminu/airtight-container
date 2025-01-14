@@ -1,164 +1,216 @@
 :root {
-  --main-bg-color: #ac3e31;
-  --main-bg-highlight: #712921;
-  --alternate-bg-color: #f1f3f2;
-  --btn-color: #c6c6c6;
-  --hover-highlight: #a3a3a3;
-  --btn-highlight: #585858;
-  font-family: 'Inter', sans-serif;
-  font-optical-sizing: auto;
-  font-style: normal;
+	--main-bg-color: #ac3e31;
+	--main-bg-highlight: #712921;
+	--alternate-bg-color: #f1f3f2;
+	--btn-color: #c6c6c6;
+	--hover-highlight: #a3a3a3;
+	--btn-highlight: #585858;
+	font-family: "Inter", sans-serif;
+	font-optical-sizing: auto;
+	font-style: normal;
+}
+@media (max-width: 1471px) {
+	.inventoryContainer {
+		font-size: 11px;
+	}
+	.inventoryContainer input {
+		font-size: 11px !important;
+		max-width: fit-content !important;
+	}
+	.inventoryContainer button {
+		font-size: 11px !important;
+	}
+	.inventoryContainer span {
+		font-size: 11px !important;
+	}
+	.inventoryContainer img {
+		width: 15px;
+		height: 15px;
+	}
+	.inventoryContainer th {
+		padding: 2px !important;
+	}
+	.inventoryNotesRow {
+		max-width: 90px;
+	}
+	.pgDisplayDropdown {
+		font-size: 11px !important;
+	}
 }
 input {
-  font-family: 'Inter', sans-serif;
+	font-family: "Inter", sans-serif;
 }
 button {
-  font-family: 'Inter', sans-serif;
+	font-family: "Inter", sans-serif;
 }
 .inventoryContainer {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+	max-width: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	overflow-x: auto;
 }
 .invHeader {
-  text-align: center;
-  font-weight: 800;
+	text-align: center;
+	font-weight: 800;
 }
 .inventoryTable {
-  min-width: 50%;
-  max-width: 80%;
-  border: 9px solid var(--main-bg-color);
-  border-spacing: 0;
-  border-collapse: separate;
-  border-radius: 10px;
-  border-left: none;
-  border-right: none;
+	min-width: 50%;
+	max-width: 80%;
+	border: 9px solid var(--main-bg-color);
+	border-spacing: 0;
+	border-collapse: separate;
+	border-radius: 10px;
+	border-left: none;
+	border-right: none;
 }
 .inventoryHeader {
-  background-color: var(--main-bg-color);
-  color: var(--alternate-bg-color);
-  text-align: center;
+	background-color: var(--main-bg-color);
+	color: var(--alternate-bg-color);
+	text-align: center;
 }
 .inventoryHeader th {
-  padding: 10px;
-  padding-top: 1px;
-  font-weight: bold;
+	padding: 10px;
+	padding-top: 1px;
+	font-weight: bold;
 }
 .inventoryTable td {
-  padding: 10px;
-  text-align: left;
+	padding: 10px;
+	text-align: left;
 }
 td {
-  white-space: nowrap;
+	white-space: nowrap;
 }
 tr:nth-child(even) {
-  background-color: var(--alternate-bg-color);
+	background-color: var(--alternate-bg-color);
 }
 tbody.inventoryBody > tr:hover {
-  background-color: var(--hover-highlight);
+	background-color: var(--hover-highlight);
 }
-.inventoryTable input[type='text'] {
-  border-radius: 10px;
-  border-collapse: separate;
-  border-color: white;
-  border-spacing: 0px;
-  border: none;
-  background-color: inherit;
-  font-family: 'Inter', sans-serif;
-  padding: 5px;
-  font-size: 16px;
+.inventoryTable input[type="text"] {
+	border-radius: 10px;
+	border-collapse: separate;
+	border-color: white;
+	border-spacing: 0px;
+	border: none;
+	background-color: inherit;
+	font-family: "Inter", sans-serif;
+	padding: 5px;
+	font-size: 16px;
+}
+.inventoryTable input[type="email"] {
+	border-radius: 10px;
+	border-collapse: separate;
+	border-color: white;
+	border-spacing: 0px;
+	border: none;
+	background-color: inherit;
+	font-family: "Inter", sans-serif;
+	padding: 5px;
+	font-size: 16px;
+}
+.inventoryTable input[type="phone"] {
+	border-radius: 10px;
+	border-collapse: separate;
+	border-color: white;
+	border-spacing: 0px;
+	border: none;
+	background-color: inherit;
+	font-family: "Inter", sans-serif;
+	padding: 5px;
+	font-size: 16px;
 }
 .deleteBtn {
-  border: none;
-  padding: 5px;
+	border: none;
+	padding: 5px;
 }
 .tableBtn {
-  border-radius: 5px;
-  border: none;
-  padding: 5px;
-  background-color: inherit;
+	border-radius: 5px;
+	border: none;
+	padding: 5px;
+	background-color: inherit;
 }
 .searchContainer {
-  width: 75%;
-  padding-top: 15px;
-  padding-bottom: 10px;
+	width: 75%;
+	padding-top: 15px;
+	padding-bottom: 10px;
 }
 .searchContainer .searchBar {
-  width: 100%;
-  padding-bottom: 15px;
-  padding-top: 15px;
-  font-size: 18px;
-  border: 1px solid var(--alternate-bg-color) !important;
-  border-radius: 10px;
-  background-color: var(--alternate-bg-color);
+	width: 100%;
+	padding-bottom: 15px;
+	padding-top: 15px;
+	font-size: 18px;
+	border: 1px solid var(--alternate-bg-color) !important;
+	border-radius: 10px;
+	background-color: var(--alternate-bg-color);
 }
 .inventoryTable > tbody {
-  border-radius: 5px;
-  border: 1px solid black;
-  border-collapse: separate;
+	border-radius: 5px;
+	border: 1px solid black;
+	border-collapse: separate;
 }
 .btnText {
-  font-family: 'Inter', sans-serif;
-  font-size: 16px;
-  font-weight: 900;
+	font-family: "Inter", sans-serif;
+	font-size: 16px;
+	font-weight: 900;
 }
 .tableBtn:hover {
-  color: var(--btn-highlight);
-  padding-bottom: 3px;
+	color: var(--btn-highlight);
+	padding-bottom: 3px;
 }
 .tableBtn:hover > img {
-  padding-top: 3px;
+	padding-top: 3px;
 }
 .stateRow {
-  display: flex;
-  justify-content: center;
+	display: flex;
+	justify-content: center;
+	margin-top: 8px;
 }
 .dateRow {
-  text-align: center !important;
+	text-align: center !important;
 }
 .pageDisplay {
-  padding: 1px;
-  font-size: 14px;
+	padding: 1px;
+	font-size: 14px;
 }
 .arrow {
-  border: none;
-  background-color: inherit;
+	border: none;
+	background-color: inherit;
 }
 .arrow:hover img {
-  scale: 5px;
+	scale: 5px;
 }
 .damageCol {
-  min-width: 200px;
+	min-width: 100px;
 }
 .tcCol {
-  min-width: 120px;
+	min-width: 120px;
 }
 .scCol {
-  min-width: 120px;
+	min-width: 120px;
 }
 .pgDisplayDropdown {
-  font-family: 'Inter', sans-serif;
-  background-color: var(--alternate-bg-color);
-  border: 1px solid var(--alternate-bg-color);
-  border-radius: 10px;
-  font-weight: 800;
+	font-family: "Inter", sans-serif;
+	background-color: var(--alternate-bg-color);
+	border: 1px solid var(--alternate-bg-color);
+	border-radius: 10px;
+	font-weight: 800;
 }
 .pgDisplayDropdown option {
-  font-family: 'Inter', sans-serif;
-  background-color: var(--alternate-bg-color);
-  border: 1px solid var(--alternate-bg-color);
-  border-radius: 10px;
-  font-weight: 800;
-  text-align: center;
+	font-family: "Inter", sans-serif;
+	background-color: var(--alternate-bg-color);
+	border: 1px solid var(--alternate-bg-color);
+	border-radius: 10px;
+	font-weight: 800;
+	text-align: center;
 }
 .paginateCol {
-  white-space: nowrap;
-  overflow: hidden;
+	white-space: nowrap;
+	overflow: hidden;
 }
 .displayCol {
-  white-space: nowrap;
+	white-space: nowrap;
 }
 .pageRow {
-  white-space: nowrap;
+	white-space: nowrap;
 }

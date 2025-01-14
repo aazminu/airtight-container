@@ -1,0 +1,72 @@
+.invoiceCreatorWrapper {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.selectorTable {
+	max-height: 30rem;
+	overflow: auto;
+}
+.step3Table {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	width: min-content;
+	margin-top: 15px;
+}
+.selectorTable > thead {
+	position: sticky;
+}
+
+.directionBtns {
+	padding-top: 10px;
+}
+
+.footerBtn {
+	margin-top: 15px !important;
+	margin-bottom: 15px !important;
+}
+.addNewCustomer {
+	margin-top: 25px;
+}
+.selectedCustomer {
+	background-color: darkgray !important;
+}
+.selectedCustomer > td > button.addBtn {
+	background-color: var(--main-bg-color) !important;
+}
+
+.generateBtn {
+	margin-top: 15px;
+	width: min-content;
+	margin-left: 0px !important;
+	font-size: 18px;
+}
+.invoiceContainerRow td {
+	text-align: center !important;
+}
+.invoiceContainerNumberInput {
+	max-width: 50px !important;
+	border: 1px solid black !important;
+}
+
+.invoiceContainerInput {
+	max-width: 120px !important;
+	border: 1px solid black !important;
+}
+.hidden {
+	display: none;
+}
+.emailPrompt {
+	display: flex;
+}
+.emailPrompt > label {
+	text-wrap: nowrap;
+	padding-top: 5px;
+}
+.finalButtons {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
