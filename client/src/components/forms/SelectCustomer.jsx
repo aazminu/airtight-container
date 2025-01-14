@@ -11,7 +11,7 @@ function SelectCustomer({ sendSelectedCustomer }) {
 	const [customers, setCustomers] = useState([]);
 	const [addNew, setAddNew] = useState(false);
 	useEffect(() => {
-		fetch(`api/v2/contact`, {
+		fetch(`/api/v2/contact`, {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -52,7 +52,7 @@ function SelectCustomer({ sendSelectedCustomer }) {
 	};
 
 	const saveCustomer = (customer) => {
-		fetch(`api/v2/contact`, {
+		fetch(`/api/v2/contact`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",

@@ -15,7 +15,7 @@ function InvoiceDetails({ invoice }) {
 		);
 		if (!confirm) return;
 		fetch(
-			`api/v2/invoice/container/${container_id}`,
+			`/api/v2/invoice/container/${container_id}`,
 			{
 				method: "DELETE",
 				headers: {
@@ -36,7 +36,7 @@ function InvoiceDetails({ invoice }) {
 	};
 
 	const updateSalesTax = async (e) => {
-		fetch(`api/v2/invoice/${invoice.invoice_id}`, {
+		fetch(`/api/v2/invoice/${invoice.invoice_id}`, {
 			method: "PUT",
 			headers: {
 				"Content-Type": "application/json",

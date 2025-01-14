@@ -18,7 +18,7 @@ function ReleaseForm({ type, company, deleteCompany }) {
 	}, [company.numbers]);
 
 	const addRelease = () => {
-		fetch(`api/v2/release/`, {
+		fetch(`/api/v2/release/`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -55,7 +55,7 @@ function ReleaseForm({ type, company, deleteCompany }) {
 
 	const removeRelease = (content) => {
 		console.log("ID PASSED: " + content.release_id);
-		fetch(`api/v2/release/${content.release_id}`, {
+		fetch(`/api/v2/release/${content.release_id}`, {
 			method: "DELETE",
 			headers: {
 				"Content-Type": "application/json",

@@ -7,7 +7,7 @@ function UserList() {
 	const { setPopup } = useContext(userContext);
 	const [accounts, setAccounts] = useState([]);
 	useEffect(() => {
-		fetch(`api/v2/dashboard`, {
+		fetch(`/api/v2/dashboard`, {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -34,7 +34,7 @@ function UserList() {
 		);
 		if (!confirm) return;
 
-		fetch(`api/v2/dashboard/${user.id}`, {
+		fetch(`/api/v2/dashboard/${user.id}`, {
 			method: "DELETE",
 			headers: {
 				"Content-Type": "application/json",
@@ -58,7 +58,7 @@ function UserList() {
 		);
 		if (!confirm) return;
 
-		fetch(`api/v2/dashboard/${account.id}`, {
+		fetch(`/api/v2/dashboard/${account.id}`, {
 			method: "PUT",
 			headers: {
 				"Content-Type": "application/json",

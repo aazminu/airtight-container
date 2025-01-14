@@ -39,7 +39,7 @@ function DeliverySheet() {
 	};
 
 	useEffect(() => {
-		fetch("api/v1/inventory/sold", {
+		fetch("/api/v1/inventory/sold", {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -60,7 +60,7 @@ function DeliverySheet() {
 				setSelection(data.data.inventory[0].unit_number);
 			});
 
-		fetch(`api/v2/contact`, {
+		fetch(`/api/v2/contact`, {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -85,7 +85,7 @@ function DeliverySheet() {
 		outbound_date
 	) => {
 		fetch(
-			`api/v1/inventory/sold/deliverysheet/${id}`,
+			`/api/v1/inventory/sold/deliverysheet/${id}`,
 			{
 				method: "PUT",
 				headers: {

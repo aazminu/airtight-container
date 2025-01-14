@@ -5,11 +5,11 @@ import { userContext } from "../../context/restaurantcontext";
 function UpcomingOutbounds({ type }) {
 	const { setPopup } = useContext(userContext);
 	const [boxes, setBoxes] = useState([]);
-	var url = "api/v1/inventory";
+	var url = "/api/v1/inventory";
 	if (type === "available" || type === "hold") {
-		url = "api/v1/inventory";
+		url = "/api/v1/inventory";
 	} else {
-		url = "api/v1/inventory/sold";
+		url = "/api/v1/inventory/sold";
 	}
 	useEffect(() => {
 		fetch(url, {

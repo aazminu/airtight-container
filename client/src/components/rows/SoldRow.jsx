@@ -48,7 +48,7 @@ function SoldRow({ container, onDelete }) {
 	const saveEdits = (updatedContainer) => {
 		console.log(updatedContainer);
 		fetch(
-			`api/v1/inventory/sold/invoice/${updatedContainer.inventory_id}`,
+			`/api/v1/inventory/sold/invoice/${updatedContainer.inventory_id}`,
 			{
 				method: "PUT",
 				headers: {
@@ -80,7 +80,7 @@ function SoldRow({ container, onDelete }) {
 		if (!confirm) return;
 
 		fetch(
-			`api/v1/inventory/outbound/${currentContainer.inventory_id}`,
+			`/api/v1/inventory/outbound/${currentContainer.inventory_id}`,
 			{
 				method: "PUT",
 				headers: {

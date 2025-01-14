@@ -8,7 +8,7 @@ function SendInvoice({ generate }) {
   const [options, setOptions] = useState([]);
 
   useEffect(() => {
-    fetch('api/v1/inventory/sold', {
+    fetch('/api/v1/inventory/sold', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json'
