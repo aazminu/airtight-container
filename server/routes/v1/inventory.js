@@ -31,6 +31,7 @@ const checkAdmin = (req, res, next) => {
 };
 
 router.get("/", checkAuth, async (req, res) => {
+	console.log("HITTING");
 	try {
 		const results = await db.query(
 			"select * from inventory ORDER BY date DESC"

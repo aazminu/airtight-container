@@ -16,7 +16,7 @@ function InventoryList() {
 	const [currentPage, setCurrentPage] = useState([]);
 
 	useEffect(() => {
-		fetch("/api/v1/inventory", {
+		fetch("http://localhost:8080/api/v1/inventory", {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -44,7 +44,7 @@ function InventoryList() {
 		if (!confirm) return;
 
 		try {
-			await fetch(`/api/v1/inventory/${id}`, {
+			await fetch(`http://localhost:8080/api/v1/inventory/${id}`, {
 				method: "DELETE",
 				headers: {
 					"Content-Type": "application/json",

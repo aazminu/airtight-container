@@ -289,7 +289,7 @@ function InvoiceForm({ invoiceData }) {
 		invoiceHtml = invoiceHtml.replace("*", subTotal.toFixed(2));
 		invoiceHtml = invoiceHtml.replace("+", total.toFixed(2));
 
-		fetch("/api/v1/send", {
+		fetch("http://localhost:8080/api/v1/send", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",

@@ -11,7 +11,7 @@ function CustomerRow({ customer, sendContactUpstream, sendSelected }) {
 	const [selected, setSelected] = useState(false);
 	const updateContact = (editedContact) => {
 		fetch(
-			`/api/v2/contact/${editedContact.contact_id}`,
+			`http://localhost:8080/api/v2/contact/${editedContact.contact_id}`,
 			{
 				method: "PUT",
 				headers: {
