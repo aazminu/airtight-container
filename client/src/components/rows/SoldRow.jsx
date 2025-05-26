@@ -65,6 +65,8 @@ function SoldRow({ container, onDelete }) {
 			setShowEdit(!showEdit);
 			return res.json();
 		});
+
+		window.location.reload();
 	};
 
 	const markOutbound = () => {

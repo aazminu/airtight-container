@@ -43,6 +43,7 @@ const groupInvoices = (data) => {
 				invoice_id: row.invoice_id,
 				invoice_number: row.invoice_number,
 				invoice_taxed: row.invoice_taxed,
+				invoice_credit: row.invoice_credit,
 				invoice_date: row.invoice_date,
 				customer: {
 					contact_id: row.contact_id,
@@ -66,6 +67,7 @@ const groupInvoices = (data) => {
 			trucking_rate: row.trucking_rate,
 			sale_price: row.sale_price,
 			outbound_date: row.outbound_date,
+			invoice_notes: row.invoice_notes,
 		});
 		return acc;
 	}, []);
@@ -75,7 +77,7 @@ const groupInvoices = (data) => {
 router.get("/", checkAuth, async (req, res) => {
 	try {
 		const results = await db.query(
-			"SELECT i.*, c.*, ct.id, ct.unit_number, ct.size, ct.damage, ct.state, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price FROM invoices i JOIN contacts c ON i.contact_id = c.contact_id JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id JOIN inventory ct ON ci.container_id = ct.id LEFT JOIN sold sc ON ct.id = sc.inventory_id ORDER BY i.invoice_id DESC"
+			"SELECT i.*, c.*, ct.id, ct.unit_number, ct.size, ct.damage, ct.state, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price, sc.invoice_notes FROM invoices i JOIN contacts c ON i.contact_id = c.contact_id JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id JOIN inventory ct ON ci.container_id = ct.id LEFT JOIN sold sc ON ct.id = sc.inventory_id ORDER BY i.invoice_id DESC"
 		);
 		let groupedInvoices = groupInvoices(results.rows);
 		res.status(200).json({
@@ -109,7 +111,7 @@ router.get("/latest", async (req, res) => {
 router.get("/:id", checkAuth, async (req, res) => {
 	try {
 		const results = await db.query(
-			"SELECT i.*, c.*, ct.unit_number, ct.size, ct.damage, ct.state, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price FROM invoices i JOIN contacts c ON i.contact_id = c.contact_id JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id JOIN inventory ct ON ci.container_id = ct.id LEFT JOIN sold sc ON ct.id = sc.inventory_id WHERE i.invoice_id = $1 ORDER BY i.invoice_id, ci.container_id",
+			"SELECT i.*, c.*, ct.unit_number, ct.size, ct.damage, ct.state, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price, sc.invoice_notes FROM invoices i JOIN contacts c ON i.contact_id = c.contact_id JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id JOIN inventory ct ON ci.container_id = ct.id LEFT JOIN sold sc ON ct.id = sc.inventory_id WHERE i.invoice_id = $1 ORDER BY i.invoice_id, ci.container_id",
 			[req.params.id]
 		);
 		let groupedInvoices = groupInvoices(results.rows);
@@ -134,11 +136,12 @@ router.get("/:id", checkAuth, async (req, res) => {
 router.post("/", checkAuth, async (req, res) => {
 	try {
 		const results = await db.query(
-			"INSERT INTO invoices (invoice_number, contact_id, invoice_taxed) VALUES ($1, $2, $3) RETURNING invoice_id",
+			"INSERT INTO invoices (invoice_number, contact_id, invoice_taxed, invoice_credit) VALUES ($1, $2, $3, $4) RETURNING invoice_id",
 			[
 				req.body.invoice_number,
 				req.body.contact_id,
 				req.body.invoice_taxed,
+				req.body.invoice_credit,
 			]
 		);
 
@@ -153,6 +156,7 @@ router.post("/", checkAuth, async (req, res) => {
 
 		res.status(200).json({
 			status: "success",
+			id: invoiceID,
 		});
 	} catch (err) {
 		console.log(err);
@@ -162,14 +166,30 @@ router.post("/", checkAuth, async (req, res) => {
 
 //PUTS
 
-// ONLY ALLOWING TAXATION TO BE MUTABLE-- INVOICE NUMBERS WILL BE PROCEDURALLY
+// ONLY ALLOWING TAXATION/CARD USAGE TO BE MUTABLE-- INVOICE NUMBERS WILL BE PROCEDURALLY
 // GENERATED AND CONTACT ID WILL NEVER CHANGE, CONTACT PUTS IN "contacts.js"
-router.put("/:id", checkAuth, async (req, res) => {
+router.put("/tax/:id", checkAuth, async (req, res) => {
 	try {
-		console.log("called: " + req.body.invoice_taxed);
+		console.log("called UPDATE TAX: " + req.body.invoice_taxed);
 		const results = await db.query(
 			"UPDATE invoices SET invoice_taxed = $1 WHERE invoice_id = $2",
 			[req.body.invoice_taxed, req.params.id]
+		);
+		res.status(200).json({
+			status: "success",
+		});
+	} catch (err) {
+		console.log(err);
+		res.status(400);
+	}
+});
+
+router.put("/credit/:id", checkAuth, async (req, res) => {
+	try {
+		console.log("called UPDATE CREDIT: " + req.body.invoice_credit);
+		const results = await db.query(
+			"UPDATE invoices SET invoice_credit = $1 WHERE invoice_id = $2",
+			[req.body.invoice_credit, req.params.id]
 		);
 		res.status(200).json({
 			status: "success",

@@ -1,7 +1,6 @@
 import React from "react";
 import "../styles/reports.css";
 import IOReport from "../components/reports/IOReport";
-import SendInvoice from "../components/reports/SendInvoice";
 import DeliverySheet from "../components/reports/DeliverySheet";
 function Reports() {
 	return (

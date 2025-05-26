@@ -12,9 +12,13 @@ function CreateInvoice() {
 	 TODO: Whole thing is kinda fucked because state is lost when back/next is hit
 	 need to maintain each subcomponent's state by passing/updating out somehow
 	 this is a problem for tomorrow harry
+	 UPDATE: Tomorrow harry does not feel like doing this he could do it with context
+	 		 but that's a lot of effort
 	*/
 	const { setPopup } = useContext(userContext);
 	const [finalInvoiceInfo, setFinalInvoiceInfo] = useState(null);
+	const [genInvoiceID, setGenInvoiceID] = useState(0);
+
 	const [generate, setGenerate] = useState(false);
 	const [step, setStep] = useState(1);
 	const stepInstructions = [
@@ -28,6 +32,7 @@ function CreateInvoice() {
 	});
 	const [emailContact, setEmailContact] = useState(false);
 	const [hasSalesTax, setHasSalesTax] = useState(false);
+	const [usingCreditCard, setUsingCreditCard] = useState(false);
 
 	const generateInvoice = async () => {
 		const newInvoiceNumber = await calculateInvoiceNumber();
@@ -39,6 +44,7 @@ function CreateInvoice() {
 			send_email: emailContact,
 			invoice_number: newInvoiceNumber,
 			invoice_taxed: hasSalesTax,
+			invoice_credit: usingCreditCard,
 			customer: {
 				contact_id: selectedContact.contact_id,
 				contact_name: selectedContact.contact_name,
@@ -167,12 +173,19 @@ function CreateInvoice() {
 				invoice_taxed: invoiceData.invoice_taxed,
 			}),
 			credentials: "include",
-		}).then((res) => {
-			if (!res.ok) {
-				setPopup("ERROR could not add Invoice to Database");
-				return;
-			}
-		});
+		})
+			.then((res) => {
+				if (!res.ok) {
+					setPopup("ERROR could not add Invoice to Database");
+					return;
+				}
+				return res.json();
+			})
+			.then((data) => {
+				if (!data) return;
+				console.log("DATA: ", data);
+				setGenInvoiceID(data.id);
+			});
 	};
 	return (
 		<div className="invoiceCreatorWrapper">
@@ -245,22 +258,29 @@ function CreateInvoice() {
 					selectedContact.contact_id !== "null" && (
 						<div className="finalButtons">
 							<div className="emailPrompt">
-								<label>
-									Send email to{" "}
-									<span className="bold">
-										{selectedContact.contact_email}
-									</span>
-									?
-								</label>
-								<span className="checkboxLine invoiceCheck">
-									<input
-										type="checkbox"
-										checked={emailContact}
-										onChange={() =>
-											setEmailContact(!emailContact)
-										}
-									></input>
-								</span>
+								{selectedContact.contact_email && (
+									<>
+										<label>
+											Send email to{" "}
+											<span className="bold">
+												{selectedContact.contact_email}
+											</span>
+											?
+										</label>
+
+										<span className="checkboxLine invoiceCheck">
+											<input
+												type="checkbox"
+												checked={emailContact}
+												onChange={() =>
+													setEmailContact(
+														!emailContact
+													)
+												}
+											></input>
+										</span>
+									</>
+								)}
 							</div>
 							<div className="emailPrompt">
 								<label>Sales Tax?</label>
@@ -274,6 +294,18 @@ function CreateInvoice() {
 									></input>
 								</span>
 							</div>
+							<div className="emailPrompt">
+								<label>Using Credit Card?</label>
+								<span className="checkboxLine invoiceCheck">
+									<input
+										type="checkbox"
+										checked={usingCreditCard}
+										onChange={() =>
+											setUsingCreditCard(!usingCreditCard)
+										}
+									></input>
+								</span>
+							</div>
 							<button
 								className="addBtn generateBtn"
 								onClick={() => generateInvoice()}
@@ -282,7 +314,9 @@ function CreateInvoice() {
 							</button>
 						</div>
 					)}
-				{generate && <InvoiceForm invoiceData={finalInvoiceInfo} />}
+				{generate && (
+					<InvoiceForm invoiceID={genInvoiceID} sendEmail={true} />
+				)}
 			</div>
 		</div>
 	);

@@ -37,7 +37,6 @@ const App = () => {
 		)
 	);
 	let url = window.location.href;
-	console.log("URL", url);
 	return (
 		<>
 			<Provider>

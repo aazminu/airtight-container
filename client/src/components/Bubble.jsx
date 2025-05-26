@@ -4,7 +4,6 @@ import exit from "../assets/images/exit.png";
 import exithover from "../assets/images/exithover.png";
 function Bubble({ content, deleteBubble }) {
 	const [source, setSource] = useState(exit);
-	if (content.release_id === 169) console.log(content);
 	return (
 		<div className="bubble">
 			<span>

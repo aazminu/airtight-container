@@ -1,3 +1,5 @@
+// DEPRECATED-- NO LONGER USING THIS COMPONENT SEE "InvoiceRow.jsx" for use of SoldRow
+
 import React from "react";
 import { useEffect, useState } from "react";
 import SoldRow from "../rows/SoldRow";

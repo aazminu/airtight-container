@@ -83,7 +83,6 @@ function AddForm() {
 	};
 	const submitForm = (e) => {
 		e.preventDefault();
-		console.log("submitting and posting allegedly");
 		addContainer(newContainer);
 	};
 
@@ -127,7 +126,6 @@ function AddForm() {
 							release.release_number_id ===
 							releaseNumber.release_number_id
 						) {
-							console.log(release.release_number_value);
 							release.release_number_count--;
 						}
 					});

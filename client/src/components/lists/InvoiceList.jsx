@@ -12,7 +12,7 @@ function InvoiceList() {
 	const [invoices, setInvoices] = useState([]);
 	const [filters, setFilters] = useState([]);
 	const [page, setPage] = useState(1);
-	const [displayNum, setDisplayNum] = useState(5);
+	const [displayNum, setDisplayNum] = useState(40);
 	const [currentPage, setCurrentPage] = useState([]);
 	useEffect(() => {
 		fetch("http://localhost:8080/api/v2/invoice", {
@@ -167,6 +167,7 @@ function InvoiceList() {
 								<select
 									className="pgDisplayDropdown"
 									onChange={changePageDisplay}
+									defaultValue={40}
 								>
 									<option value={10}>10</option>
 									<option value={20}>20</option>
