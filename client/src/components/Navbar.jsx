@@ -11,7 +11,7 @@ function Navbar() {
 	const { user, setUser, setPopup } = useContext(userContext);
 
 	const logout = () => {
-		fetch("/api/v1/auth/logout", {
+		fetch("http://localhost:8080/api/v1/auth/logout", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",

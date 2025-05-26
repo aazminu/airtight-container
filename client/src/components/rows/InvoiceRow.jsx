@@ -5,11 +5,34 @@ import downArrow from "../../assets/images/downarrow.png";
 import upArrow from "../../assets/images/uparrow.png";
 import InvoiceDetails from "./InvoiceDetails";
 import InvoiceForm from "../forms/InvoiceForm";
+import EmailPrompt from "../EmailPrompt";
 function Row({ invoice, deleteInvoice }) {
+	// Container for invoice data
 	const [currentInvoice, setCurrentInvoice] = useState(invoice);
 	const [invDate, setInvDate] = useState(invoice.invoice_date);
+	// Bool to render the invoice upon clicking "regenerate"
 	const [regenerate, setRegenerate] = useState(false);
+	// Bool to conditionally render the customer/container details per invoice
 	const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
+	// Bool to conditionally render the customer/container details per invoice
+	const [showEmailPrompt, setShowEmailPrompt] = useState(false);
+	// Retrieves result of prompt and passes on to generator
+	const [sendingEmail, setSendingEmail] = useState(false);
+
+	// Initialize invoice with passed data
+	useEffect(() => {
+		setCurrentInvoice(invoice);
+	}, [invoice]);
+
+	// Expects a bool returned from <EmailPrompt/> component's setSendEmail
+	const retrievePromptRes = (res) => {
+		setShowEmailPrompt(!showEmailPrompt);
+		if (res === "CANCEL") return;
+		setSendingEmail(res);
+		// Hide prompt & regenerate
+		regenerateInvoice();
+	};
+
 	// Sanitize Date
 	const regenerateInvoice = () => {
 		let address = invoice.customer.contact_address;
@@ -25,12 +48,8 @@ function Row({ invoice, deleteInvoice }) {
 		}));
 		setRegenerate(!regenerate);
 	};
-	useEffect(() => {
-		setCurrentInvoice(invoice);
-	}, [invoice]);
 
 	useEffect(() => {
-		console.log(invoice);
 		var newDate = invoice.invoice_date.replaceAll("T", " ");
 		var ind = newDate.indexOf(".");
 		setInvDate(newDate.substring(0, ind));
@@ -44,7 +63,7 @@ function Row({ invoice, deleteInvoice }) {
 				<td>
 					<button
 						className="addBtn regenBtn"
-						onClick={() => regenerateInvoice()}
+						onClick={() => setShowEmailPrompt(!showEmailPrompt)}
 					>
 						Regenerate Invoice
 					</button>
@@ -77,7 +96,17 @@ function Row({ invoice, deleteInvoice }) {
 					</td>
 				</tr>
 			)}
-			{regenerate && <InvoiceForm invoiceData={currentInvoice} />}
+
+			{showEmailPrompt && (
+				<EmailPrompt setSendEmail={retrievePromptRes} />
+			)}
+
+			{regenerate && (
+				<InvoiceForm
+					invoiceID={currentInvoice.invoice_id}
+					sendEmail={sendingEmail}
+				/>
+			)}
 		</>
 	);
 }

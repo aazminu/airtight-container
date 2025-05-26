@@ -1,32 +1,64 @@
 import React from "react";
-import { useEffect, useContext } from "react";
+import { useEffect, useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { userContext } from "../../context/restaurantcontext";
-function InvoiceForm({ invoiceData }) {
-	const date = new Date();
-
+function InvoiceForm({ invoiceID, sendEmail }) {
 	const { setPopup } = useContext(userContext);
+	const [invoiceData, setInvoiceData] = useState({});
 	const navigate = useNavigate();
+
 	useEffect(() => {
-		generateInvoice();
-	});
+		console.log("FETCHING");
+		fetch(`http://localhost:8080/api/v2/invoice/${invoiceID}`, {
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
+		})
+			.then((res) => {
+				if (!res.ok) {
+					setPopup("ERROR Unable to get requested invoice");
+					return;
+				}
+				return res.json();
+			})
+			.then((data) => {
+				console.log(
+					"DIRECT FROM FETCH: ",
+					data.data.invoices[0].containers
+				);
+				setInvoiceData(data.data.invoices[0]);
+			});
+	}, [setPopup, invoiceID]);
+
+	useEffect(() => {
+		if (Object.keys(invoiceData).length > 0) {
+			console.log("GENERATING");
+			generateInvoice();
+		}
+	}, [invoiceData]);
+
+	console.log("CREATING DATE OBJ");
+	const date = new Date(invoiceData.invoice_date);
 
 	const generateInvoice = () => {
+		console.log("OBJ IN GEN FN:", invoiceData);
 		// The following is one big template string which is styled to look like
 		// the invoice.
 		let invoiceHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-    <div class='invoice'>
+        <html lang="en">
+        <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body>
+        <div class='invoice'>
         <div class='invTop'>
-            <div class='invTitle'>
-                <h1 class='invTitle'>INVOICE</h1>
-            </div>
+        <div class='invTitle'>
+        <h1 class='invTitle'>INVOICE</h1>
+        </div>
             <div class='invLogo'>
               |
             </div>
@@ -40,9 +72,12 @@ function InvoiceForm({ invoiceData }) {
           <p>TO</p>
           <span class='invAddress'> ${
 				invoiceData.customer.contact_name
-			} <br/> ${invoiceData.customer.contact_address} <br/> ${
-			invoiceData.customer.contact_tsz
-		} <br/> ${invoiceData.customer.contact_phone} <br/> ${
+			} <br/> ${invoiceData.customer.contact_address.substring(
+			0,
+			invoiceData.customer.contact_address.indexOf(",") + 1
+		)} <br/> ${invoiceData.customer.contact_address.substring(
+			invoiceData.customer.contact_address.indexOf(",") + 1
+		)} <br/> ${invoiceData.customer.contact_phone} <br/> ${
 			invoiceData.customer.contact_email
 		} </span>
         </div>
@@ -98,6 +133,12 @@ function InvoiceForm({ invoiceData }) {
                         Sales Tax
                     </td>
                     <td class="allborder">^</td>
+                  </tr>
+                  <tr class="invTableRow noLeft">
+                    <td colspan="3" class="spanItem bold">
+                        3.5% Credit Card Fee
+                    </td>
+                    <td class="allborder">*</td>
                   </tr>
                   <tr class="invTableRow noLeft">
                     <td colspan="3" class="spanItem">
@@ -257,66 +298,82 @@ function InvoiceForm({ invoiceData }) {
 		let subTotal = 0;
 		let total = 0;
 		let salesTax = 0;
+		let creditFee = 0;
 
+		// Insert HTML directly into the form foreach container
 		for (let i = 0; i < invoiceData.containers.length; i++) {
 			let itemizedRow = `<tr class="invTableRow">
-        <td>1</td>
-        <td>${invoiceData.containers[i].invoice_notes || ""} ${
-				invoiceData.containers[i].unit_number
-			}</td>
-        <td>${invoiceData.containers[i].sale_price}</td>
-        <td>${invoiceData.containers[i].sale_price}</td>
-      </tr>
-      <tr class="invTableRow">
-          <td>1</td>
-          <td>DELIVERY FEE TO ${invoiceData.containers[i].destination}</td>
-          <td></td>
-          <td>${invoiceData.containers[i].trucking_rate}</td>
-      </tr>`;
+                                <td>1</td>
+                                <td>${
+									invoiceData.containers[i].invoice_notes ||
+									""
+								} ${invoiceData.containers[i].unit_number}</td>
+                                <td>${invoiceData.containers[i].sale_price}</td>
+                                <td>${invoiceData.containers[i].sale_price}</td>
+                              </tr>
+                              <tr class="invTableRow">
+                                <td>1</td>
+                                <td>DELIVERY FEE TO ${
+									invoiceData.containers[i].destination
+								}</td>
+                                <td></td>
+                                <td>${
+									invoiceData.containers[i].trucking_rate
+								}</td>
+                              </tr>`;
 			insertString = insertString.concat(itemizedRow);
 			subTotal +=
 				parseInt(invoiceData.containers[i].sale_price) +
 				parseInt(invoiceData.containers[i].trucking_rate);
 		}
+		// Calculate totals based on tax/credit card fee
+		// NOTE: Each of the replace chars ^, ~, *, + are placeholders
+		if (invoiceData.invoice_taxed) salesTax = subTotal * 0.06625;
 
-		if (invoiceData.invoice_taxed) {
-			salesTax = subTotal * 0.06625;
-			invoiceHtml = invoiceHtml.replace("^", salesTax.toFixed(2));
-		} else invoiceHtml = invoiceHtml.replace("^", "");
+		if (invoiceData.invoice_credit) {
+			creditFee = (subTotal + salesTax) * 0.035;
+		}
 
-		total = subTotal + salesTax;
+		total = subTotal + salesTax + creditFee;
 		invoiceHtml = invoiceHtml.replace("~", insertString);
 		invoiceHtml = invoiceHtml.replace("*", subTotal.toFixed(2));
+		invoiceHtml = invoiceHtml.replace("^", salesTax.toFixed(2));
+		invoiceHtml = invoiceHtml.replace("*", creditFee.toFixed(2));
 		invoiceHtml = invoiceHtml.replace("+", total.toFixed(2));
 
-		fetch("/api/v1/send", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				to: invoiceData.send_email
-					? invoiceData.customer.contact_email
-					: "michelle@airtightstorage.com",
-				bcc: [
-					"greg@airtightstorage.com",
-					"michelle@airtightstorage.com",
-					"vagabond7257@gmail.com",
-					"hlynch02@tufts.edu",
-				],
-				subject: `INVOICE to ${
-					invoiceData.customer.contact_name
-				} : ${date.toDateString().substring(3)}`,
-				html: invoiceHtml,
-			}),
-			credentials: "include",
-		}).then((res) => {
-			if (!res.ok) setPopup("ERROR Failed to send");
-			else {
-				setPopup("Email sent!");
-			}
-		});
+		// Conditionally send email
+		if (sendEmail) {
+			console.log("SENDING EMAIL");
+			fetch("http://localhost:8080/api/v1/send", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					to: invoiceData.send_email
+						? invoiceData.customer.contact_email
+						: "michelle@airtightstorage.com",
+					bcc: [
+						"greg@airtightstorage.com",
+						"michelle@airtightstorage.com",
+						"vagabond7257@gmail.com",
+						"hlynch02@tufts.edu",
+					],
+					subject: `INVOICE to ${
+						invoiceData.customer.contact_name
+					} : ${date.toDateString().substring(3)}`,
+					html: invoiceHtml,
+				}),
+				credentials: "include",
+			}).then((res) => {
+				if (!res.ok) setPopup("ERROR Failed to send");
+				else {
+					setPopup("Email sent!");
+				}
+			});
+		}
 
+		// Display the form
 		navigate("/reports/form", {
 			state: {
 				type: "invoice",

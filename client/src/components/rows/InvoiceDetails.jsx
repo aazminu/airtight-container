@@ -6,6 +6,7 @@ import { useState, useContext } from "react";
 function InvoiceDetails({ invoice }) {
 	const { setPopup } = useContext(userContext);
 	const [salesTax, setSalesTax] = useState(invoice.invoice_taxed);
+	const [creditCard, setCreditCard] = useState(invoice.invoice_credit);
 	const [invoiceContainers, setInvoiceContainers] = useState(
 		invoice.containers
 	);
@@ -15,7 +16,7 @@ function InvoiceDetails({ invoice }) {
 		);
 		if (!confirm) return;
 		fetch(
-			`/api/v2/invoice/container/${container_id}`,
+			`http://localhost:8080/api/v2/invoice/container/${container_id}`,
 			{
 				method: "DELETE",
 				headers: {
@@ -36,16 +37,19 @@ function InvoiceDetails({ invoice }) {
 	};
 
 	const updateSalesTax = async (e) => {
-		fetch(`/api/v2/invoice/${invoice.invoice_id}`, {
-			method: "PUT",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				invoice_taxed: !salesTax,
-			}),
-			credentials: "include",
-		}).then((res) => {
+		fetch(
+			`http://localhost:8080/api/v2/invoice/tax/${invoice.invoice_id}`,
+			{
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					invoice_taxed: !salesTax,
+				}),
+				credentials: "include",
+			}
+		).then((res) => {
 			if (!res.ok) {
 				setPopup("Unable to change tax status of invoice");
 				return;
@@ -53,6 +57,29 @@ function InvoiceDetails({ invoice }) {
 			setSalesTax(!salesTax);
 		});
 	};
+
+	const updateCreditCardUsed = async (e) => {
+		fetch(
+			`http://localhost:8080/api/v2/invoice/credit/${invoice.invoice_id}`,
+			{
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					invoice_credit: !creditCard,
+				}),
+				credentials: "include",
+			}
+		).then((res) => {
+			if (!res.ok) {
+				setPopup("Unable to change tax status of invoice");
+				return;
+			}
+			setCreditCard(!creditCard);
+		});
+	};
+
 	return (
 		<div className="invoiceDetails">
 			<div>
@@ -63,6 +90,7 @@ function InvoiceDetails({ invoice }) {
 						<th scope="col">Phone Number</th>
 						<th scope="col">Business/Home Address</th>
 						<th scope="col">Sales Tax Applied</th>
+						<th scope="col">Credit Card Used</th>
 					</tr>
 					<tr className="invoiceRow">
 						<td>{invoice.customer.contact_name}</td>
@@ -75,6 +103,15 @@ function InvoiceDetails({ invoice }) {
 									type="checkbox"
 									checked={salesTax}
 									onChange={updateSalesTax}
+								></input>
+							</span>
+						</td>
+						<td>
+							<span className="checkboxLine invoiceCheck">
+								<input
+									type="checkbox"
+									checked={creditCard}
+									onChange={updateCreditCardUsed}
 								></input>
 							</span>
 						</td>

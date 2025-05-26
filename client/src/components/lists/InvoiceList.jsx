@@ -12,10 +12,10 @@ function InvoiceList() {
 	const [invoices, setInvoices] = useState([]);
 	const [filters, setFilters] = useState([]);
 	const [page, setPage] = useState(1);
-	const [displayNum, setDisplayNum] = useState(5);
+	const [displayNum, setDisplayNum] = useState(40);
 	const [currentPage, setCurrentPage] = useState([]);
 	useEffect(() => {
-		fetch("/api/v2/invoice", {
+		fetch("http://localhost:8080/api/v2/invoice", {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -44,7 +44,7 @@ function InvoiceList() {
 			deleteContainerFromInvoice(container.inventory_id);
 		}
 
-		fetch(`/api/v2/invoice/${invoice.invoice_id}`, {
+		fetch(`http://localhost:8080/api/v2/invoice/${invoice.invoice_id}`, {
 			method: "DELETE",
 			headers: {
 				"Content-Type": "application/json",
@@ -66,7 +66,7 @@ function InvoiceList() {
 
 	const deleteContainerFromInvoice = async (container_id) => {
 		fetch(
-			`/api/v2/invoice/container/${container_id}`,
+			`http://localhost:8080/api/v2/invoice/container/${container_id}`,
 			{
 				method: "DELETE",
 				headers: {
@@ -167,6 +167,7 @@ function InvoiceList() {
 								<select
 									className="pgDisplayDropdown"
 									onChange={changePageDisplay}
+									defaultValue={40}
 								>
 									<option value={10}>10</option>
 									<option value={20}>20</option>
