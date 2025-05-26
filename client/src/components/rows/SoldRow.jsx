@@ -48,7 +48,7 @@ function SoldRow({ container, onDelete }) {
 	const saveEdits = (updatedContainer) => {
 		console.log(updatedContainer);
 		fetch(
-			`http://localhost:8080/api/v1/inventory/sold/invoice/${updatedContainer.inventory_id}`,
+			`/api/v1/inventory/sold/invoice/${updatedContainer.inventory_id}`,
 			{
 				method: "PUT",
 				headers: {
@@ -81,16 +81,13 @@ function SoldRow({ container, onDelete }) {
 		);
 		if (!confirm) return;
 
-		fetch(
-			`http://localhost:8080/api/v1/inventory/outbound/${currentContainer.inventory_id}`,
-			{
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				credentials: "include",
-			}
-		)
+		fetch(`/api/v1/inventory/outbound/${currentContainer.inventory_id}`, {
+			method: "PUT",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
+		})
 			.then((res) => {
 				if (!res.ok) {
 					setPopup("ERROR Unable to mark outbound");

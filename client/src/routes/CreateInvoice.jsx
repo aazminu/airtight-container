@@ -110,16 +110,13 @@ function CreateInvoice() {
 
 	const getMostRecentInvoiceNumber = async () => {
 		try {
-			const res = await fetch(
-				`http://localhost:8080/api/v2/invoice/latest`,
-				{
-					method: "GET",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					credentials: "include",
-				}
-			);
+			const res = await fetch(`/api/v2/invoice/latest`, {
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				credentials: "include",
+			});
 			if (!res.ok) {
 				setPopup("ERROR Could not fetch most recent invoice number.");
 			}
@@ -132,7 +129,7 @@ function CreateInvoice() {
 	};
 
 	const markContainerSold = async (container, invoice_number) => {
-		fetch(`http://localhost:8080/api/v1/inventory/sold`, {
+		fetch(`/api/v1/inventory/sold`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -161,7 +158,7 @@ function CreateInvoice() {
 		);
 	};
 	const postInvoice = (invoiceData) => {
-		fetch(`http://localhost:8080/api/v2/invoice`, {
+		fetch(`/api/v2/invoice`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",

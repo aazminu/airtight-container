@@ -15,16 +15,13 @@ function InvoiceDetails({ invoice }) {
 			"Are you sure you want to remove this container from this invoice?"
 		);
 		if (!confirm) return;
-		fetch(
-			`http://localhost:8080/api/v2/invoice/container/${container_id}`,
-			{
-				method: "DELETE",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				credentials: "include",
-			}
-		).then((res) => {
+		fetch(`/api/v2/invoice/container/${container_id}`, {
+			method: "DELETE",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
+		}).then((res) => {
 			if (!res.ok) {
 				setPopup("Unable to send container back to inventory");
 			}
@@ -37,19 +34,16 @@ function InvoiceDetails({ invoice }) {
 	};
 
 	const updateSalesTax = async (e) => {
-		fetch(
-			`http://localhost:8080/api/v2/invoice/tax/${invoice.invoice_id}`,
-			{
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					invoice_taxed: !salesTax,
-				}),
-				credentials: "include",
-			}
-		).then((res) => {
+		fetch(`/api/v2/invoice/tax/${invoice.invoice_id}`, {
+			method: "PUT",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				invoice_taxed: !salesTax,
+			}),
+			credentials: "include",
+		}).then((res) => {
 			if (!res.ok) {
 				setPopup("Unable to change tax status of invoice");
 				return;
@@ -59,19 +53,16 @@ function InvoiceDetails({ invoice }) {
 	};
 
 	const updateCreditCardUsed = async (e) => {
-		fetch(
-			`http://localhost:8080/api/v2/invoice/credit/${invoice.invoice_id}`,
-			{
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					invoice_credit: !creditCard,
-				}),
-				credentials: "include",
-			}
-		).then((res) => {
+		fetch(`/api/v2/invoice/credit/${invoice.invoice_id}`, {
+			method: "PUT",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				invoice_credit: !creditCard,
+			}),
+			credentials: "include",
+		}).then((res) => {
 			if (!res.ok) {
 				setPopup("Unable to change tax status of invoice");
 				return;
