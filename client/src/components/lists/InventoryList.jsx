@@ -24,7 +24,7 @@ function InventoryList() {
 			credentials: "include",
 		})
 			.then((res) => {
-				console.log("STATUS", res.status);
+				console.log("STATUS IN PROD", res.status);
 				if (!res.ok) {
 					setPopup("ERROR Unable to get Inventory");
 					return undefined;
