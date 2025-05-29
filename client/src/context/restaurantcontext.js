@@ -6,7 +6,7 @@ export const Provider = (props) => {
 	const [user, setUser] = useState({});
 	const [popup, setPopup] = useState("");
 	useEffect(() => {
-		fetch("http://localhost:8080/api/v1/auth", {
+		fetch("/api/v1/auth", {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
