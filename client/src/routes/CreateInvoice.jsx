@@ -17,7 +17,7 @@ function CreateInvoice() {
 	*/
 	const { setPopup } = useContext(userContext);
 	const [finalInvoiceInfo, setFinalInvoiceInfo] = useState(null);
-	const [genInvoiceID, setGenInvoiceID] = useState(0);
+	const [genInvoiceID, setGenInvoiceID] = useState(-1);
 
 	const [generate, setGenerate] = useState(false);
 	const [step, setStep] = useState(1);
@@ -59,7 +59,9 @@ function CreateInvoice() {
 			await markContainerSold(container, newInvoiceNumber);
 			invoiceInfo.containers = [...invoiceInfo.containers, container];
 		}
-		postInvoice(invoiceInfo);
+		let id = await postInvoice(invoiceInfo);
+		if (id === null) return;
+		setGenInvoiceID(id);
 		setFinalInvoiceInfo(invoiceInfo);
 		setGenerate(true);
 	};
@@ -157,32 +159,32 @@ function CreateInvoice() {
 				invoice_number
 		);
 	};
-	const postInvoice = (invoiceData) => {
-		fetch(`/api/v2/invoice`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				containers: invoiceData.containers,
-				invoice_number: invoiceData.invoice_number,
-				contact_id: invoiceData.customer.contact_id,
-				invoice_taxed: invoiceData.invoice_taxed,
-			}),
-			credentials: "include",
-		})
-			.then((res) => {
-				if (!res.ok) {
-					setPopup("ERROR could not add Invoice to Database");
-					return;
-				}
-				return res.json();
-			})
-			.then((data) => {
-				if (!data) return;
-				console.log("DATA: ", data);
-				setGenInvoiceID(data.id);
+  
+	const postInvoice = async (invoiceData) => {
+		try {
+			const res = await fetch(`http://localhost:8080/api/v2/invoice`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					containers: invoiceData.containers,
+					invoice_number: invoiceData.invoice_number,
+					contact_id: invoiceData.customer.contact_id,
+					invoice_taxed: invoiceData.invoice_taxed,
+				}),
+				credentials: "include",
 			});
+			if (!res.ok) {
+				setPopup("ERROR Unable to save Invoice");
+				return null;
+			}
+			const data = await res.json();
+			return data.id;
+		} catch (err) {
+			setPopup("ERROR Unable to save Invoice");
+			return null;
+		}
 	};
 	return (
 		<div className="invoiceCreatorWrapper">
@@ -311,7 +313,7 @@ function CreateInvoice() {
 							</button>
 						</div>
 					)}
-				{generate && (
+				{generate && genInvoiceID !== -1 && (
 					<InvoiceForm invoiceID={genInvoiceID} sendEmail={true} />
 				)}
 			</div>

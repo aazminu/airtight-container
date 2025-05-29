@@ -43,9 +43,12 @@ function SelectCustomer({ sendSelectedCustomer }) {
 					.toLowerCase()
 					.includes(value.toLowerCase())
 			) {
-				filterHolder.push(customers[i].id);
+				filterHolder.push(customers[i].contact_id);
+			} else {
+				console.log("Match found");
 			}
 		}
+		console.log("FILTERS", filterHolder);
 		setFilters(filterHolder);
 		filterHolder = [];
 		console.log(customers);
@@ -105,9 +108,10 @@ function SelectCustomer({ sendSelectedCustomer }) {
 					<tbody>
 						{filters.length > 0
 							? customers.map((customer) => {
-									console.log("Filtering");
 									return (
-										!filters.includes(customer.id) && (
+										!filters.includes(
+											customer.contact_id
+										) && (
 											<CustomerRow
 												customer={customer}
 												sendContactUpstream={
