@@ -25,10 +25,6 @@ function InvoiceForm({ invoiceID, sendEmail }) {
 				return res.json();
 			})
 			.then((data) => {
-				console.log(
-					"DIRECT FROM FETCH: ",
-					data.data.invoices[0].containers
-				);
 				setInvoiceData(data.data.invoices[0]);
 			});
 	}, [setPopup, invoiceID]);

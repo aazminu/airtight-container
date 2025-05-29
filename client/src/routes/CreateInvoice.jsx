@@ -187,6 +187,7 @@ function CreateInvoice() {
 			return null;
 		}
 	};
+	console.log("HELLO PROD");
 	return (
 		<div className="invoiceCreatorWrapper">
 			<h1 className="invHeader">
