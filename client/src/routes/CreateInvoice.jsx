@@ -60,10 +60,11 @@ function CreateInvoice() {
 			invoiceInfo.containers = [...invoiceInfo.containers, container];
 		}
 		let id = await postInvoice(invoiceInfo);
+		console.log("ID === " + id);
 		if (id === null) return;
 		setGenInvoiceID(id);
 		setFinalInvoiceInfo(invoiceInfo);
-		setGenerate(true);
+		setTimeout(() => setGenerate(true), 0);
 	};
 
 	const recieveFinalContainer = (updatedContainer) => {
