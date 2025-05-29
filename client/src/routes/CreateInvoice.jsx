@@ -176,6 +176,7 @@ function CreateInvoice() {
 				return null;
 			}
 			const data = await res.json();
+			console.log("DATA FROM FETCH: ", data);
 			return data.id;
 		} catch (err) {
 			setPopup("ERROR Unable to save Invoice");
@@ -310,7 +311,7 @@ function CreateInvoice() {
 							</button>
 						</div>
 					)}
-				{generate !== 0 && (
+				{generate !== -1 && (
 					<InvoiceForm invoiceID={generate} sendEmail={true} />
 				)}
 			</div>
