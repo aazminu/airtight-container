@@ -159,10 +159,10 @@ function CreateInvoice() {
 				invoice_number
 		);
 	};
-  
+
 	const postInvoice = async (invoiceData) => {
 		try {
-			const res = await fetch(`http://localhost:8080/api/v2/invoice`, {
+			const res = await fetch(`/api/v2/invoice`, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
