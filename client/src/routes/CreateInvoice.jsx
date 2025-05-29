@@ -16,10 +16,7 @@ function CreateInvoice() {
 	 		 but that's a lot of effort
 	*/
 	const { setPopup } = useContext(userContext);
-	const [finalInvoiceInfo, setFinalInvoiceInfo] = useState(null);
-	const [genInvoiceID, setGenInvoiceID] = useState(-1);
-
-	const [generate, setGenerate] = useState(false);
+	const [generate, setGenerate] = useState(-1);
 	const [step, setStep] = useState(1);
 	const stepInstructions = [
 		"Select Containers Sold",
@@ -62,9 +59,7 @@ function CreateInvoice() {
 		let id = await postInvoice(invoiceInfo);
 		console.log("ID === " + id);
 		if (id === null) return;
-		setGenInvoiceID(id);
-		setFinalInvoiceInfo(invoiceInfo);
-		setTimeout(() => setGenerate(true), 0);
+		setTimeout(() => setGenerate(id), 0);
 	};
 
 	const recieveFinalContainer = (updatedContainer) => {
@@ -315,8 +310,8 @@ function CreateInvoice() {
 							</button>
 						</div>
 					)}
-				{generate && genInvoiceID !== -1 && (
-					<InvoiceForm invoiceID={genInvoiceID} sendEmail={true} />
+				{generate !== 0 && (
+					<InvoiceForm invoiceID={generate} sendEmail={true} />
 				)}
 			</div>
 		</div>
