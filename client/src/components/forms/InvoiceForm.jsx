@@ -10,7 +10,7 @@ function InvoiceForm({ invoiceID, sendEmail }) {
 
 	useEffect(() => {
 		console.log("FETCHING");
-		fetch(`/api/v2/invoice/${invoiceID}`, {
+		fetch(`http://localhost:8080/api/v2/invoice/${invoiceID}`, {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -340,7 +340,7 @@ function InvoiceForm({ invoiceID, sendEmail }) {
 		// Conditionally send email
 		if (sendEmail) {
 			console.log("SENDING EMAIL");
-			fetch("/api/v1/send", {
+			fetch("http://localhost:8080/api/v1/send", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",

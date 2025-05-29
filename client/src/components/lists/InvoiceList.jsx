@@ -15,7 +15,7 @@ function InvoiceList() {
 	const [displayNum, setDisplayNum] = useState(40);
 	const [currentPage, setCurrentPage] = useState([]);
 	useEffect(() => {
-		fetch("/api/v2/invoice", {
+		fetch("http://localhost:8080/api/v2/invoice", {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -44,7 +44,7 @@ function InvoiceList() {
 			deleteContainerFromInvoice(container.inventory_id);
 		}
 
-		fetch(`/api/v2/invoice/${invoice.invoice_id}`, {
+		fetch(`http://localhost:8080/api/v2/invoice/${invoice.invoice_id}`, {
 			method: "DELETE",
 			headers: {
 				"Content-Type": "application/json",
@@ -65,13 +65,16 @@ function InvoiceList() {
 	};
 
 	const deleteContainerFromInvoice = async (container_id) => {
-		fetch(`/api/v2/invoice/container/${container_id}`, {
-			method: "DELETE",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			credentials: "include",
-		}).then((res) => {
+		fetch(
+			`http://localhost:8080/api/v2/invoice/container/${container_id}`,
+			{
+				method: "DELETE",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				credentials: "include",
+			}
+		).then((res) => {
 			if (!res.ok) {
 				setPopup("Unable to remove container from invoice");
 			}

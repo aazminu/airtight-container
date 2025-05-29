@@ -10,16 +10,19 @@ function CustomerRow({ customer, sendContactUpstream, sendSelected }) {
 	const [showEdit, setShowEdit] = useState(false);
 	const [selected, setSelected] = useState(false);
 	const updateContact = (editedContact) => {
-		fetch(`/api/v2/contact/${editedContact.contact_id}`, {
-			method: "PUT",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				editedContact,
-			}),
-			credentials: "include",
-		}).then((res) => {
+		fetch(
+			`http://localhost:8080/api/v2/contact/${editedContact.contact_id}`,
+			{
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					editedContact,
+				}),
+				credentials: "include",
+			}
+		).then((res) => {
 			if (!res.ok) {
 				setPopup("ERROR Unable to edit contact");
 				return;

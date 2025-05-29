@@ -20,7 +20,7 @@ function Auth() {
 	const authUser = (e) => {
 		e.preventDefault();
 		let endpoint = authType.toLowerCase();
-		fetch(`/api/v1/auth/${endpoint}`, {
+		fetch(`http://localhost:8080/api/v1/auth/${endpoint}`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",

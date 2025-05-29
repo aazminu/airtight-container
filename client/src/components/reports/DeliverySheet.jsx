@@ -39,7 +39,7 @@ function DeliverySheet() {
 	};
 
 	useEffect(() => {
-		fetch("/api/v1/inventory/sold", {
+		fetch("http://localhost:8080/api/v1/inventory/sold", {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -60,7 +60,7 @@ function DeliverySheet() {
 				setSelection(data.data.inventory[0].unit_number);
 			});
 
-		fetch(`/api/v2/contact`, {
+		fetch(`http://localhost:8080/api/v2/contact`, {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -84,17 +84,20 @@ function DeliverySheet() {
 		outbound_trucker,
 		outbound_date
 	) => {
-		fetch(`/api/v1/inventory/sold/deliverysheet/${id}`, {
-			method: "PUT",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				outbound_trucker: outbound_trucker,
-				outbound_date: outbound_date,
-			}),
-			credentials: "include",
-		}).then((res) => {
+		fetch(
+			`http://localhost:8080/api/v1/inventory/sold/deliverysheet/${id}`,
+			{
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					outbound_trucker: outbound_trucker,
+					outbound_date: outbound_date,
+				}),
+				credentials: "include",
+			}
+		).then((res) => {
 			if (!res.ok) {
 				setPopup(
 					"ERROR Could not update sold information on container"

@@ -8,7 +8,7 @@ function SetReleases() {
 	const [newName, setNewName] = useState("");
 	const [add, setAdd] = useState(false);
 	useEffect(() => {
-		fetch("/api/v2/release", {
+		fetch("http://localhost:8080/api/v2/release", {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -35,7 +35,7 @@ function SetReleases() {
 			"Are you sure you want to remove this company?"
 		);
 		if (!confirm) return;
-		fetch(`/api/v2/release/company/${id}`, {
+		fetch(`http://localhost:8080/api/v2/release/company/${id}`, {
 			method: "DELETE",
 			headers: {
 				"Content-Type": "application/json",
@@ -56,7 +56,7 @@ function SetReleases() {
 	};
 
 	const addNew = (e) => {
-		fetch("/api/v2/release/company", {
+		fetch("http://localhost:8080/api/v2/release/company", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",

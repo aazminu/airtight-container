@@ -13,7 +13,7 @@ function SoldList() {
 	const [displayNum, setDisplayNum] = useState(5);
 	const [currentPage, setCurrentPage] = useState([]);
 	useEffect(() => {
-		fetch("/api/v1/inventory/sold", {
+		fetch("http://localhost:8080/api/v1/inventory/sold", {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -43,13 +43,16 @@ function SoldList() {
 		if (!confirm) return;
 
 		try {
-			const res = await fetch(`/api/v1/inventory/sold/${id}`, {
-				method: "DELETE",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				credentials: "include",
-			});
+			const res = await fetch(
+				`http://localhost:8080/api/v1/inventory/sold/${id}`,
+				{
+					method: "DELETE",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					credentials: "include",
+				}
+			);
 			setInventory(
 				inventory.filter((container) => {
 					return container.id !== id;
@@ -59,16 +62,19 @@ function SoldList() {
 			console.log(error);
 		}
 		try {
-			const res = await fetch(`/api/v1/inventory/sold/available/${id}`, {
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					inventory_id: inv_id,
-				}),
-				credentials: "include",
-			})
+			const res = await fetch(
+				`http://localhost:8080/api/v1/inventory/sold/available/${id}`,
+				{
+					method: "PUT",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						inventory_id: inv_id,
+					}),
+					credentials: "include",
+				}
+			)
 				.then((res) => {
 					if (!res.ok) {
 						console.log("error");
