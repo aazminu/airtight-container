@@ -20,7 +20,7 @@ function AddForm() {
 
 	// Get all current release numbers
 	useEffect(() => {
-		fetch(`http://localhost:8080/api/v2/release/numbers`, {
+		fetch(`/api/v2/release/numbers`, {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -91,7 +91,7 @@ function AddForm() {
 			return release.release_number_value === container.acceptance_number;
 		});
 
-		fetch("http://localhost:8080/api/v1/inventory/add", {
+		fetch("/api/v1/inventory/add", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",

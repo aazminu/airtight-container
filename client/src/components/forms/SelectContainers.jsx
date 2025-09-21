@@ -9,7 +9,7 @@ function SelectContainers({ sendSelectedContainers }) {
 	const [containers, setContainers] = useState([]);
 
 	useEffect(() => {
-		fetch(`http://localhost:8080/api/v1/inventory/state`, {
+		fetch(`/api/v1/inventory/state`, {
 			method: "PUT",
 			headers: {
 				"Content-Type": "application/json",
