@@ -16,7 +16,7 @@ function CreateInvoice() {
 	 		 but that's a lot of effort
 	*/
 	const { setPopup } = useContext(userContext);
-	const [generate, setGenerate] = useState(0);
+	const [generate, setGenerate] = useState(-1);
 	const [step, setStep] = useState(1);
 	const stepInstructions = [
 		"Select Containers Sold",
