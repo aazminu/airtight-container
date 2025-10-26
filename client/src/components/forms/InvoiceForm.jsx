@@ -300,6 +300,7 @@ function InvoiceForm({ invoiceID, sendEmail }) {
 		for (let i = 0; i < invoiceData.containers.length; i++) {
 			let modRow = "";
 			if (invoiceData.containers[i].modification_price !== 0) {
+				// Dynamically insert modifications if there are any
 				modRow = `<tr class="invTableRow">
                                 <td>1</td>
                                 <td>

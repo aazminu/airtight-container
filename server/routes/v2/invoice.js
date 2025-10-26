@@ -66,6 +66,7 @@ const groupInvoices = (data) => {
 			destination: row.destination,
 			trucking_rate: row.trucking_rate,
 			sale_price: row.sale_price,
+			modification_price: row.modification_price,
 			outbound_date: row.outbound_date,
 			invoice_notes: row.invoice_notes,
 		});
@@ -77,7 +78,7 @@ const groupInvoices = (data) => {
 router.get("/", checkAuth, async (req, res) => {
 	try {
 		const results = await db.query(
-			"SELECT i.*, c.*, ct.id, ct.unit_number, ct.size, ct.damage, ct.state, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price, sc.invoice_notes FROM invoices i JOIN contacts c ON i.contact_id = c.contact_id JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id JOIN inventory ct ON ci.container_id = ct.id LEFT JOIN sold sc ON ct.id = sc.inventory_id ORDER BY i.invoice_id DESC"
+			"SELECT i.*, c.*, ct.id, ct.unit_number, ct.size, ct.damage, ct.state, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price, sc.modification_price, sc.invoice_notes FROM invoices i JOIN contacts c ON i.contact_id = c.contact_id JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id JOIN inventory ct ON ci.container_id = ct.id LEFT JOIN sold sc ON ct.id = sc.inventory_id ORDER BY i.invoice_id DESC"
 		);
 		let groupedInvoices = groupInvoices(results.rows);
 		res.status(200).json({
@@ -111,7 +112,7 @@ router.get("/latest", async (req, res) => {
 router.get("/:id", checkAuth, async (req, res) => {
 	try {
 		const results = await db.query(
-			"SELECT i.*, c.*, ct.unit_number, ct.size, ct.damage, ct.state, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price, sc.invoice_notes FROM invoices i JOIN contacts c ON i.contact_id = c.contact_id JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id JOIN inventory ct ON ci.container_id = ct.id LEFT JOIN sold sc ON ct.id = sc.inventory_id WHERE i.invoice_id = $1 ORDER BY i.invoice_id, ci.container_id",
+			"SELECT i.*, c.*, ct.unit_number, ct.size, ct.damage, ct.state, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price, sc.modification_price, sc.invoice_notes FROM invoices i JOIN contacts c ON i.contact_id = c.contact_id JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id JOIN inventory ct ON ci.container_id = ct.id LEFT JOIN sold sc ON ct.id = sc.inventory_id WHERE i.invoice_id = $1 ORDER BY i.invoice_id, ci.container_id",
 			[req.params.id]
 		);
 		let groupedInvoices = groupInvoices(results.rows);
