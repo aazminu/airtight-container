@@ -298,6 +298,17 @@ function InvoiceForm({ invoiceID, sendEmail }) {
 
 		// Insert HTML directly into the form foreach container
 		for (let i = 0; i < invoiceData.containers.length; i++) {
+			let modRow = "";
+			if (invoiceData.containers[i].modification_price !== 0) {
+				modRow = `<tr class="invTableRow">
+                                <td>1</td>
+                                <td>
+                                    Modification Cost For ${invoiceData.containers[i].unit_number}
+						        </td>
+                                <td></td>
+                                <td>${invoiceData.containers[i].modification_price}</td>
+                            </tr>`;
+			}
 			let itemizedRow = `<tr class="invTableRow">
                                 <td>1</td>
                                 <td>${
@@ -307,6 +318,7 @@ function InvoiceForm({ invoiceID, sendEmail }) {
                                 <td>${invoiceData.containers[i].sale_price}</td>
                                 <td>${invoiceData.containers[i].sale_price}</td>
                               </tr>
+                              ${modRow}
                               <tr class="invTableRow">
                                 <td>1</td>
                                 <td>DELIVERY FEE TO ${
@@ -320,6 +332,7 @@ function InvoiceForm({ invoiceID, sendEmail }) {
 			insertString = insertString.concat(itemizedRow);
 			subTotal +=
 				parseInt(invoiceData.containers[i].sale_price) +
+				parseInt(invoiceData.containers[i].modification_price) +
 				parseInt(invoiceData.containers[i].trucking_rate);
 		}
 		// Calculate totals based on tax/credit card fee
