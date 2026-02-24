@@ -1,44 +1,13 @@
-const { Router } = require("express");
-const db = require("../../db");
-const router = Router();
+import express from "express";
+import db from "../../db/index.js";
+import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
 
-const checkAuth = (req, res, next) => {
-	if (req.session.permissions !== "none") return next();
-	else {
-		console.log("Unauth'd action");
-		res.status(401).json({
-			message: "Unauthorized action",
-			user: {
-				email: req.session.email,
-				permissions: req.session.permissions,
-			},
-		});
-	}
-};
-
-const checkAdmin = (req, res, next) => {
-	if (req.session.permissions === "admin") return next();
-	else {
-		console.log("Unauth'd admin action", req.session.permissions);
-		res.status(401).json({
-			message: "Unauthorized action, admin access only.",
-			user: {
-				email: req.session.email,
-				permissions: req.session.permissions,
-			},
-		});
-	}
-};
-
-//GETS
-
-// Logic for de-flattening sql result for invoices
+const router = express.Router();
 
 const groupInvoices = (data) => {
-	const groupedData = data.reduce((acc, row) => {
+	return data.reduce((acc, row) => {
 		let invoice = acc.find((inv) => inv.invoice_id === row.invoice_id);
 		if (!invoice) {
-			// Add a new invoice entry
 			invoice = {
 				invoice_id: row.invoice_id,
 				invoice_number: row.invoice_number,
@@ -56,7 +25,6 @@ const groupInvoices = (data) => {
 			};
 			acc.push(invoice);
 		}
-		// Add the container to the invoice
 		invoice.containers.push({
 			inventory_id: row.id,
 			unit_number: row.unit_number,
@@ -72,25 +40,21 @@ const groupInvoices = (data) => {
 		});
 		return acc;
 	}, []);
-	return groupedData;
 };
 
-router.get("/", checkAuth, async (req, res) => {
+router.get("/", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
 			"SELECT i.*, c.*, ct.id, ct.unit_number, ct.size, ct.damage, ct.state, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price, sc.modification_price, sc.invoice_notes FROM invoices i JOIN contacts c ON i.contact_id = c.contact_id JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id JOIN inventory ct ON ci.container_id = ct.id LEFT JOIN sold sc ON ct.id = sc.inventory_id ORDER BY i.invoice_id DESC"
 		);
-		let groupedInvoices = groupInvoices(results.rows);
+		const groupedInvoices = groupInvoices(results.rows);
 		res.status(200).json({
 			status: "success",
 			results: groupedInvoices.length,
-			data: {
-				invoices: groupedInvoices,
-			},
+			data: { invoices: groupedInvoices },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -104,37 +68,28 @@ router.get("/latest", async (req, res) => {
 			latest: results.rows[0].invoice_number,
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-router.get("/:id", checkAuth, async (req, res) => {
+router.get("/:id", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
 			"SELECT i.*, c.*, ct.unit_number, ct.size, ct.damage, ct.state, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price, sc.modification_price, sc.invoice_notes FROM invoices i JOIN contacts c ON i.contact_id = c.contact_id JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id JOIN inventory ct ON ci.container_id = ct.id LEFT JOIN sold sc ON ct.id = sc.inventory_id WHERE i.invoice_id = $1 ORDER BY i.invoice_id, ci.container_id",
 			[req.params.id]
 		);
-		let groupedInvoices = groupInvoices(results.rows);
+		const groupedInvoices = groupInvoices(results.rows);
 		res.status(200).json({
 			status: "success",
 			results: groupedInvoices.length,
-			data: {
-				invoices: groupedInvoices,
-			},
+			data: { invoices: groupedInvoices },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-//POSTS
-
-// Adds an invoice and a set of containers into that invoice
-// Requires invoice number, id of the contact to whom the invoice goes, and
-// invoice_taxed (bool)
-router.post("/", checkAuth, async (req, res) => {
+router.post("/", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
 			"INSERT INTO invoices (invoice_number, contact_id, invoice_taxed, invoice_credit) VALUES ($1, $2, $3, $4) RETURNING invoice_id",
@@ -145,81 +100,54 @@ router.post("/", checkAuth, async (req, res) => {
 				req.body.invoice_credit,
 			]
 		);
-
 		const invoiceID = results.rows[0].invoice_id;
-		console.log(results.rows);
 		for (const container of req.body.containers) {
 			await db.query(
 				"INSERT INTO invoice_containers (invoice_id, container_id) VALUES ($1, $2)",
 				[invoiceID, container.id]
 			);
 		}
-
-		res.status(200).json({
-			status: "success",
-			id: invoiceID,
-		});
+		res.status(200).json({ status: "success", id: invoiceID });
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-//PUTS
-
-// ONLY ALLOWING TAXATION/CARD USAGE TO BE MUTABLE-- INVOICE NUMBERS WILL BE PROCEDURALLY
-// GENERATED AND CONTACT ID WILL NEVER CHANGE, CONTACT PUTS IN "contacts.js"
-router.put("/tax/:id", checkAuth, async (req, res) => {
+router.put("/tax/:id", checkEmployee, async (req, res) => {
 	try {
-		console.log("called UPDATE TAX: " + req.body.invoice_taxed);
-		const results = await db.query(
+		await db.query(
 			"UPDATE invoices SET invoice_taxed = $1 WHERE invoice_id = $2",
 			[req.body.invoice_taxed, req.params.id]
 		);
-		res.status(200).json({
-			status: "success",
-		});
+		res.status(200).json({ status: "success" });
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-router.put("/credit/:id", checkAuth, async (req, res) => {
+router.put("/credit/:id", checkEmployee, async (req, res) => {
 	try {
-		console.log("called UPDATE CREDIT: " + req.body.invoice_credit);
-		const results = await db.query(
+		await db.query(
 			"UPDATE invoices SET invoice_credit = $1 WHERE invoice_id = $2",
 			[req.body.invoice_credit, req.params.id]
 		);
-		res.status(200).json({
-			status: "success",
-		});
+		res.status(200).json({ status: "success" });
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
-
-// DELETES
 
 router.delete("/:id", checkAdmin, async (req, res) => {
 	try {
-		const results = await db.query(
-			"DELETE from invoices where invoice_id = $1",
-			[req.params.id]
-		);
-		res.status(200).json({
-			status: "success",
-		});
+		await db.query("DELETE from invoices where invoice_id = $1", [
+			req.params.id,
+		]);
+		res.status(200).json({ status: "success" });
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-// REMOVE CONTAINER FROM AN INVOICE
-// and send back to available containers on "inventory" page.
 router.delete("/container/:id", checkAdmin, async (req, res) => {
 	try {
 		await db.query(
@@ -233,13 +161,10 @@ router.delete("/container/:id", checkAdmin, async (req, res) => {
 			"UPDATE inventory SET state = 'available' WHERE id = $1",
 			[req.params.id]
 		);
-		res.status(200).json({
-			status: "success",
-		});
+		res.status(200).json({ status: "success" });
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-module.exports = router;
+export default router;

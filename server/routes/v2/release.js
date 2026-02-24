@@ -1,47 +1,16 @@
-const { Router } = require("express");
-const db = require("../../db");
-const router = Router();
+import express from "express";
+import db from "../../db/index.js";
+import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
 
-const checkAuth = (req, res, next) => {
-	if (req.session.permissions !== "none") return next();
-	else {
-		console.log("Unauth'd action");
-		res.status(401).json({
-			message: "Unauthorized action",
-			user: {
-				email: req.session.email,
-				permissions: req.session.permissions,
-			},
-		});
-	}
-};
+const router = express.Router();
 
-const checkAdmin = (req, res, next) => {
-	if (req.session.permissions === "admin") return next();
-	else {
-		console.log("Unauth'd admin action", req.session.permissions);
-		res.status(401).json({
-			message: "Unauthorized action, admin access only.",
-			user: {
-				email: req.session.email,
-				permissions: req.session.permissions,
-			},
-		});
-	}
-};
-
-// Helper function to format releases in a nice way with data taken from db.
 const groupReleases = (data) => {
 	let finalObj = [];
 	for (const release of data) {
-		let currObj = {};
-		currObj = finalObj.find(
+		let currObj = finalObj.find(
 			(company) => company.id == release.sale_company_id
 		);
 		if (!currObj) {
-			// This is really scuffed but obj.push returns length of new arr
-			// so this sets currObj to the latest added object which should be
-			// the one just added which would be the proper company obj
 			currObj =
 				finalObj[
 					finalObj.push({
@@ -51,7 +20,6 @@ const groupReleases = (data) => {
 					}) - 1
 				];
 		}
-		// Make sure release values are not-null (This makes empty companies have empty numbers[] lists)
 		if (
 			release.release_number_id &&
 			release.release_number_count &&
@@ -64,31 +32,26 @@ const groupReleases = (data) => {
 			});
 		}
 	}
-
 	return finalObj;
 };
 
-//GETS
-router.get("/", checkAuth, async (req, res) => {
+router.get("/", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
 			"SELECT sc.sale_company_name, sc.sale_company_id, rn.release_number_id, rn.release_number_count, rn.release_number_value FROM sale_companies sc LEFT JOIN release_numbers rn ON rn.sale_company_id = sc.sale_company_id ORDER BY sc.sale_company_id"
 		);
-		let releases = groupReleases(results.rows);
+		const releases = groupReleases(results.rows);
 		res.status(200).json({
 			status: "success",
 			results: releases.length,
-			data: {
-				releases: releases,
-			},
+			data: { releases },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-router.get("/numbers", checkAuth, async (req, res) => {
+router.get("/numbers", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
 			"SELECT release_number_id, release_number_count, release_number_value FROM release_numbers"
@@ -96,19 +59,13 @@ router.get("/numbers", checkAuth, async (req, res) => {
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
-			data: {
-				releases: results.rows,
-			},
+			data: { releases: results.rows },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-//POSTS
-
-// Add a release number under a given company, expects ID of company, #, and ct.
 router.post("/", checkAdmin, async (req, res) => {
 	try {
 		const results = await db.query(
@@ -121,12 +78,10 @@ router.post("/", checkAdmin, async (req, res) => {
 			data: results.rows,
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-// Add a company to the dashboard, expects a company name in body.
 router.post("/company", checkAdmin, async (req, res) => {
 	try {
 		const results = await db.query(
@@ -136,23 +91,13 @@ router.post("/company", checkAdmin, async (req, res) => {
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
-			data: {
-				inventory: results.rows,
-			},
+			data: { inventory: results.rows },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-//PUTS
-
-// NO PUTS
-
-//DELETES
-
-// deletes a given release # by ID
 router.delete("/:id", checkAdmin, async (req, res) => {
 	try {
 		const results = await db.query(
@@ -162,17 +107,13 @@ router.delete("/:id", checkAdmin, async (req, res) => {
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
-			data: {
-				inventory: results.rows,
-			},
+			data: { inventory: results.rows },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-// Delete a given company, takes the company id
 router.delete("/company/:id", checkAdmin, async (req, res) => {
 	try {
 		const results = await db.query(
@@ -182,14 +123,11 @@ router.delete("/company/:id", checkAdmin, async (req, res) => {
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
-			data: {
-				inventory: results.rows,
-			},
+			data: { inventory: results.rows },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-module.exports = router;
+export default router;

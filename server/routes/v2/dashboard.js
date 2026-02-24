@@ -1,77 +1,54 @@
-const { Router } = require("express");
-const db = require("../../db");
-const router = Router();
+import express from "express";
+import db from "../../db/index.js";
+import { checkAdmin } from "../../middleware/auth.js";
 
-const checkAdmin = (req, res, next) => {
-	if (req.session.permissions === "admin") return next();
-	else {
-		console.log("Unauth'd admin action", req.session.permissions);
-		res.status(401).json({
-			message: "Unauthorized action, admin access only.",
-			user: {
-				email: req.session.email,
-				permissions: req.session.permissions,
-			},
-		});
-	}
-};
+const router = express.Router();
 
-//GETS
+// Map Better Auth role to frontend permissions label and vice versa.
+// Frontend uses "none"; Better Auth uses "pending" for unpromoted users.
+const roleToPermissions = (role) => (role === "pending" ? "none" : role);
+const permissionsToRole = (perm) => (perm === "none" ? "pending" : perm);
+
 router.get("/", checkAdmin, async (req, res) => {
 	try {
 		const results = await db.query(
-			"SELECT email, permissions, id FROM users ORDER BY permissions"
+			'SELECT id, email, role FROM "user" ORDER BY role'
 		);
+		const accounts = results.rows.map((u) => ({
+			id: u.id,
+			email: u.email,
+			permissions: roleToPermissions(u.role),
+		}));
 		res.status(200).json({
 			status: "success",
-			results: results.rows.length,
-			accounts: results.rows,
+			results: accounts.length,
+			accounts,
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
-
-//POSTS
-
-// NO POSTS
-
-//PUTS
 
 router.put("/:id", checkAdmin, async (req, res) => {
 	try {
-		const results = await db.query(
-			"UPDATE users SET permissions = $1 where id = $2",
-			[req.body.new_permissions, req.params.id]
-		);
-		res.status(200).json({
-			status: "success",
-		});
+		const role = permissionsToRole(req.body.new_permissions);
+		await db.query('UPDATE "user" SET role = $1 WHERE id = $2', [
+			role,
+			req.params.id,
+		]);
+		res.status(200).json({ status: "success" });
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
-
-// DELETES
 
 router.delete("/:id", checkAdmin, async (req, res) => {
 	try {
-		const results = await db.query("DELETE from users where id = $1", [
-			req.params.id,
-		]);
-		res.status(200).json({
-			status: "success",
-			results: results.rows.length,
-			data: {
-				inventory: results.rows,
-			},
-		});
+		await db.query('DELETE FROM "user" WHERE id = $1', [req.params.id]);
+		res.status(200).json({ status: "success" });
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-module.exports = router;
+export default router;

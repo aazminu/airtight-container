@@ -9,3 +9,7 @@
 !.elasticbeanstalk/*.global.yml
 postgres-db/*
 notepad.sql
+/node_modules
+/package.json
+/package-lock.json
+out.txt

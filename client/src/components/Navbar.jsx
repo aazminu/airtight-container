@@ -11,26 +11,21 @@ function Navbar() {
 	const { user, setUser, setPopup } = useContext(userContext);
 
 	const logout = () => {
-		fetch("/api/v1/auth/logout", {
+		fetch("/api/auth/sign-out", {
 			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
+			headers: { "Content-Type": "application/json" },
 			credentials: "include",
 		}).then((res) => {
-			if (!res.ok)
-				return setPopup("ERROR There was an error logging out");
-			else {
-				setUser({ email: "unauthorized", permissions: "unauthorized" });
-				window.location.href = "/auth";
-			}
-			return res.json();
+			if (!res.ok) return setPopup("ERROR There was an error logging out");
+			setUser({ email: "unauthorized", permissions: "unauthorized" });
+			window.location.href = "/auth";
 		});
 	};
 
 	const changeWidth = () => {
 		userWidth === "40px" ? setuserWidth("45px") : setuserWidth("40px");
 	};
+
 	return (
 		<div className="navbar">
 			<img src={logo} alt="logo" width={"10%"}></img>
@@ -80,9 +75,7 @@ function Navbar() {
 				{showUserOps && (
 					<div className="profileDropdown">
 						<div>
-							{user.email === "unauthorized"
-								? "Guest"
-								: user.email}
+							{user.email === "unauthorized" ? "Guest" : user.email}
 						</div>
 						<button
 							className="logoutBtn authBtn"

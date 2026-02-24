@@ -1,37 +1,10 @@
-const { Router } = require("express");
-const db = require("../../db");
-const router = Router();
+import express from "express";
+import db from "../../db/index.js";
+import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
 
-const checkAuth = (req, res, next) => {
-	if (req.session.permissions !== "none") return next();
-	else {
-		console.log("Unauth'd action");
-		res.status(401).json({
-			message: "Unauthorized action",
-			user: {
-				email: req.session.email,
-				permissions: req.session.permissions,
-			},
-		});
-	}
-};
+const router = express.Router();
 
-const checkAdmin = (req, res, next) => {
-	if (req.session.permissions === "admin") return next();
-	else {
-		console.log("Unauth'd admin action", req.session.permissions);
-		res.status(401).json({
-			message: "Unauthorized action, admin access only.",
-			user: {
-				email: req.session.email,
-				permissions: req.session.permissions,
-			},
-		});
-	}
-};
-
-//GETS
-router.get("/", checkAuth, async (req, res) => {
+router.get("/", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
 			"select * from releases ORDER BY company"
@@ -39,17 +12,13 @@ router.get("/", checkAuth, async (req, res) => {
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
-			data: {
-				inventory: results.rows,
-			},
+			data: { inventory: results.rows },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-//POSTS
 router.post("/", checkAdmin, async (req, res) => {
 	try {
 		const results = await db.query(
@@ -59,17 +28,13 @@ router.post("/", checkAdmin, async (req, res) => {
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
-			data: {
-				inventory: results.rows,
-			},
+			data: { inventory: results.rows },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-//PUTS
 router.put("/:id", checkAdmin, async (req, res) => {
 	try {
 		const results = await db.query(
@@ -79,17 +44,13 @@ router.put("/:id", checkAdmin, async (req, res) => {
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
-			data: {
-				inventory: results.rows,
-			},
+			data: { inventory: results.rows },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-//DELETES
 router.delete("/:id", checkAdmin, async (req, res) => {
 	try {
 		const results = await db.query("DELETE FROM releases where id=$1", [
@@ -98,14 +59,11 @@ router.delete("/:id", checkAdmin, async (req, res) => {
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
-			data: {
-				inventory: results.rows,
-			},
+			data: { inventory: results.rows },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-module.exports = router;
+export default router;

@@ -1,37 +1,10 @@
-const { Router } = require("express");
-const db = require("../../db");
-const router = Router();
+import express from "express";
+import db from "../../db/index.js";
+import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
 
-const checkAuth = (req, res, next) => {
-	if (req.session.permissions !== "none") return next();
-	else {
-		console.log("Unauth'd action");
-		res.status(401).json({
-			message: "Unauthorized action",
-			user: {
-				email: req.session.email,
-				permissions: req.session.permissions,
-			},
-		});
-	}
-};
+const router = express.Router();
 
-const checkAdmin = (req, res, next) => {
-	if (req.session.permissions === "admin") return next();
-	else {
-		console.log("Unauth'd admin action", req.session.permissions);
-		res.status(401).json({
-			message: "Unauthorized action, admin access only.",
-			user: {
-				email: req.session.email,
-				permissions: req.session.permissions,
-			},
-		});
-	}
-};
-
-//GETS
-router.get("/", checkAuth, async (req, res) => {
+router.get("/", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
 			"select * from inventory INNER JOIN sold ON sold.inventory_id = inventory.id ORDER BY sold.id"
@@ -39,17 +12,14 @@ router.get("/", checkAuth, async (req, res) => {
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
-			data: {
-				inventory: results.rows,
-			},
+			data: { inventory: results.rows },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-router.get("/:unitNumber", checkAuth, async (req, res) => {
+router.get("/:unitNumber", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
 			"select * from inventory INNER JOIN sold ON sold.inventory_id = inventory.id where inventory.unit_number=$1",
@@ -58,17 +28,13 @@ router.get("/:unitNumber", checkAuth, async (req, res) => {
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
-			data: {
-				inventory: results.rows,
-			},
+			data: { inventory: results.rows },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-//POSTS
 router.post("/", checkAdmin, async (req, res) => {
 	try {
 		await db.query(
@@ -83,21 +49,15 @@ router.post("/", checkAdmin, async (req, res) => {
 				req.body.invoice_notes,
 			]
 		);
-
 		await db.query("UPDATE inventory SET state = 'sold' where id = $1", [
 			req.body.id,
 		]);
-
-		res.status(200).json({
-			status: "success",
-		});
+		res.status(200).json({ status: "success" });
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
-//PUTS
 router.put("/invoice/:id", checkAdmin, async (req, res) => {
 	try {
 		const results = await db.query(
@@ -111,17 +71,13 @@ router.put("/invoice/:id", checkAdmin, async (req, res) => {
 				req.params.id,
 			]
 		);
-		console.log(results.rows);
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
-			data: {
-				inventory: results.rows,
-			},
+			data: { inventory: results.rows },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -131,27 +87,21 @@ router.put("/deliverysheet/:id", checkAdmin, async (req, res) => {
 			"UPDATE sold SET outbound_trucker = $1, outbound_date = $2 WHERE inventory_id = $3",
 			[req.body.outbound_trucker, req.body.outbound_date, req.params.id]
 		);
-		res.status(200).json({
-			status: "success",
-		});
+		res.status(200).json({ status: "success" });
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
 router.put("/available/:id", checkAdmin, async (req, res) => {
 	try {
-		const results = await db.query(
+		await db.query(
 			"UPDATE inventory SET state = 'available' where id = $1",
 			[req.body.inventory_id]
 		);
-		res.status(200).json({
-			status: "success",
-		});
+		res.status(200).json({ status: "success" });
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -164,13 +114,10 @@ router.put("/notes/:id", checkAdmin, async (req, res) => {
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
-			data: {
-				inventory: results.rows,
-			},
+			data: { inventory: results.rows },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -182,25 +129,11 @@ router.delete("/:id", checkAdmin, async (req, res) => {
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
-			data: {
-				inventory: results.rows,
-			},
+			data: { inventory: results.rows },
 		});
 	} catch (err) {
-		console.log(err);
-		res.status(400);
-	}
-	try {
-		const results = await db.query(
-			"UPDATE inventory SET state = 'available' where id = $1",
-			[req.body.inventory_id]
-		);
-		res.status(200).json({
-			status: "success",
-		});
-	} catch (err) {
-		console.log(err);
-		res.status(400);
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
-module.exports = router;
+
+export default router;

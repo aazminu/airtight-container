@@ -23,7 +23,6 @@ function UserList() {
 			})
 			.then((data) => {
 				if (!data) return;
-				console.log(data.accounts);
 				setAccounts(data.accounts);
 			});
 	}, [setPopup]);
@@ -73,13 +72,11 @@ function UserList() {
 				return undefined;
 			}
 			setAccounts((current) => {
-				const updated = current.map((acct) =>
+				return current.map((acct) =>
 					acct.id === account.id
 						? { ...acct, permissions: newPermission }
 						: acct
 				);
-				console.log("Updated accounts state:", updated);
-				return updated;
 			});
 		});
 	};

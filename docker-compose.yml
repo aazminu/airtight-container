@@ -1,0 +1,17 @@
+services:
+  backend:
+    image: ghcr.io/harrylynchh/airtight-backend:latest
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+
+  frontend:
+    image: ghcr.io/harrylynchh/airtight-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
