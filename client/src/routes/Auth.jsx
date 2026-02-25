@@ -11,6 +11,7 @@ function Auth() {
 
 	const changeAuthType = () => {
 		setAuthType((t) => (t === "Login" ? "Register" : "Login"));
+		setErrorMsg("");
 	};
 
 	const authUser = async (e) => {
@@ -73,45 +74,47 @@ function Auth() {
 
 	return (
 		<div className="authContainer">
-			<div className="formContainer">
-				<div className="formHeader">
-					{authType === "Login" ? "Sign in" : "Create an Account"}
+			<div className="authCard">
+				<div className="authCardHead">
+					{authType === "Login" ? "Sign In" : "Register"}
 				</div>
-				<div className="formBody">
+				<div className="authCardBody">
 					<form onSubmit={authUser}>
-						<input
-							type="email"
-							className="loginInput"
-							placeholder="Email:"
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-						/>
-						<input
-							type="password"
-							className="loginInput"
-							placeholder="Password:"
-							value={password}
-							onChange={(e) => setPassword(e.target.value)}
-						/>
-						<button className="authBtn">{authType}</button>
+						<div className="authField">
+							<label className="authLabel">Email</label>
+							<input
+								type="email"
+								className="authInput"
+								placeholder="you@example.com"
+								value={email}
+								onChange={(e) => setEmail(e.target.value)}
+							/>
+						</div>
+						<div className="authField">
+							<label className="authLabel">Password</label>
+							<input
+								type="password"
+								className="authInput"
+								placeholder="••••••••"
+								value={password}
+								onChange={(e) => setPassword(e.target.value)}
+							/>
+						</div>
+						<button className="authSubmitBtn">
+							{authType === "Login" ? "Sign In" : "Create Account"}
+						</button>
 					</form>
-					<button className="authBtn" onClick={signInWithGoogle}>
+					<div className="authDivider">or</div>
+					<button className="authGoogleBtn" onClick={signInWithGoogle}>
 						Sign in with Google
 					</button>
-					<p className="authOptions">
-						{authType === "Login"
-							? "First time signing in?"
-							: "Already have an account?"}
-						<button
-							className="authPrompt"
-							onClick={() => changeAuthType()}
-						>
-							{authType === "Login"
-								? "Create an account"
-								: "Sign into an existing account"}
+					<p className="authFooter">
+						{authType === "Login" ? "New here?" : "Have an account?"}
+						<button className="authToggleBtn" onClick={changeAuthType}>
+							{authType === "Login" ? "Create an account" : "Sign in"}
 						</button>
 					</p>
-					<p className="errorMsg">{errorMsg}</p>
+					{errorMsg && <p className="authError">{errorMsg}</p>}
 				</div>
 			</div>
 		</div>

@@ -37,10 +37,11 @@ const App = () => {
 		)
 	);
 	let url = window.location.href;
+	const path = window.location.pathname;
 	return (
 		<>
 			<Provider>
-				{!url.includes("form") && <Navbar />}
+				{!url.includes("form") && path !== "/auth" && <Navbar />}
 				<PopupContainer />
 				<div className="container">
 					<RouterProvider router={router} />

@@ -1,104 +1,188 @@
+/* ── Full-page centering ─────────────────────────────────── */
 .authContainer {
-  min-height: 100vh;
-  width: 100%;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 48px 16px;
-  box-sizing: border-box;
-  background-color: var(--bg-page);
+	min-height: 100vh;
+	width: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 32px 16px;
+	box-sizing: border-box;
+	background-color: var(--bg-page);
 }
 
-.formContainer {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-width: 420px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background-color: var(--bg-surface);
-  box-shadow: var(--shadow-md);
-  overflow: hidden;
+/* ── Card ────────────────────────────────────────────────── */
+.authCard {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	max-width: 400px;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-lg);
+	background-color: var(--bg-surface);
+	box-shadow: var(--shadow-md);
+	overflow: hidden;
 }
 
-.formContainer form {
-  display: flex;
-  flex-direction: column;
+/* ── Card header — matches invHeader / yardSectionLabel style */
+.authCardHead {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-family: var(--font-header);
+	font-size: 1.2rem;
+	font-weight: 800;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-primary);
+	padding: 18px 24px 16px;
+	background-color: var(--bg-surface-2);
+	border-bottom: 1px solid var(--border);
 }
 
-.formHeader {
-  background-color: var(--bg-surface-2);
-  color: var(--text-primary);
-  font-size: 24px;
-  font-weight: 700;
-  font-family: var(--font-serif);
-  letter-spacing: -0.01em;
-  width: 100%;
-  text-align: center;
-  padding: 20px 0 18px;
-  border-bottom: 3px solid var(--accent);
+.authCardHead::before {
+	content: '';
+	flex-shrink: 0;
+	width: 4px;
+	height: 1em;
+	background-color: var(--accent);
+	border-radius: 2px;
 }
 
-.formContainer input {
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  font-size: 14px;
-  margin: 6px 14px;
-  background-color: var(--bg-surface);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
+/* ── Card body ───────────────────────────────────────────── */
+.authCardBody {
+	padding: 24px;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
 }
 
-.formBody {
-  padding: 20px 24px 24px;
+.authCardBody form {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
 }
 
-.authBtn {
-  width: 75%;
-  align-self: center;
-  font-size: 15px;
-  font-weight: 600;
-  padding: 11px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background-color: var(--accent);
-  color: var(--accent-fg);
-  margin-bottom: 10px;
-  cursor: pointer;
-  letter-spacing: 0.01em;
-  transition: background-color 0.15s ease;
+/* ── Field group ─────────────────────────────────────────── */
+.authField {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
 }
 
-.authBtn:hover {
-  background-color: var(--accent-hover);
+.authLabel {
+	font-family: var(--font-header);
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-muted);
 }
 
-.authPrompt {
-  border: none;
-  font-size: inherit;
-  color: var(--accent);
-  font-weight: 600;
-  background: none;
-  cursor: pointer;
-  transition: color 0.15s ease;
+.authInput {
+	width: 100%;
+	padding: 8px 10px;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-sm);
+	background-color: var(--bg-surface-2);
+	color: var(--text-primary);
+	font-family: var(--font-sans);
+	font-size: 14px;
+	outline: none;
+	box-sizing: border-box;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.authPrompt:hover {
-  color: var(--accent-hover);
-  text-decoration: underline;
+.authInput:focus {
+	border-color: var(--accent);
+	box-shadow: 0 0 0 3px rgb(172 62 49 / 0.12);
+	background-color: var(--bg-surface);
 }
 
-.authOptions {
-  font-size: 14px;
-  color: var(--text-primary);
+/* ── Primary (submit) button ─────────────────────────────── */
+.authSubmitBtn {
+	width: 100%;
+	padding: 10px;
+	border: 1px solid var(--accent);
+	border-radius: var(--radius-sm);
+	background-color: var(--accent);
+	color: var(--accent-fg);
+	font-family: var(--font-sans);
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background-color 0.15s ease, border-color 0.15s ease;
+	margin-top: 4px;
 }
 
-.errorMsg {
-  align-self: center;
-  text-align: center;
-  font-weight: normal;
-  color: var(--text-muted);
-  font-size: 13px;
-  margin: 4px 0;
+.authSubmitBtn:hover {
+	background-color: var(--accent-hover);
+	border-color: var(--accent-hover);
+}
+
+/* ── Secondary (Google) button ───────────────────────────── */
+.authGoogleBtn {
+	width: 100%;
+	padding: 10px;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-sm);
+	background-color: var(--bg-surface);
+	color: var(--text-primary);
+	font-family: var(--font-sans);
+	font-size: 14px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background-color 0.15s ease;
+}
+
+.authGoogleBtn:hover {
+	background-color: var(--bg-surface-2);
+}
+
+/* ── Divider ─────────────────────────────────────────────── */
+.authDivider {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	color: var(--text-muted);
+	font-size: 12px;
+}
+
+.authDivider::before,
+.authDivider::after {
+	content: '';
+	flex: 1;
+	height: 1px;
+	background-color: var(--border);
+}
+
+/* ── Footer toggle ───────────────────────────────────────── */
+.authFooter {
+	font-size: 13px;
+	color: var(--text-secondary);
+	text-align: center;
+	margin: 0;
+}
+
+.authToggleBtn {
+	border: none;
+	background: none;
+	color: var(--accent);
+	font-size: inherit;
+	font-weight: 600;
+	cursor: pointer;
+	padding: 0 0 0 4px;
+	transition: color 0.15s ease;
+}
+
+.authToggleBtn:hover {
+	color: var(--accent-hover);
+	text-decoration: underline;
+}
+
+/* ── Error message ───────────────────────────────────────── */
+.authError {
+	font-size: 13px;
+	color: var(--accent);
+	text-align: center;
+	margin: 0;
 }
