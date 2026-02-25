@@ -2,60 +2,87 @@ html,
 body {
   margin: 0;
 }
+
+@keyframes popupIn {
+  from { opacity: 0; transform: scale(0.97) translateY(-6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
 .popupContainer {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(49, 49, 49, 0.6);
+  background-color: rgb(0 0 0 / 0.4);
+  backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000; 
+  z-index: 1000;
+  padding: 16px;
+  box-sizing: border-box;
 }
+
 .popup {
+  animation: popupIn 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
-  margin-left: auto;
-  margin-top: 0%;
-  margin-right: auto;
-  width: 22%;
-  height: 28%;
-  background-color: var(--alternate-bg-color);
-  border: 3px solid var(--main-bg-color);
-  border-radius: 10px;
-  padding: 10px;
+  width: 100%;
+  max-width: 360px;
+  min-height: 200px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 20px;
+  color: var(--text-primary);
 }
-.emailPopup{
-  height:fit-content;
+
+.emailPopup {
+  min-height: auto;
 }
+
 .popupTitle {
-  font-size: 28px;
+  font-size: 20px;
   text-align: center;
-  font-weight: bold;
+  font-weight: 700;
+  font-family: var(--font-serif);
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  margin-bottom: 12px;
 }
+
 .popupBtn {
   align-self: center;
-  font-size: 20px;
-  width: 45%;
-  margin-top: 10%;
+  font-size: 15px;
+  font-weight: 600;
+  width: 55%;
+  margin-top: auto;
+  padding: 9px;
 }
 
 .popupEmailBtn {
   align-self: center;
-  font-size: 20px;
-  width: 45%;
-  margin-top: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  width: 55%;
+  margin-top: 12px;
+  padding: 9px;
 }
 
 .error {
   text-align: center;
-  font-size: 18px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 .cancelBtn {
   align-self: flex-end;
-  width: 6% !important;
-  height: 6% !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 2px 6px;
+  font-size: 18px;
+  line-height: 1;
 }

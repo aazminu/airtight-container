@@ -1,75 +1,104 @@
 .authContainer {
-  height: 100vh;
-  width: 100vw;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+  box-sizing: border-box;
+  background-color: var(--bg-page);
 }
+
 .formContainer {
   display: flex;
   flex-direction: column;
-  width: fit-content;
-  margin: auto;
-  width: 35%;
-  margin-top: 10%;
-  border: 3px solid var(--main-bg-color);
-  border-radius: 15px;
-  background-color: var(--alternate-bg-color);
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
 }
+
 .formContainer form {
   display: flex;
   flex-direction: column;
 }
+
 .formHeader {
-  align-self: center;
-  background-color: var(--main-bg-color);
-  color: var(--alternate-bg-color);
-  font-size: 32px;
+  background-color: var(--bg-surface-2);
+  color: var(--text-primary);
+  font-size: 24px;
   font-weight: 700;
+  font-family: var(--font-serif);
+  letter-spacing: -0.01em;
   width: 100%;
-  border-radius: 10px 10px 0px 0px;
   text-align: center;
-  padding-top: 5px;
-  padding-bottom: 5px;
+  padding: 20px 0 18px;
+  border-bottom: 3px solid var(--accent);
 }
+
 .formContainer input {
-  border: 1px solid black;
-  border-radius: 10px;
-  padding: 12px;
-  font-size: 18px;
-  margin: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 14px;
+  margin: 6px 14px;
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
 }
+
 .formBody {
-  padding: 30px;
+  padding: 20px 24px 24px;
 }
+
 .authBtn {
   width: 75%;
   align-self: center;
-  font-size: 25px;
-  padding: 10px;
-  border: 1px solid black;
-  border-radius: 10px;
-  background-color: var(--main-bg-color);
-  color: white;
-  font-weight: bold;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 11px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background-color: var(--accent);
+  color: var(--accent-fg);
   margin-bottom: 10px;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: background-color 0.15s ease;
 }
+
 .authBtn:hover {
-  background-color: #8d3127;
+  background-color: var(--accent-hover);
 }
+
 .authPrompt {
   border: none;
   font-size: inherit;
-  color: var(--main-bg-color);
-  font-weight: 700;
+  color: var(--accent);
+  font-weight: 600;
+  background: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
 }
+
 .authPrompt:hover {
-  color: #8d3127;
+  color: var(--accent-hover);
   text-decoration: underline;
 }
+
 .authOptions {
-  font-size: 18px;
+  font-size: 14px;
+  color: var(--text-primary);
 }
+
 .errorMsg {
   align-self: center;
   text-align: center;
   font-weight: normal;
-  color: gray;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 4px 0;
 }

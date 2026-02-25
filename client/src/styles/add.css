@@ -1,42 +1,88 @@
-@media screen and (max-width: 600px) {
-  .addContainer {
-    flex-direction: column;
-    align-content: center;
-    gap: 10px;
-  }
-}
 .addContainer {
   display: flex;
-  justify-content: space-evenly;
-  padding-top: 50px;
+  justify-content: center;
+  gap: 32px;
+  padding: 32px;
+  width: 100%;
+  box-sizing: border-box;
+  flex-wrap: wrap;
 }
+
 .addTable {
-  min-width: fit-content;
-  width: 40%;
-  border: 9px solid var(--main-bg-color);
+  width: 100%;
+  max-width: 560px;
+  min-width: 320px;
   border-spacing: 0;
   border-collapse: separate;
-  border-radius: 10px;
-  border-left: none;
-  border-right: none;
+  border-radius: var(--radius-md);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
-.addTable td {
-  padding: 6px;
+
+.addTable thead tr {
+  background-color: var(--bg-surface-2);
+}
+
+.addTable thead th {
+  padding: 12px 14px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--accent);
   text-align: left;
 }
-.addTable input[type='text'] {
-  font-size: 16px;
-  border: 1px solid black;
-  border-radius: 10px;
-  padding: 5px;
+
+.addTable td {
+  padding: 9px 14px;
+  text-align: left;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
 }
+
+.addTable input[type='text'] {
+  font-size: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  width: 100%;
+}
+
 .infoTable {
   width: 100%;
 }
+
 .infoContainer {
-  width: 50%;
+  flex: 1;
+  min-width: 280px;
+  max-width: 560px;
 }
+
 .infoTable td {
-  padding: 10px;
-  white-space: wrap;
+  padding: 8px 14px;
+  white-space: normal;
+  color: var(--text-primary);
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+@media (max-width: 768px) {
+  .addContainer {
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px;
+    gap: 20px;
+  }
+
+  .addTable,
+  .infoContainer {
+    max-width: 100%;
+    min-width: unset;
+    width: 100%;
+  }
 }

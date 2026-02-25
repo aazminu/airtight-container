@@ -1,52 +1,93 @@
-.update {
-	background-color: white;
+/* ── Inline edit panel (renders inside updateRow) ──────── */
+.updatePanel {
+	padding: 16px 20px 14px;
+	background-color: var(--bg-surface);
+}
+
+/* ── Field grid ─────────────────────────────────────────── */
+.updateGrid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 12px 24px;
+	margin-bottom: 14px;
+}
+
+.updateField {
 	display: flex;
-	flex-direction: row;
-	justify-content: center;
+	flex-direction: column;
+	gap: 4px;
 }
-.update tr:nth-child(even) {
-	background-color: var(--alternate-bg-color);
+
+.updateLabel {
+	font-family: var(--font-header);
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-muted);
 }
-.update td {
-	width: fit-content;
-}
-.update input[type="text"] {
-	padding-top: 5px;
-	padding-bottom: 5px;
-	border: 1px solid black;
-}
-.update input[type="email"] {
-	padding-top: 5px;
-	padding-bottom: 5px;
-	border: 1px solid black;
-}
-.update input[type="phone"] {
-	padding-top: 5px;
-	padding-bottom: 5px;
-	border: 1px solid black;
-}
-.editSubTitle {
-	font-weight: bold;
-}
-.editBtn {
+
+.updateInput {
 	width: 100%;
-	height: 100%;
-	border: 2px solid black;
-	font-size: 24px;
-	font-weight: bold;
-	border-radius: 10px;
-	border-color: var(--alternate-bg-color);
-	background-color: white;
+	padding: 7px 10px;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-sm);
+	background-color: var(--bg-surface-2);
+	color: var(--text-primary);
+	font-family: var(--font-sans);
+	font-size: 14px;
+	outline: none;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+
+.updateInput:focus {
+	border-color: var(--accent);
+	box-shadow: 0 0 0 3px rgb(172 62 49 / 0.12);
+	background-color: var(--bg-surface);
+}
+
+/* ── Action buttons row ──────────────────────────────────── */
+.updateActions {
+	display: flex;
+	gap: 8px;
+	padding-top: 12px;
+	border-top: 1px solid var(--border);
+}
+
+/* Primary (save) button — red fill */
+.drawerBtnPrimary {
+	background-color: var(--accent);
+	color: var(--accent-fg);
+	border-color: var(--accent);
+}
+
+.drawerBtnPrimary:hover {
+	background-color: var(--accent-hover);
+	border-color: var(--accent-hover);
+	color: var(--accent-fg);
+}
+
+/* ── Icon-only buttons used in table rows (SoldRow etc.) ── */
+.editBtn {
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	padding: 4px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--radius-sm);
+	transition: background-color 0.15s ease;
+	color: var(--text-secondary);
+	line-height: 1;
+}
+
 .editBtn:hover {
-	background-color: var(--main-bg-color);
+	background-color: var(--bg-surface-2);
 }
-.obDate {
-	font-family: "Inter", sans-serif;
-	font-weight: 500;
-	border: 1px solid black;
-	border-radius: 10px;
-	padding: 5px;
-	width: 93%;
-	font-size: 15px;
+
+@media (max-width: 768px) {
+	.updateGrid {
+		grid-template-columns: 1fr 1fr;
+	}
 }

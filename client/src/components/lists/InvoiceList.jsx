@@ -14,18 +14,15 @@ function InvoiceList() {
 	const [page, setPage] = useState(1);
 	const [displayNum, setDisplayNum] = useState(40);
 	const [currentPage, setCurrentPage] = useState([]);
+
 	useEffect(() => {
 		fetch("/api/v2/invoice", {
 			method: "GET",
-			headers: {
-				"Content-Type": "application/json",
-			},
+			headers: { "Content-Type": "application/json" },
 			credentials: "include",
 		})
 			.then((res) => {
-				if (!res.ok) {
-					return;
-				}
+				if (!res.ok) return;
 				return res.json();
 			})
 			.then((data) => {
@@ -39,42 +36,27 @@ function InvoiceList() {
 		);
 		if (!confirm) return;
 
-		// Clean up any hanging containers
 		for (const container of invoice.containers) {
 			deleteContainerFromInvoice(container.inventory_id);
 		}
 
 		fetch(`/api/v2/invoice/${invoice.invoice_id}`, {
 			method: "DELETE",
-			headers: {
-				"Content-Type": "application/json",
-			},
+			headers: { "Content-Type": "application/json" },
 			credentials: "include",
 		}).then((res) => {
-			if (!res.ok) {
-				setPopup("Error Deleting This Invoice");
-				return;
-			}
-			setInvoices(
-				invoices.filter((entry) => {
-					return entry.invoice_id !== invoice.invoice_id;
-				})
-			);
-			return;
+			if (!res.ok) { setPopup("Error Deleting This Invoice"); return; }
+			setInvoices(invoices.filter((e) => e.invoice_id !== invoice.invoice_id));
 		});
 	};
 
 	const deleteContainerFromInvoice = async (container_id) => {
 		fetch(`/api/v2/invoice/container/${container_id}`, {
 			method: "DELETE",
-			headers: {
-				"Content-Type": "application/json",
-			},
+			headers: { "Content-Type": "application/json" },
 			credentials: "include",
 		}).then((res) => {
-			if (!res.ok) {
-				setPopup("Unable to remove container from invoice");
-			}
+			if (!res.ok) setPopup("Unable to remove container from invoice");
 		});
 	};
 
@@ -83,127 +65,77 @@ function InvoiceList() {
 
 	useEffect(() => {
 		var start = (page - 1) * displayNum;
-		var end = start + displayNum;
-		var pageHolder = invoices.slice(start, end);
-		console.log("Slicing from", start, "to", end);
-		console.log(typeof pageHolder, pageHolder);
-		setCurrentPage(pageHolder);
+		setCurrentPage(invoices.slice(start, start + displayNum));
 	}, [page, displayNum, invoices]);
 
-	// FILTERS:
 	const searchContainers = (value) => {
-		if (value === "") {
-			setFilters([]);
-			return;
-		}
+		if (value === "") { setFilters([]); return; }
 		var filterHolder = [];
 		for (let i = 0; i < invoices.length; i++) {
-			if (
-				!JSON.stringify(invoices[i])
-					.toLowerCase()
-					.includes(value.toLowerCase())
-			) {
+			if (!JSON.stringify(invoices[i]).toLowerCase().includes(value.toLowerCase())) {
 				filterHolder.push(invoices[i].invoice_id);
 			}
 		}
 		setFilters(filterHolder);
-		filterHolder = [];
 	};
-	const changePageDisplay = (e) => {
-		setDisplayNum(e.target.value);
-	};
+
+	const changePageDisplay = (e) => setDisplayNum(e.target.value);
+
+	const displayedRows = filters.length > 0
+		? invoices.filter((inv) => !filters.includes(inv.invoice_id))
+		: currentPage;
+
 	return (
-		<>
-			<div className="inventoryContainer">
-				<SearchContainers search={searchContainers} />
-				<table className="invoiceTable superInvoiceTable">
-					<thead>
-						<tr className="inventoryHeader">
-							<th>Invoice #</th>
-							<th>Date</th>
-							<th scope="col" className="paginateCol" colSpan={2}>
-								<button
-									className="arrow"
-									onClick={
-										page !== 1
-											? () => setPage(page - 1)
-											: () => setPage(page)
-									}
-								>
-									<img
-										src={leftarrow}
-										alt="left"
-										width="10px"
-									></img>
-								</button>
-								<span className="pageDisplay">
-									Page {page} of {maxPageNumber}
-								</span>
-								<button
-									className="arrow"
-									onClick={
-										page !== maxPageNumber
-											? () => setPage(page + 1)
-											: () => setPage(page)
-									}
-								>
-									<img
-										src={rightarrow}
-										alt="right"
-										width="10px"
-									></img>
-								</button>
-							</th>
-							<th scope="col" className="displayCol" colspan={3}>
-								<label>
-									<span className="pageDisplay">
-										Results Per Page:
-									</span>
-								</label>
-								<br />
-								<select
-									className="pgDisplayDropdown"
-									onChange={changePageDisplay}
-									defaultValue={40}
-								>
-									<option value={10}>10</option>
-									<option value={20}>20</option>
-									<option value={40}>40</option>
-									<option value={50}>50</option>
-								</select>
-							</th>
-						</tr>
-					</thead>
-					<tbody className="inventoryBody">
-						{filters.length > 0
-							? invoices.map((invoice) => {
-									return (
-										!filters.includes(
-											invoice.invoice_id
-										) && (
-											<InvoiceRow
-												invoice={invoice}
-												deleteInvoice={
-													handleDeleteInvoice
-												}
-												key={invoice.invoice_id}
-											/>
-										)
-									);
-							  })
-							: currentPage.map((invoice) => {
-									return (
-										<InvoiceRow
-											invoice={invoice}
-											deleteInvoice={handleDeleteInvoice}
-											key={invoice.invoice_id}
-										/>
-									);
-							  })}
-					</tbody>
-				</table>
-			</div>
-		</>
+		<div className="inventoryContainer">
+			<SearchContainers search={searchContainers} />
+			<table className="invoiceTable superInvoiceTable">
+				<thead>
+					<tr className="inventoryHeader">
+						<th>Invoice #</th>
+						<th>Customer</th>
+						<th>Date</th>
+						<th style={{ width: "40px" }}></th>
+					</tr>
+				</thead>
+				<tbody className="inventoryBody">
+					{displayedRows.map((invoice) => (
+						<InvoiceRow
+							invoice={invoice}
+							deleteInvoice={handleDeleteInvoice}
+							key={invoice.invoice_id}
+						/>
+					))}
+				</tbody>
+				<tfoot>
+					<tr>
+						<td colSpan={4} className="tablePagination">
+							<button
+								className="arrow"
+								onClick={page !== 1 ? () => setPage(page - 1) : undefined}
+							>
+								<img src={leftarrow} alt="previous" width="10px" />
+							</button>
+							<span className="pageDisplay">
+								Page {page} of {maxPageNumber}
+							</span>
+							<button
+								className="arrow"
+								onClick={page !== maxPageNumber ? () => setPage(page + 1) : undefined}
+							>
+								<img src={rightarrow} alt="next" width="10px" />
+							</button>
+							<span className="pageDisplay" style={{ marginLeft: "12px" }}>Per page:</span>
+							<select className="pgDisplayDropdown" onChange={changePageDisplay} defaultValue={40}>
+								<option value={10}>10</option>
+								<option value={20}>20</option>
+								<option value={40}>40</option>
+								<option value={50}>50</option>
+							</select>
+						</td>
+					</tr>
+				</tfoot>
+			</table>
+		</div>
 	);
 }
 

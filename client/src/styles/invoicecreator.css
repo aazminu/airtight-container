@@ -1,13 +1,16 @@
 .invoiceCreatorWrapper {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
+	display: block;
+	width: 100%;
+	padding: 4px 32px 48px;
+	overflow-x: auto;
+	box-sizing: border-box;
 }
 
 .selectorTable {
 	max-height: 30rem;
 	overflow: auto;
 }
+
 .step3Table {
 	display: flex;
 	flex-direction: column;
@@ -15,58 +18,96 @@
 	width: min-content;
 	margin-top: 15px;
 }
+
 .selectorTable > thead {
 	position: sticky;
+	top: 0;
+	z-index: 1;
 }
 
 .directionBtns {
-	padding-top: 10px;
+	padding-top: 12px;
+	display: flex;
+	gap: 8px;
 }
 
 .footerBtn {
 	margin-top: 15px !important;
 	margin-bottom: 15px !important;
 }
+
 .addNewCustomer {
-	margin-top: 25px;
+	margin-top: 20px;
 }
+
 .selectedCustomer {
-	background-color: darkgray !important;
+	background-color: var(--tan-subtle) !important;
+	box-shadow: inset 3px 0 0 var(--accent);
 }
+
 .selectedCustomer > td > button.addBtn {
-	background-color: var(--main-bg-color) !important;
+	background-color: var(--accent) !important;
+	color: var(--accent-fg) !important;
+	border-color: var(--accent) !important;
 }
 
 .generateBtn {
-	margin-top: 15px;
+	margin-top: 16px;
 	width: min-content;
 	margin-left: 0px !important;
-	font-size: 18px;
+	font-size: 15px;
+	font-weight: 600;
+	white-space: nowrap;
 }
+
 .invoiceContainerRow td {
 	text-align: center !important;
 }
+
 .invoiceContainerNumberInput {
-	max-width: 50px !important;
-	border: 1px solid black !important;
+	max-width: 54px !important;
+	border: 1px solid var(--border-strong) !important;
+	background-color: var(--bg-surface);
+	color: var(--text-primary);
+	font-family: var(--font-sans);
+	text-align: center;
 }
 
 .invoiceContainerInput {
-	max-width: 120px !important;
-	border: 1px solid black !important;
+	max-width: 130px !important;
+	border: 1px solid var(--border-strong) !important;
+	background-color: var(--bg-surface);
+	color: var(--text-primary);
+	font-family: var(--font-sans);
 }
+
 .hidden {
 	display: none;
 }
+
 .emailPrompt {
 	display: flex;
+	align-items: center;
+	gap: 8px;
 }
+
 .emailPrompt > label {
-	text-wrap: nowrap;
-	padding-top: 5px;
+	white-space: nowrap;
+	color: var(--text-primary);
+	font-weight: 500;
+	font-size: 14px;
 }
+
 .finalButtons {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
+	gap: 8px;
+	padding-top: 16px;
+}
+
+@media (max-width: 768px) {
+	.invoiceCreatorWrapper {
+		padding: 4px 16px 48px;
+	}
 }

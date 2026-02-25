@@ -8,7 +8,7 @@ import { userContext } from "../context/restaurantcontext";
 function Navbar() {
 	const [showUserOps, setShowUserOps] = useState(false);
 	const [userWidth, setuserWidth] = useState("40px");
-	const { user, setUser, setPopup } = useContext(userContext);
+	const { user, setUser, setPopup, theme, toggleTheme } = useContext(userContext);
 
 	const logout = () => {
 		fetch("/api/auth/sign-out", {
@@ -27,64 +27,76 @@ function Navbar() {
 	};
 
 	return (
-		<div className="navbar">
-			<img src={logo} alt="logo" width={"10%"}></img>
-			<nav>
-				{user.permissions !== "unauthorized" && (
-					<ul>
-						{user.permissions === "admin" && (
-							<>
-								<li>
-									<a href="/">Inventory</a>
-								</li>
-								<li>
-									<a href="/invoices">Invoices</a>
-								</li>
-								<li>
-									<a href="/reports" target="_blank">
-										Reports
-									</a>
-								</li>
-								<li>
-									<a href="/dashboard">Dashboard</a>
-								</li>
-							</>
+		<div className="navbarOuter">
+			<div className="navbar">
+				<img src={logo} alt="logo" width={"10%"}></img>
+				<nav>
+					{user.permissions !== "unauthorized" && (
+						<ul>
+							{user.permissions === "admin" && (
+								<>
+									<li>
+										<a href="/">Inventory</a>
+									</li>
+									<li>
+										<a href="/invoices">Invoices</a>
+									</li>
+									<li>
+										<a href="/reports" target="_blank">
+											Reports
+										</a>
+									</li>
+									<li>
+										<a href="/dashboard">Dashboard</a>
+									</li>
+								</>
+							)}
+							<li>
+								<a href="/yardview">Yard View</a>
+							</li>
+							<li>
+								<a href="/add">Add A Box</a>
+							</li>
+							<li>
+								<a href="/help">Help</a>
+							</li>
+						</ul>
+					)}
+				</nav>
+				<div className="navbarRight">
+					<button
+						className="themeToggle"
+						onClick={toggleTheme}
+						aria-label="Toggle dark mode"
+						data-theme-active={theme}
+					>
+						<span className="themeToggleThumb"></span>
+					</button>
+					<div className="profileContainer">
+						<img
+							className="userProfile"
+							src={profile}
+							alt="profile"
+							width={userWidth}
+							onClick={() => setShowUserOps(!showUserOps)}
+							onMouseOver={() => changeWidth()}
+							onMouseLeave={() => changeWidth()}
+						></img>
+						{showUserOps && (
+							<div className="profileDropdown">
+								<div>
+									{user.email === "unauthorized" ? "Guest" : user.email}
+								</div>
+								<button
+									className="logoutBtn authBtn"
+									onClick={() => logout()}
+								>
+									Logout
+								</button>
+							</div>
 						)}
-						<li>
-							<a href="/yardview">Yard View</a>
-						</li>
-						<li>
-							<a href="/add">Add A Box</a>
-						</li>
-						<li>
-							<a href="/help">Help</a>
-						</li>
-					</ul>
-				)}
-			</nav>
-			<div className="profileContainer">
-				<img
-					className="userProfile"
-					src={profile}
-					alt="profile"
-					width={userWidth}
-					onClick={() => setShowUserOps(!showUserOps)}
-					onMouseOver={() => changeWidth()}
-					onMouseLeave={() => changeWidth()}
-				></img>
-				{showUserOps && (
-					<div className="profileDropdown">
-						<div>
-							{user.email === "unauthorized" ? "Guest" : user.email}
-						</div>
-						<button
-							className="logoutBtn authBtn"
-							onClick={() => logout()}
-						>
-							Logout
-						</button>
 					</div>
-				)}
+				</div>
 			</div>
 		</div>
 	);

@@ -1,216 +1,650 @@
+/* ============================================================
+   DESIGN SYSTEM — CSS VARIABLES
+   ============================================================ */
 :root {
-	--main-bg-color: #ac3e31;
-	--main-bg-highlight: #712921;
-	--alternate-bg-color: #f1f3f2;
-	--btn-color: #c6c6c6;
-	--hover-highlight: #a3a3a3;
-	--btn-highlight: #585858;
-	font-family: "Inter", sans-serif;
-	font-optical-sizing: auto;
-	font-style: normal;
+	--bg-page:       #f8fafc;
+	--bg-surface:    #ffffff;
+	--bg-surface-2:  #f1f5f9;
+	--bg-row-alt:    #f9fafb;
+	--border:        #e2e8f0;
+	--border-strong: #cbd5e1;
+	--text-primary:  #0f172a;
+	--text-secondary:#64748b;
+	--text-muted:    #94a3b8;
+	--accent:        #ac3e31;
+	--accent-hover:  #8d3127;
+	--accent-fg:     #ffffff;
+	--tan:           #c4a882;
+	--tan-subtle:    #fdf5eb;
+	--row-hover:     #edd9b0;
+	--shadow-sm:     0 1px 3px rgb(0 0 0 / 0.07), 0 1px 2px rgb(0 0 0 / 0.05);
+	--shadow-md:     0 4px 16px rgb(0 0 0 / 0.09), 0 2px 6px rgb(0 0 0 / 0.06);
+	--radius-sm:     6px;
+	--radius-md:     10px;
+	--radius-lg:     14px;
+	--font-sans:     "Plus Jakarta Sans", system-ui, sans-serif;
+	--font-serif:    "Instrument Serif", Georgia, serif;
+	--font-header:   "Barlow Condensed", system-ui, sans-serif;
 }
-@media (max-width: 1471px) {
+
+/* Slate/zinc dark mode — no navy */
+[data-theme="dark"] {
+	--bg-page:       #111113;
+	--bg-surface:    #1c1c1f;
+	--bg-surface-2:  #28282c;
+	--bg-row-alt:    #1f1f23;
+	--border:        #36363b;
+	--border-strong: #48484f;
+	--text-primary:  #f4f4f5;
+	--text-secondary:#a1a1aa;
+	--text-muted:    #71717a;
+	--accent:        #e05a4e;
+	--accent-hover:  #c44a3e;
+	--accent-fg:     #ffffff;
+	--tan:           #c4a882;
+	--tan-subtle:    #1e1710;
+	--row-hover:     #3a1e1c;
+	--shadow-sm:     0 1px 3px rgb(0 0 0 / 0.35);
+	--shadow-md:     0 4px 16px rgb(0 0 0 / 0.45);
+}
+
+/* ============================================================
+   GLOBAL BASE
+   ============================================================ */
+*, *::before, *::after {
+	box-sizing: border-box;
+}
+
+body {
+	background-color: var(--bg-page);
+	color: var(--text-primary);
+	font-family: var(--font-sans);
+	transition: background-color 0.2s ease, color 0.2s ease;
+	margin: 0;
+	line-height: 1.5;
+}
+
+input, button, select, textarea {
+	font-family: var(--font-sans);
+}
+
+/* ============================================================
+   CUSTOM SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background: var(--border-strong);
+	border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: var(--text-muted);
+}
+* {
+	scrollbar-width: thin;
+	scrollbar-color: var(--border-strong) transparent;
+}
+
+/* ============================================================
+   GLOBAL INPUT STYLE
+   ============================================================ */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="date"],
+input[type="number"] {
+	background-color: var(--bg-surface);
+	color: var(--text-primary);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-sm);
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+	outline: none;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="search"]:focus,
+input[type="date"]:focus,
+input[type="number"]:focus {
+	border-color: var(--accent);
+	box-shadow: 0 0 0 3px rgb(172 62 49 / 0.12);
+}
+
+/* ============================================================
+   GLOBAL TABLE ROW HOVER
+   Inset box-shadow draws the left accent bar without shifting layout.
+   ============================================================ */
+tbody tr {
+	transition: box-shadow 0.12s ease;
+}
+
+tbody tr td {
+	transition: background-color 0.12s ease;
+}
+
+/* !important is correct here: hover is the highest-priority visual state and
+   must override alternating-row td backgrounds regardless of their specificity */
+tbody tr:hover td {
+	background-color: var(--row-hover) !important;
+}
+
+tbody tr:hover {
+	box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* ============================================================
+   RESPONSIVE — small viewport
+   ============================================================ */
+@media (max-width: 1200px) {
 	.inventoryContainer {
-		font-size: 11px;
+		padding-left: 16px;
+		padding-right: 16px;
+	}
+}
+
+@media (max-width: 900px) {
+	.inventoryContainer {
+		font-size: 12px;
 	}
 	.inventoryContainer input {
-		font-size: 11px !important;
-		max-width: fit-content !important;
+		font-size: 12px !important;
 	}
 	.inventoryContainer button {
-		font-size: 11px !important;
+		font-size: 12px !important;
 	}
 	.inventoryContainer span {
-		font-size: 11px !important;
+		font-size: 12px !important;
 	}
 	.inventoryContainer img {
-		width: 15px;
-		height: 15px;
+		width: 14px;
+		height: 14px;
 	}
 	.inventoryContainer th {
-		padding: 2px !important;
+		padding: 8px 6px !important;
 	}
 	.inventoryNotesRow {
-		max-width: 90px;
+		max-width: 80px;
 	}
 	.pgDisplayDropdown {
-		font-size: 11px !important;
+		font-size: 12px !important;
 	}
 }
-input {
-	font-family: "Inter", sans-serif;
+
+/* ============================================================
+   PAGE LAYOUT
+   ============================================================ */
+.pageContent {
+	padding: 0 32px 48px;
 }
-button {
-	font-family: "Inter", sans-serif;
-}
+
+/* ============================================================
+   INVENTORY CONTAINER
+   display: block + overflow-x: auto = proper horizontal scroll.
+   Flex + align-items: center + overflow-x breaks scroll direction.
+   ============================================================ */
 .inventoryContainer {
-	max-width: 100%;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
+	display: block;
+	width: 100%;
+	padding: 4px 32px 48px;
 	overflow-x: auto;
 }
+
+/* Page title — left-aligned with red accent bar */
 .invHeader {
-	text-align: center;
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	font-family: var(--font-header);
+	font-size: 2.2rem;
 	font-weight: 800;
-}
-.inventoryTable {
-	min-width: 50%;
-	max-width: 80%;
-	border: 9px solid var(--main-bg-color);
-	border-spacing: 0;
-	border-collapse: separate;
-	border-radius: 10px;
-	border-left: none;
-	border-right: none;
-}
-.inventoryHeader {
-	background-color: var(--main-bg-color);
-	color: var(--alternate-bg-color);
-	text-align: center;
-}
-.inventoryHeader th {
-	padding: 10px;
-	padding-top: 1px;
-	font-weight: bold;
-}
-.inventoryTable td {
-	padding: 10px;
+	color: var(--text-primary);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	margin: 0;
+	padding: 24px 32px 20px;
+	border-bottom: 1px solid var(--border);
 	text-align: left;
 }
+
+.invHeader::before {
+	content: '';
+	flex-shrink: 0;
+	width: 4px;
+	height: 1em;
+	background-color: var(--accent);
+	border-radius: 2px;
+}
+
+/* ============================================================
+   SEARCH BAR
+   ============================================================ */
+.searchWrapper {
+	position: relative;
+	max-width: 400px;
+	margin: 16px 0 12px;
+}
+
+.searchWrapper .searchIcon {
+	position: absolute;
+	left: 11px;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 15px;
+	height: 15px;
+	color: var(--text-muted);
+	pointer-events: none;
+}
+
+.searchWrapper .searchBar {
+	width: 100%;
+	padding: 8px 14px 8px 34px;
+	font-size: 14px;
+	font-family: var(--font-sans);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-md);
+	background-color: var(--bg-surface);
+	color: var(--text-primary);
+	box-shadow: var(--shadow-sm);
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+	outline: none;
+}
+
+.searchWrapper .searchBar::placeholder {
+	color: var(--text-muted);
+}
+
+.searchWrapper .searchBar:focus {
+	border-color: var(--accent);
+	box-shadow: 0 0 0 3px rgb(172 62 49 / 0.12);
+}
+
+/* ============================================================
+   INVENTORY TABLE
+   width: 100% within its parent; min-width keeps columns readable;
+   container's overflow-x: auto adds scroll when viewport too narrow.
+   ============================================================ */
+.inventoryTable {
+	width: 100%;
+	min-width: 860px;
+	margin: 0 auto;
+	border-spacing: 0;
+	border-collapse: separate;
+	border-radius: var(--radius-md);
+	background-color: var(--bg-surface);
+	border: 1px solid var(--border);
+	box-shadow: var(--shadow-sm);
+	overflow: hidden;
+}
+
+/* ── Global table header font ────────────────────────────── */
+th {
+	font-family: var(--font-header);
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+/* ── Inventory header ────────────────────────────────────── */
+.inventoryHeader {
+	background-color: var(--bg-surface-2);
+}
+
+.inventoryHeader th {
+	padding: 12px 14px;
+	font-size: 12px;
+	color: var(--text-primary);
+	border-bottom: 2px solid var(--accent);
+	white-space: nowrap;
+}
+
+.inventoryHeader th:first-child {
+	padding-left: 18px;
+}
+
+/* ── Body cells ─────────────────────────────────────────── */
+.inventoryTable td {
+	padding: 11px 12px;
+	text-align: left;
+	color: var(--text-primary);
+	border-bottom: 1px solid var(--border);
+	line-height: 1.4;
+	font-size: 14px;
+}
+
+.inventoryTable td:first-child {
+	padding-left: 16px;
+}
+
 td {
 	white-space: nowrap;
 }
+
 tr:nth-child(even) {
-	background-color: var(--alternate-bg-color);
+	background-color: var(--bg-row-alt);
 }
-tbody.inventoryBody > tr:hover {
-	background-color: var(--hover-highlight);
-}
-.inventoryTable input[type="text"] {
-	border-radius: 10px;
-	border-collapse: separate;
-	border-color: white;
-	border-spacing: 0px;
-	border: none;
-	background-color: inherit;
-	font-family: "Inter", sans-serif;
-	padding: 5px;
-	font-size: 16px;
-}
-.inventoryTable input[type="email"] {
-	border-radius: 10px;
-	border-collapse: separate;
-	border-color: white;
-	border-spacing: 0px;
-	border: none;
-	background-color: inherit;
-	font-family: "Inter", sans-serif;
-	padding: 5px;
-	font-size: 16px;
-}
+
+/* ── Inline table inputs ───────────────────────────────── */
+.inventoryTable input[type="text"],
+.inventoryTable input[type="email"],
 .inventoryTable input[type="phone"] {
-	border-radius: 10px;
-	border-collapse: separate;
-	border-color: white;
-	border-spacing: 0px;
+	border-radius: var(--radius-sm);
 	border: none;
-	background-color: inherit;
-	font-family: "Inter", sans-serif;
-	padding: 5px;
-	font-size: 16px;
+	background-color: transparent;
+	color: var(--text-primary);
+	font-family: var(--font-sans);
+	padding: 4px 6px;
+	font-size: 14px;
 }
+
+/* ── Table buttons — no translateY (causes row jiggle) ─── */
 .deleteBtn {
 	border: none;
 	padding: 5px;
-}
-.tableBtn {
-	border-radius: 5px;
-	border: none;
-	padding: 5px;
 	background-color: inherit;
+	color: var(--text-primary);
+	cursor: pointer;
 }
-.searchContainer {
-	width: 75%;
-	padding-top: 15px;
-	padding-bottom: 10px;
+
+.tableBtn {
+	border-radius: var(--radius-sm);
+	border: none;
+	padding: 5px 8px;
+	background-color: inherit;
+	color: var(--text-secondary);
+	cursor: pointer;
+	transition: color 0.15s ease;
 }
-.searchContainer .searchBar {
-	width: 100%;
-	padding-bottom: 15px;
-	padding-top: 15px;
-	font-size: 18px;
-	border: 1px solid var(--alternate-bg-color) !important;
-	border-radius: 10px;
-	background-color: var(--alternate-bg-color);
-}
-.inventoryTable > tbody {
-	border-radius: 5px;
-	border: 1px solid black;
-	border-collapse: separate;
-}
-.btnText {
-	font-family: "Inter", sans-serif;
-	font-size: 16px;
-	font-weight: 900;
-}
+
 .tableBtn:hover {
-	color: var(--btn-highlight);
-	padding-bottom: 3px;
+	color: var(--accent);
 }
-.tableBtn:hover > img {
-	padding-top: 3px;
+
+/* ── Pagination ─────────────────────────────────────────── */
+.btnText {
+	font-family: var(--font-sans);
+	font-size: 14px;
+	font-weight: 700;
 }
+
 .stateRow {
 	display: flex;
 	justify-content: center;
 	margin-top: 8px;
 }
+
 .dateRow {
 	text-align: center !important;
 }
+
 .pageDisplay {
-	padding: 1px;
-	font-size: 14px;
+	padding: 0 6px;
+	font-size: 12px;
+	color: var(--text-secondary);
+	font-weight: 600;
 }
+
 .arrow {
 	border: none;
 	background-color: inherit;
+	color: var(--text-secondary);
+	cursor: pointer;
+	transition: color 0.15s ease;
+	padding: 2px 6px;
+	font-size: 14px;
 }
-.arrow:hover img {
-	scale: 5px;
+
+.arrow:hover {
+	color: var(--accent);
 }
-.damageCol {
-	min-width: 100px;
-}
-.tcCol {
-	min-width: 120px;
-}
-.scCol {
-	min-width: 120px;
-}
+
 .pgDisplayDropdown {
-	font-family: "Inter", sans-serif;
-	background-color: var(--alternate-bg-color);
-	border: 1px solid var(--alternate-bg-color);
-	border-radius: 10px;
-	font-weight: 800;
+	font-family: var(--font-sans);
+	background-color: var(--bg-surface-2);
+	color: var(--text-primary);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	font-weight: 600;
+	padding: 2px 6px;
+	font-size: 12px;
 }
+
 .pgDisplayDropdown option {
-	font-family: "Inter", sans-serif;
-	background-color: var(--alternate-bg-color);
-	border: 1px solid var(--alternate-bg-color);
-	border-radius: 10px;
-	font-weight: 800;
+	font-family: var(--font-sans);
+	background-color: var(--bg-surface-2);
+	color: var(--text-primary);
+	font-weight: 600;
+}
+
+/* ── Clickable row ──────────────────────────────────────── */
+.inventoryRow {
+	cursor: pointer;
+}
+
+.stateCell {
 	text-align: center;
 }
-.paginateCol {
-	white-space: nowrap;
+
+.chevronCell {
+	text-align: center;
+	width: 36px;
+}
+
+.expandChevron {
+	display: inline-block;
+	color: var(--text-muted);
+	font-size: 16px;
+	line-height: 1;
+	transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s ease;
+	user-select: none;
+}
+
+.expandChevron.open {
+	transform: rotate(90deg);
+	color: var(--accent);
+}
+
+.inventoryRow:hover .expandChevron {
+	color: var(--text-secondary);
+}
+
+/* ── Pagination footer ──────────────────────────────────── */
+.tablePagination {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 10px 16px;
+	background-color: var(--bg-surface-2);
+	border-top: 1px solid var(--border);
+}
+
+/* ── Expanded detail drawer — CSS Grid height animation ─── */
+/*
+ * Always rendered. Height animates via grid-template-rows: 0fr → 1fr.
+ * Three-layer structure:
+ *   .expandedRow > td > .drawerSlide > .expandedDrawer > .drawerInner
+ *
+ * .drawerSlide   — grid container that transitions height
+ * .expandedDrawer — overflow:hidden so content clips at 0fr
+ * .drawerInner   — holds padding (can't be on .expandedDrawer itself
+ *                  or padding bleeds through when height = 0)
+ */
+.expandedRow > td,
+.updateRow > td {
+	padding: 0;
+	border-bottom: none;
 	overflow: hidden;
 }
-.displayCol {
-	white-space: nowrap;
+
+.expandedRow.drawerOpen > td {
+	background-color: var(--tan-subtle) !important;
+	border-bottom: 2px solid var(--accent);
 }
-.pageRow {
+
+[data-theme="dark"] .expandedRow.drawerOpen > td {
+	background-color: var(--bg-surface-2) !important;
+}
+
+/* Prevent tr:nth-child(even) background from leaking through closed invisible rows */
+.expandedRow:not(.drawerOpen),
+.updateRow:not(.drawerOpen) {
+	background-color: transparent;
+}
+
+.drawerSlide {
+	display: grid;
+	grid-template-rows: 0fr;
+	transition: grid-template-rows 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.drawerOpen > td > .drawerSlide {
+	grid-template-rows: 1fr;
+}
+
+/* overflow:hidden + min-height:0 are both required for the grid trick */
+.expandedDrawer {
+	overflow: hidden;
+	min-height: 0;
+}
+
+.drawerInner {
+	padding: 16px 20px 14px;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+
+/* Invoice drawer — outer padding frames the card; card handles inner styling */
+.drawerInner.invoiceDrawer {
+	padding: 12px 16px 14px;
+}
+
+.drawerInner.invoiceDrawer .drawerActions {
+	padding: 12px 20px 14px;
+	border-top: 1px solid var(--border);
+	background-color: var(--bg-surface);
+}
+
+/* inventoryTable alternating rows — two patterns:
+   a) InventoryList: 4 rows per container (inventoryRow+expandedRow+2 updateRows)
+      → inventoryRows at 4n+1; alt bg at 8n+5
+   b) SoldList / SelectCustomer: 2 rows per item (main + updateRow)
+      → main rows at 4n+1; alt bg at 4n+3 (excluding invisible updateRows) */
+.inventoryTable tbody .inventoryRow:nth-child(8n+5) td {
+	background-color: var(--bg-row-alt);
+}
+.inventoryTable tbody tr:nth-child(4n+3):not(.updateRow):not(.expandedRow):not(.inventoryRow) td {
+	background-color: var(--bg-row-alt);
+}
+
+.drawerGrid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 12px 28px;
+}
+
+.drawerField {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.drawerFieldWide {
+	grid-column: 1 / -1;
+}
+
+.fieldLabel {
+	font-family: var(--font-header);
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.fieldValue {
+	font-size: 14px;
+	color: var(--text-primary);
+	font-weight: 500;
+}
+
+.drawerNotesInput {
+	width: 100%;
+	border: 1px solid var(--border-strong) !important;
+	border-radius: var(--radius-sm);
+	padding: 6px 8px;
+	font-size: 14px;
+	background-color: var(--bg-surface);
+	color: var(--text-primary);
+	font-family: var(--font-sans);
+}
+
+.drawerActions {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+	padding-top: 10px;
+	border-top: 1px solid var(--border);
+}
+
+.drawerBtn {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 6px 12px;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-sm);
+	background-color: var(--bg-surface);
+	color: var(--text-primary);
+	font-family: var(--font-sans);
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.drawerBtn:hover {
+	background-color: var(--accent);
+	color: var(--accent-fg);
+	border-color: var(--accent);
+}
+
+.drawerBtn img {
+	opacity: 0.7;
+}
+
+.drawerBtn:hover img {
+	filter: brightness(0) invert(1);
+	opacity: 1;
+}
+
+.drawerBtnDanger:hover {
+	background-color: #dc2626;
+	border-color: #dc2626;
+}
+
+/* ── Update/outbound embedded form row ──────────────────── */
+.updateRow > td {
+	padding: 0;
+	border-bottom: none;
+}
+
+.updateRow.drawerOpen > td {
+	border-bottom: 2px solid var(--accent);
+}
+
+/* ── Column width hints ─────────────────────────────────── */
+.damageCol { min-width: 100px; }
+.tcCol     { min-width: 130px; }
+.scCol     { min-width: 130px; }
+
+.paginateCol, .displayCol, .pageRow {
 	white-space: nowrap;
 }

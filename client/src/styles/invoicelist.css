@@ -1,65 +1,160 @@
 .invoiceWrapper {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
+	display: block;
+	width: 100%;
+	padding: 4px 32px 48px;
+	overflow-x: auto;
 }
+
 .invoiceDetails {
 	display: flex;
 	flex-direction: column;
-	justify-content: left;
-	max-width: min-content;
+	gap: 0;
+	width: 100%;
 }
-.customerTab {
-	min-width: 100%;
+
+/* ── Customer field grid ────────────────────────────────── */
+.invoiceCustomerGrid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 12px 28px;
+	padding: 16px 20px;
+	background-color: var(--bg-surface-2);
+	border-bottom: 1px solid var(--border);
 }
+
+/* ── Containers table wrapper ───────────────────────────── */
+.invoiceContainersWrap {
+	overflow-x: auto;
+}
+
+/* .invoiceDrawer padding handled by .drawerInner.invoiceDrawer in inventorylist.css */
+
 .buttonRow > button {
 	float: right;
 }
+
 .invoiceListBtn {
 	padding-right: 5%;
 }
+
+/* Blocky, heavy header */
 .invoiceSubHead > th {
+	padding: 12px 14px;
 	text-align: center;
-	padding-left: 10px;
-	text-wrap: nowrap;
+	white-space: nowrap;
+	font-size: 12px;
+	letter-spacing: 0.06em;
+	color: var(--text-primary);
+	border-bottom: 2px solid var(--accent);
+	background-color: var(--bg-surface-2);
 }
+
+.invoiceSubHead > th:first-child {
+	padding-left: 18px;
+}
+
 .invoiceRow > td {
 	text-align: center;
+	color: var(--text-primary);
+	padding: 11px 12px;
+	font-size: 14px;
+	border-bottom: 1px solid var(--border);
 }
+
 .borderRow {
-	border: 3px solid darkgray;
-	border-radius: 10px;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-sm);
 }
+
 .invoiceCheck {
 	display: flex;
 	justify-content: center;
 	align-items: center;
 }
+
 .invoiceTable {
-	min-width: 50%;
-	max-width: 70%;
-	border: 9px solid var(--main-bg-color);
+	width: 100%;
+	min-width: 640px;
+	margin: 0 auto;
 	border-spacing: 0;
 	border-collapse: separate;
-	border-radius: 10px;
-	border-left: none;
-	border-right: none;
-	border-bottom: none;
+	border-radius: var(--radius-md);
+	background-color: var(--bg-surface);
+	border: 1px solid var(--border);
+	box-shadow: var(--shadow-sm);
+	overflow: hidden;
 }
-.superInvoiceTable {
-	border-bottom: 9px solid var(--main-bg-color);
+
+.invoiceHeader {
+	background-color: var(--bg-surface-2);
 }
+
 .invoiceHeader th {
-	padding: 10px;
-	padding-top: 1px;
-	font-weight: bold;
+	padding: 12px 14px;
+	font-size: 12px;
+	letter-spacing: 0.06em;
+	color: var(--text-primary);
+	border-bottom: 2px solid var(--accent);
 }
+
+.invoiceHeader th:first-child {
+	padding-left: 18px;
+}
+
 .invoiceTable td {
-	padding: 10px;
+	padding: 11px 12px;
+	font-size: 14px;
+	color: var(--text-primary);
+	border-bottom: 1px solid var(--border);
 }
+
+.invoiceTable td:first-child {
+	padding-left: 16px;
+}
+
+/* invoiceTable alternating rows — 2 rows per item (main + expandedRow or updateRow):
+   main rows sit at odd positions, alt bg every other main row via 4n+3 */
+.invoiceTable tbody tr:nth-child(4n+3):not(.updateRow):not(.expandedRow) td {
+	background-color: var(--bg-row-alt);
+}
+
+/* ── Invisible always-rendered rows — override .invoiceTable td padding/border ── */
+/* .invoiceTable td has equal specificity to .expandedRow > td but loads later,
+   so we need higher-specificity rules here to keep these rows truly zero-height */
+.invoiceTable .expandedRow > td,
+.invoiceTable .updateRow > td {
+	padding: 0;
+	border-bottom: none;
+	border-top: none;
+	overflow: hidden;
+}
+
+.superInvoiceTable {
+	border-bottom: 2px solid var(--accent);
+}
+
+/* ── Invoice container card — shared box for table + action buttons ── */
+.invoiceContainerCard {
+	background-color: var(--bg-surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-md);
+	box-shadow: var(--shadow-sm);
+	overflow: hidden;
+}
+
+/* Strip individual card styling from invoiceTable when inside the card */
+.invoiceContainerCard .invoiceTable {
+	border: none;
+	border-radius: 0;
+	box-shadow: none;
+	margin: 0;
+}
+
 .createInvoiceBtn {
-	margin: 0px !important;
+	padding: 8px 18px;
+	margin: 12px 0 18px;
 }
+
 .regenBtn {
 	margin-left: 0px !important;
 }

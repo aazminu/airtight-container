@@ -33,15 +33,11 @@ function InvoiceDetails({ invoice }) {
 		});
 	};
 
-	const updateSalesTax = async (e) => {
+	const updateSalesTax = async () => {
 		fetch(`/api/v2/invoice/tax/${invoice.invoice_id}`, {
 			method: "PUT",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				invoice_taxed: !salesTax,
-			}),
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ invoice_taxed: !salesTax }),
 			credentials: "include",
 		}).then((res) => {
 			if (!res.ok) {
@@ -52,19 +48,15 @@ function InvoiceDetails({ invoice }) {
 		});
 	};
 
-	const updateCreditCardUsed = async (e) => {
+	const updateCreditCardUsed = async () => {
 		fetch(`/api/v2/invoice/credit/${invoice.invoice_id}`, {
 			method: "PUT",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				invoice_credit: !creditCard,
-			}),
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ invoice_credit: !creditCard }),
 			credentials: "include",
 		}).then((res) => {
 			if (!res.ok) {
-				setPopup("Unable to change tax status of invoice");
+				setPopup("Unable to change credit card status of invoice");
 				return;
 			}
 			setCreditCard(!creditCard);
@@ -73,64 +65,70 @@ function InvoiceDetails({ invoice }) {
 
 	return (
 		<div className="invoiceDetails">
-			<div>
-				<table className="invoiceTable customerTab">
-					<tr className="inventoryHeader invoiceSubHead">
-						<th scope="col">Customer Name</th>
-						<th scope="col">Email Address</th>
-						<th scope="col">Phone Number</th>
-						<th scope="col">Business/Home Address</th>
-						<th scope="col">Sales Tax Applied</th>
-						<th scope="col">Credit Card Used</th>
-					</tr>
-					<tr className="invoiceRow">
-						<td>{invoice.customer.contact_name}</td>
-						<td>{invoice.customer.contact_email}</td>
-						<td>{invoice.customer.contact_phone}</td>
-						<td>{invoice.customer.contact_address}</td>
-						<td>
-							<span className="checkboxLine invoiceCheck">
-								<input
-									type="checkbox"
-									checked={salesTax}
-									onChange={updateSalesTax}
-								></input>
-							</span>
-						</td>
-						<td>
-							<span className="checkboxLine invoiceCheck">
-								<input
-									type="checkbox"
-									checked={creditCard}
-									onChange={updateCreditCardUsed}
-								></input>
-							</span>
-						</td>
-					</tr>
-				</table>
+			{/* ── Customer info — field grid ── */}
+			<div className="invoiceCustomerGrid">
+				<div className="drawerField">
+					<span className="fieldLabel">Customer</span>
+					<span className="fieldValue">{invoice.customer.contact_name}</span>
+				</div>
+				<div className="drawerField">
+					<span className="fieldLabel">Email</span>
+					<span className="fieldValue">{invoice.customer.contact_email || "—"}</span>
+				</div>
+				<div className="drawerField">
+					<span className="fieldLabel">Phone</span>
+					<span className="fieldValue">{invoice.customer.contact_phone || "—"}</span>
+				</div>
+				<div className="drawerField">
+					<span className="fieldLabel">Address</span>
+					<span className="fieldValue">{invoice.customer.contact_address || "—"}</span>
+				</div>
+				<div className="drawerField">
+					<span className="fieldLabel">Sales Tax</span>
+					<span className="fieldValue">
+						<input
+							type="checkbox"
+							checked={salesTax}
+							onChange={updateSalesTax}
+						/>
+					</span>
+				</div>
+				<div className="drawerField">
+					<span className="fieldLabel">Credit Card</span>
+					<span className="fieldValue">
+						<input
+							type="checkbox"
+							checked={creditCard}
+							onChange={updateCreditCardUsed}
+						/>
+					</span>
+				</div>
 			</div>
-			<div>
+
+			{/* ── Containers table ── */}
+			<div className="invoiceContainersWrap">
 				<table className="invoiceTable">
-					<tr className="inventoryHeader invoiceSubHead">
-						<th scope="col">Unit Number</th>
-						<th scope="col">Outbound Date</th>
-						<th scope="col">Size</th>
-						<th scope="col">Sale Price</th>
-						<th scope="col">Trucking Rate</th>
-						<th scope="col">Modification Cost</th>
-						<th scope="col">Destination</th>
-						<th colSpan={3}></th>
-					</tr>
-					{invoiceContainers.map((container) => {
-						return (
-							<>
-								<SoldRow
-									container={container}
-									onDelete={handleRemoveContainerFromInvoice}
-								/>
-							</>
-						);
-					})}
+					<thead>
+						<tr className="invoiceSubHead">
+							<th scope="col">Unit Number</th>
+							<th scope="col">Outbound Date</th>
+							<th scope="col">Size</th>
+							<th scope="col">Sale Price</th>
+							<th scope="col">Trucking Rate</th>
+							<th scope="col">Modification Cost</th>
+							<th scope="col">Destination</th>
+							<th colSpan={3}></th>
+						</tr>
+					</thead>
+					<tbody>
+						{invoiceContainers.map((container) => (
+							<SoldRow
+								key={container.inventory_id}
+								container={container}
+								onDelete={handleRemoveContainerFromInvoice}
+							/>
+						))}
+					</tbody>
 				</table>
 			</div>
 		</div>

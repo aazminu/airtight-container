@@ -6,14 +6,17 @@ function YardView() {
   return (
     <div className="yardContainer">
       <h1 className="invHeader">Yard View</h1>
-      <div className="releases">
-        <h2 className="releaseTitle">Valid Release Numbers</h2>
+      <div className="yardReleasesSection">
+        <p className="yardSectionLabel">Valid Release Numbers</p>
         <ReleaseNumbers />
       </div>
-      <div className="inventoryInfo">
-        <UpcomingOutbounds type="available" />
-        <UpcomingOutbounds type="sold" />
-        <UpcomingOutbounds type="hold" />
+      <div className="yardUnitSection">
+        <p className="yardSectionLabel">Units by Type</p>
+        <div className="inventoryInfo">
+          <UpcomingOutbounds type="available" />
+          <UpcomingOutbounds type="sold" />
+          <UpcomingOutbounds type="hold" />
+        </div>
       </div>
     </div>
   );
