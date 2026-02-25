@@ -18,6 +18,7 @@ import contactRoute from "./routes/v2/contact.js";
 
 const app = express();
 const port = process.env.PORT;
+app.set("trust proxy", 1);
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
 const emailLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
