@@ -8,58 +8,63 @@
 
 ## Last updated
 
-**2026-05-12** — Phase 0 complete locally, awaiting review/push.
+**2026-05-12** — Phase 0 complete and merged to `2.0` on origin.
 
 ## Current phase
 
-**Phase 0 — Foundation.** All five planned PRs implemented as commits on branch `phase-0/drizzle-setup`. Branch is not yet pushed.
+**Phase 1 — Schema 2.0 + Clients page** is next. See [PLAN.md §7](PLAN.md#7-phased-pr-plan).
 
 ## Status
 
-Branch `phase-0/drizzle-setup` (six commits ahead of main):
+Branching model:
+- `main` — deploy-on-push to EC2. Not touched in this work yet.
+- `2.0` — long-lived integration branch for the rewrite. All Phase N work merges in here via per-PR feature branches. `2.0` merges to `main` only when the rewrite is ready to ship.
+- `phase-0`, `phase-0-dep-audit` — kept as the source branches for the merged PRs. Can be deleted any time.
 
-| Commit | What |
+**Phase 0 PRs (all merged to `2.0` on origin):**
+
+| Commit (on 2.0) | What |
 |---|---|
-| `42d226a` | Add CLAUDE.md and docs/HANDOFF.md (workflow infra) + remove committed CRA `build/` tree |
-| `88b27fe` | **PR 0.2** Drizzle ORM, TypeScript, tsx runtime; POC port of `GET /api/v1/inventory` |
-| `e828ce2` | **PR 0.1** CRA → Vite + TypeScript migration |
-| `d76dbc6` | **PR 0.3** Vitest + Playwright scaffolding with canary tests |
-| `240b8e5` | **PR 0.4** helmet + Zod scaffolding + POC validation on `POST /api/v2/contact` |
-| `50351a1` | **PR 0.5** Shared UI primitives: Button, Modal, Badge, Toast (+18 unit tests) |
+| `34c635b` (merge of `a28701c`) | **PR 0.6** dep audit + slim: drop react-email family + 6.1MB of accidentally-committed Save-Page-As cruft. Client packages 231 → 121 (-47%). |
+| `409dc7b` (merge of 7 commits) | **PRs 0.1–0.5** + workflow docs (CLAUDE.md, HANDOFF.md): Vite+TS, Drizzle+tsx, Vitest+Playwright, helmet+Zod, UI primitives (Button/Modal/Badge/Toast). |
 
-Commit order on the branch is non-chronological because PR 0.1 was cherry-picked on top of PR 0.2 to consolidate Phase 0 onto a single branch. Functionally fine; each PR is independent.
+**Verified end-to-end:** client builds in 735ms (84KB gz), server boots via tsx (105ms), **25 unit tests passing** (18 client + 7 server), Playwright config validates, Drizzle round-trips against live prod, helmet adds expected security headers.
 
-**Verified end-to-end:** client builds (1.16s, 84KB gz), server boots via tsx (105ms), client vitest 18/18, server vitest 7/7, Playwright config validates, Drizzle round-trips against live prod, helmet adds expected security headers.
+Known remaining vulns (dev-tooling only, none in prod runtime):
+- 5 moderate on client, 8 moderate on server — all the same esbuild dev-server CORS advisory (GHSA-67mh-4wv8-2f99) bubbling through vite/vitest/drizzle-kit. Fixing means major version bumps to vite 8 / vitest 4 — defer to a separate decision.
 
 ## What to start next session with
 
-Pick one:
+**Phase 1 kickoff** — schema 2.0 migrations + Clients page. The biggest single phase. Before designing the migration script, run the preflight queries against prod:
 
-1. **Dep audit + slim micro-PR (optional Phase 0 closer).** Drop `react-email` + `@react-email/*` from client deps (transitively pulls in CVE-2025-66478-vulnerable Next.js 15.1.2; only used by the commented-out `IOReport.jsx`). Server has 4 moderate vulnerabilities to investigate. Will need user input on whether to keep `react-email` for future email templates.
-2. **Push and split into PRs.** Push `phase-0/drizzle-setup` and open as either one PR or five (`git cherry-pick` the commits onto fresh branches off main).
-3. **Start Phase 1 — Schema 2.0 + Clients page.** The biggest single phase: drizzle migrations for all schema renames/restructures in [PLAN.md §3](PLAN.md#3-schema-20), `scripts/migrate-data-v2.ts` with the seven backfill steps, new Clients page replacing the legacy contacts flow. Run preflight prod queries first (see [PLAN.md §8](PLAN.md#8-open-follow-ups-for-implementation-time)).
+```sql
+SELECT count(*) FROM inventory WHERE aquisition_price IS NULL;
+SELECT count(*) FROM sold WHERE modification_price = 0;
+```
 
-Recommended order: 1 → 2 → 3.
+Then we step through:
+1. Drizzle schema rewrite (everything in [PLAN.md §3](PLAN.md#3-schema-20))
+2. `scripts/migrate-data-v2.ts` with the seven backfill steps
+3. New `/clients` page (rolodex + edit/create + S&H rate defaults)
+4. Port existing routes to Drizzle + the renamed `clients` table
+5. Cutover plan rehearsal
+
+Phase 1 branches off `2.0` (e.g. `phase-1/schema-2.0`).
 
 ## Open threads / blockers
 
-Same as last session — none of these block earlier phases:
+Same as last session — none block earlier phases:
 
 - **A80 thermal printer** (FCC ID `2A6FW-A80`) — need spec sheet. Convo before Phase 7.
-- **QuickBooks Online vs Desktop** — Desktop is harder. Resolve before Phase 8.
+- **QuickBooks Online vs Desktop** — resolve before Phase 8.
 - **Hardware swap** (iPad → rugged Android handheld) — raise inside printer convo.
 - **OCR field spec** — confer at Phase 2 kickoff.
 - **Three invoice template designs** — to be pitched in Phase 3 PR.
 - **Spanish translation source** — Phase 6 prep.
 - **Help page content** — author vs draft. Phase 6 prep.
 - **Staging environment** — none today. Worth a dry-run env for Phase 1 cutover weekend?
-- **Historical invoice re-render** — currently in Phase 3, easy to move to Phase 1 cutover if preferred.
-
-New, opened by Phase 0:
-
-- **Branching policy** — Phase 0 landed as one branch with five commits, not five branches. User can choose: PR-per-commit (split via cherry-pick) or one umbrella PR. Recommend the umbrella for Phase 0; per-PR-branch for later phases that touch more files.
-- **`tsx` as the prod runtime on the server** — chosen for simplicity over a tsc build step. Acceptable cold-start cost. Easy to swap to compiled output if startup latency ever matters.
-- **CSS Modules as the styling approach** — chosen for the new `ui/` primitives. Existing pages keep their global CSS in `src/styles/` until refactored.
+- **Historical invoice re-render** — currently in Phase 3, easy to move to Phase 1 cutover.
+- **Vite 8 / vitest 4 bumps** to close the dev-server esbuild advisories — separate conversation when worth the breakage.
 - **`docs/PLAN.md`** has IDE auto-formatter whitespace tweaks still uncommitted. User to decide.
 - **Root `.gitignore`** comment-line removal still uncommitted. User to decide.
 
@@ -75,5 +80,7 @@ New, opened by Phase 0:
 - **Mobile + Spanish are yard-only.** Admin views stay desktop and English.
 - **TypeScript everywhere** by end of Phase 5. Lazy migration, not big-bang.
 - **PDFs in S3.** Invoices and saved reports both. Consistency is enforced by storing `pdf_s3_key` alongside structured rows.
-- **Component library** (Phase 0 PR 5) lives at `client/src/components/ui/`. Add primitives there as their consumers get built. Existing `components/{forms,lists,reports,rows,templates}/` directories stay for legacy code until those pages get refactored in their phases.
-- **Drizzle schema definitions** at `server/db/schema.ts` mirror *current* prod, not 2.0. New tables get added here only as routes are ported. The 2.0 schema rewrite happens in Phase 1.
+- **Component library** lives at `client/src/components/ui/`. Add primitives there as their consumers get built.
+- **Drizzle schema definitions** at `server/db/schema.ts` mirror *current* prod, not 2.0. The 2.0 schema rewrite happens in Phase 1.
+- **`tsx` as the prod runtime on the server** — chosen for simplicity over a tsc build step. Easy to swap if startup latency ever matters.
+- **CSS Modules** for new UI primitives. Legacy global CSS in `src/styles/` until pages get refactored.
