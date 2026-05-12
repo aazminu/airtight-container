@@ -1,6 +1,8 @@
 import express from "express";
 import db from "../../db/index.js";
 import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
+import { validateBody } from "../../middleware/validate.js";
+import { createContactSchema } from "../../validation/contact.js";
 
 const router = express.Router();
 
@@ -19,7 +21,7 @@ router.get("/", checkEmployee, async (req, res) => {
 	}
 });
 
-router.post("/", checkEmployee, async (req, res) => {
+router.post("/", checkEmployee, validateBody(createContactSchema), async (req, res) => {
 	try {
 		const results = await db.query(
 			"INSERT INTO contacts (contact_name, contact_email, contact_phone, contact_address) VALUES ($1, $2, $3, $4) RETURNING *",

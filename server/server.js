@@ -6,6 +6,7 @@ import express from "express";
 import { toNodeHandler } from "better-auth/node";
 import rateLimit from "express-rate-limit";
 import cors from "cors";
+import helmet from "helmet";
 import { auth } from "./auth.js";
 import { checkAuth } from "./middleware/auth.js";
 import soldRoute from "./routes/v1/sold.js";
@@ -23,6 +24,7 @@ app.set("trust proxy", 1);
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
 const emailLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
 
+app.use(helmet());
 app.use(
 	cors({
 		origin: process.env.CORS_ORIGIN,
