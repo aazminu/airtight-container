@@ -70,9 +70,16 @@ Other docs you may need:
 
 ---
 
+## Branching
+
+- **`main`** — deploys to EC2 on push (GHA `deploy.yml`). Don't push to `main` unless you mean to ship. Currently 1 commit ahead of `origin/main` (docs-only planning commit, intentionally unpushed).
+- **`2.0`** — long-lived integration branch for the rewrite. All phase work merges here via `--no-ff` merge commits to preserve phase boundaries. `2.0` merges to `main` only when the rewrite is ready to ship.
+- **`phase-N/<slug>`** or **`phase-N-<slug>`** — feature branches off `2.0`. One per PR. Note: `phase-N` as a leaf branch and `phase-N/anything` can't coexist (git namespace conflict), so once a `phase-N` leaf exists, later sub-branches use a dash instead of a slash.
+
 ## Dev and deploy
 
 - **Local dev:** `./dev.sh` from repo root. Spins backend on `:3001`, client on `:3000`. Requires `server/.env` (copy from `server/.env.example` and fill in `BETTER_AUTH_SECRET`, `DATABASE_URL`, `GOOGLE_CLIENT_*`, `CORS_ORIGIN`, `RESEND`).
+- **Local Postgres** is the prod-mirroring DB used during dev. Connection details are in `server/.env`. You can query it via `psql` or by writing a one-off `tsx server/scripts/foo.ts` script and running it.
 - **Deploy:** push to `main`. GHA builds both images, pushes to `ghcr.io/harrylynchh/airtight-{backend,frontend}`, SSHes to EC2, restarts the compose stack. Secrets: `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY` in GitHub.
 - **EC2 `.env`:** lives at `~/airtight-container/.env` on the host. Never committed.
 
