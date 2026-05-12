@@ -49,6 +49,9 @@ function Navbar() {
 									<li>
 										<a href="/dashboard">Dashboard</a>
 									</li>
+									<li>
+										<a href="/clients">Clients</a>
+									</li>
 								</>
 							)}
 							<li>

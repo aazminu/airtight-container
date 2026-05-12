@@ -1,0 +1,130 @@
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  font-size: 1.75rem;
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--muted, #6e7781);
+  font-size: 0.875rem;
+}
+
+.headerActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.search {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  min-width: 240px;
+  background: var(--bg, #fff);
+  color: var(--text, #111);
+}
+
+.search:focus {
+  outline: 2px solid var(--accent, #0969da);
+  outline-offset: 1px;
+  border-color: var(--accent, #0969da);
+}
+
+.error {
+  background: #ffeef0;
+  border: 1px solid #ffd8db;
+  color: #82071e;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.875rem;
+}
+
+.card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 8px;
+  padding: 0.875rem 1rem;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.card:hover {
+  border-color: var(--accent, #0969da);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transform: translateY(-1px);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--accent, #0969da);
+  outline-offset: 1px;
+}
+
+.cardHead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.cardName {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.cardBiz {
+  font-size: 0.8125rem;
+  color: var(--muted, #6e7781);
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  font-size: 0.875rem;
+}
+
+.line {
+  color: var(--text, #1f2328);
+}
+
+.lineMuted {
+  color: var(--muted, #6e7781);
+  font-size: 0.8125rem;
+}
+
+.empty {
+  grid-column: 1 / -1;
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--muted, #6e7781);
+  border: 2px dashed var(--border, #d0d7de);
+  border-radius: 8px;
+}
