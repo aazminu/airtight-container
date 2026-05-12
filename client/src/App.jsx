@@ -18,6 +18,7 @@ import Printout from "./components/templates/Printout";
 import Auth from "./routes/Auth";
 import PopupContainer from "./components/PopupContainer";
 import CreateInvoice from "./routes/CreateInvoice";
+import Clients from "./routes/Clients";
 
 const App = () => {
 	const router = createBrowserRouter(
@@ -32,6 +33,7 @@ const App = () => {
 				<Route path="/reports" element={<Reports />} />
 				<Route path="/yardview" element={<YardView />} />
 				<Route path="/dashboard" element={<Dashboard />} />
+				<Route path="/clients" element={<Clients />} />
 				<Route path="/reports/form" element={<Printout />} />
 			</React.Fragment>
 		)
