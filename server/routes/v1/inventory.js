@@ -57,36 +57,62 @@ router.put("/state", checkEmployee, async (req, res) => {
 
 router.post("/add", checkEmployee, async (req, res) => {
 	try {
-		let deleteRelease = false;
+		const { container, release } = req.body;
+		const releaseId = release[0].release_number_id;
+		const newCount = release[0].release_number_count - 1;
+
+		// Insert with both legacy text columns (acceptance_number, sale_company)
+		// and the new FK columns. Legacy cols are dropped in PR 1.6; until then
+		// keep them populated so existing reads stay consistent. sale_company_id
+		// is inherited from the release's sale_company_id since every container's
+		// sale_company should match its release.
 		await db.query(
-			"INSERT INTO inventory (date, unit_number, size, damage, trucking_company, acceptance_number, sale_company, state, notes, aquisition_price) VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5, $6, $7, $8, $9) returning *",
+			`INSERT INTO inventory (
+				date, unit_number, size, damage, trucking_company,
+				acceptance_number, sale_company, state, notes,
+				acquisition_price, release_number_id, sale_company_id,
+				is_pending_audit
+			) VALUES (
+				CURRENT_TIMESTAMP, $1, $2, $3, $4,
+				$5, $6, $7, $8,
+				$9, $10,
+				(SELECT sale_company_id FROM release_numbers WHERE release_number_id = $10),
+				true
+			)`,
 			[
-				req.body.container.unit_number,
-				req.body.container.size,
-				req.body.container.damage,
-				req.body.container.trucking_company,
-				req.body.container.acceptance_number,
-				req.body.container.sale_company,
-				req.body.container.state,
-				req.body.container.notes,
-				req.body.container.aquisition_price,
+				container.unit_number,
+				container.size,
+				container.damage,
+				container.trucking_company,
+				container.acceptance_number,
+				container.sale_company,
+				container.state || "available",
+				container.notes,
+				container.acquisition_price,
+				releaseId,
 			]
 		);
-		if (req.body.release[0].release_number_count === 1) {
-			deleteRelease = true;
+
+		// Decrement release count; mark complete when it hits 0
+		// (replaces the legacy DELETE-when-empty pattern per PLAN §4.3).
+		if (newCount <= 0) {
 			await db.query(
-				"DELETE FROM release_numbers WHERE release_number_id = $1",
-				[req.body.release[0].release_number_id]
+				"UPDATE release_numbers SET release_number_count = 0, is_complete = true, completed_at = now() WHERE release_number_id = $1",
+				[releaseId]
 			);
 		} else {
-			const newCount = req.body.release[0].release_number_count - 1;
 			await db.query(
 				"UPDATE release_numbers SET release_number_count = $1 WHERE release_number_id = $2",
-				[newCount, req.body.release[0].release_number_id]
+				[newCount, releaseId]
 			);
 		}
-		res.status(200).json({ status: "success", data: { deleted: deleteRelease } });
+
+		res.status(200).json({
+			status: "success",
+			data: { completed: newCount <= 0 },
+		});
 	} catch (err) {
+		console.error("inventory.add error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -94,7 +120,7 @@ router.post("/add", checkEmployee, async (req, res) => {
 router.put("/:id", checkAdmin, async (req, res) => {
 	try {
 		const results = await db.query(
-			"UPDATE inventory SET unit_number = $1, size = $2, damage = $3, trucking_company = $4, acceptance_number = $5, sale_company = $6, state = $7, aquisition_price = $8 where id = $9 returning *",
+			"UPDATE inventory SET unit_number = $1, size = $2, damage = $3, trucking_company = $4, acceptance_number = $5, sale_company = $6, state = $7, acquisition_price = $8 where id = $9 returning *",
 			[
 				req.body.unit_number,
 				req.body.size,
@@ -103,7 +129,7 @@ router.put("/:id", checkAdmin, async (req, res) => {
 				req.body.acceptance_number,
 				req.body.sale_company,
 				req.body.state,
-				req.body.aquisition_price,
+				req.body.acquisition_price,
 				req.params.id,
 			]
 		);

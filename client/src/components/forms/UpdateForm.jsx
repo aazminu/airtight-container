@@ -82,8 +82,8 @@ function UpdateForm({ container, save, close }) {
             <input
               type="text"
               className="updateInput"
-              onChange={set('aquisition_price')}
-              value={updatedContainer.aquisition_price || ''}
+              onChange={set('acquisition_price')}
+              value={updatedContainer.acquisition_price || ''}
               maxLength="8"
             />
           </div>

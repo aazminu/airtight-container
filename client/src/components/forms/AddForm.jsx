@@ -13,7 +13,7 @@ function AddForm() {
 		trucking_company: "",
 		acceptance_number: "",
 		sale_company: "",
-		aquisition_price: "",
+		acquisition_price: "",
 		state: "available",
 		notes: "",
 	});
@@ -78,7 +78,7 @@ function AddForm() {
 	const setAquisitionPrice = (e) => {
 		setNewContainer((prev) => ({
 			...prev,
-			aquisition_price: e.target.value,
+			acquisition_price: e.target.value,
 		}));
 	};
 	const submitForm = (e) => {
@@ -243,7 +243,7 @@ function AddForm() {
 								<input
 									type="text"
 									onChange={setAquisitionPrice}
-									value={newContainer.aquisition_price}
+									value={newContainer.acquisition_price}
 									maxLength="20"
 								></input>
 							</td>

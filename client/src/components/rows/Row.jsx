@@ -151,8 +151,8 @@ function Row({ container, onDelete }) {
 									<div className="drawerField">
 										<span className="fieldLabel">Acq. Price</span>
 										<span className="fieldValue">
-											{currentContainer.aquisition_price
-												? `$${currentContainer.aquisition_price}`
+											{currentContainer.acquisition_price
+												? `$${currentContainer.acquisition_price}`
 												: "—"}
 										</span>
 									</div>
