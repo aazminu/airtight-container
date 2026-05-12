@@ -10,6 +10,8 @@
     "start": "tsx server.js",
     "dev": "tsx watch server.js",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:introspect": "drizzle-kit introspect",
@@ -32,6 +34,7 @@
     "@types/node": "^20.14.0",
     "@types/pg": "^8.11.6",
     "drizzle-kit": "^0.31.4",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
   }
 }

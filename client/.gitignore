@@ -9,6 +9,9 @@
 
 # testing
 /coverage
+/playwright-report
+/test-results
+/playwright/.cache
 
 # misc
 .DS_Store
