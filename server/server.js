@@ -11,7 +11,6 @@ import { auth } from "./auth.js";
 import { checkAuth } from "./middleware/auth.js";
 import soldRoute from "./routes/v1/sold.js";
 import inventoryRoute from "./routes/v1/inventory.js";
-import releaseRoute from "./routes/v1/release.js";
 import releaseRoute_2 from "./routes/v2/release.js";
 import invoiceRoute from "./routes/v2/invoice.js";
 import dashboardRoute from "./routes/v2/dashboard.js";
@@ -37,7 +36,6 @@ app.all("/api/auth/*", authLimiter, toNodeHandler(auth));
 
 app.use(express.json());
 
-app.use("/api/v1/release", releaseRoute);
 app.use("/api/v1/inventory/sold", soldRoute);
 app.use("/api/v1/inventory", inventoryRoute);
 
