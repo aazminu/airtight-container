@@ -171,6 +171,28 @@
   line-height: 1.55;
 }
 
+/* Submit feedback */
+
+.errorBox {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: #ffeef0;
+  border: 1px solid #ffd8db;
+  color: #82071e;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.successBox {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: #e6f9ee;
+  border: 1px solid #b6e6c8;
+  color: #0a6027;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
 /* Sticky footer with the back/next controls */
 
 .footer {

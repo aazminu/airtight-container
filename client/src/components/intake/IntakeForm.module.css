@@ -1,0 +1,127 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.row > * {
+  flex: 1 1 0;
+  min-width: 160px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted, #57606a);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.field input,
+.field select,
+.field textarea {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 8px;
+  font-size: 1rem;
+  background: var(--bg, #fff);
+  color: var(--text, #111);
+  font: inherit;
+  min-height: 44px; /* iPad-friendly tap target */
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 88px;
+  line-height: 1.45;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: 2px solid var(--accent, #0969da);
+  outline-offset: 1px;
+  border-color: var(--accent, #0969da);
+}
+
+/* Review summary */
+
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.reviewIntro {
+  margin: 0;
+  color: var(--muted, #57606a);
+  line-height: 1.5;
+  font-size: 0.9375rem;
+}
+
+.summary {
+  margin: 0;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface, #fff);
+}
+
+.summaryRow {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  border-bottom: 1px solid var(--border, #d0d7de);
+}
+
+.summaryRow:last-child {
+  border-bottom: none;
+}
+
+.summaryLabel {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: var(--surface-soft, #f6f8fa);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted, #57606a);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.summaryValue {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  color: var(--text, #1f2328);
+  word-break: break-word;
+}
+
+@media (max-width: 540px) {
+  .summaryRow {
+    grid-template-columns: 1fr;
+  }
+  .summaryLabel {
+    padding-bottom: 0.25rem;
+  }
+  .summaryValue {
+    padding-top: 0.25rem;
+  }
+}

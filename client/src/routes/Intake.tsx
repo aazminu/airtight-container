@@ -1,24 +1,66 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Flow, FlowStep } from '../components/ui';
+import {
+  SalesDetailsStep,
+  type ReleaseOption,
+  type SalesIntakeForm,
+} from '../components/intake/SalesDetailsStep';
+import { SalesReviewStep } from '../components/intake/SalesReviewStep';
 import styles from './Intake.module.css';
 
 type Kind = 'sales' | 'sh' | null;
+type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
 const SALES_STEPS = ['Choose', 'Photos', 'Confirm details', 'Container details', 'Review'] as const;
 const SH_STEPS = ['Choose', 'Client', 'Rates', 'Review'] as const;
 
+const EMPTY_SALES: SalesIntakeForm = {
+  unit_number: '',
+  size: '',
+  damage: '',
+  trucking_company: '',
+  release_number_id: null,
+  acquisition_price: '',
+  notes: '',
+};
+
 /**
- * Phase 2 PR 2.1 — intake flow skeleton. The structural shell only:
- *  - Step 0 picks Sales vs Storage
- *  - Each branch has placeholder steps with Back/Next
- *  - No submit, no upload, no OCR, no S&H DB writes yet
+ * Phase 2 intake. PR 2.1 shipped the skeleton + Flow primitive.
+ * PR 2.2 wires the Sales branch end-to-end:
+ *  - Step 3 Container details: real form
+ *  - Step 4 Review: read-only summary + Submit
+ *  - Submit POSTs /api/v1/inventory/add with state='pending' so the
+ *    audit screen (PR 2.5) can pick it up.
+ *  - Steps 1 (Photos) and 2 (Confirm) remain placeholders for PR 2.6
+ *    (S3 + Textract). Users can tap Next through them today.
  *
- * Submit logic lands in PR 2.2 (Sales) and PR 2.4 (S&H). S3 photos +
- * Textract OCR in PR 2.6. /add 301s to /intake in PR 2.2.
+ * S&H branch remains a placeholder chain until PR 2.4.
  */
 export default function Intake() {
   const [kind, setKind] = useState<Kind>(null);
   const [step, setStep] = useState(0);
+  const [salesForm, setSalesForm] = useState<SalesIntakeForm>(EMPTY_SALES);
+  const [submitState, setSubmitState] = useState<SubmitState>('idle');
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [releaseCache, setReleaseCache] = useState<ReleaseOption[]>([]);
+
+  // Cache the release list once so the Review step can label the picked
+  // release by value without re-fetching. SalesDetailsStep also fetches —
+  // both share the same network response; the duplicate request on a
+  // single intake session is negligible and avoids prop-drilling for now.
+  useEffect(() => {
+    if (kind !== 'sales' || releaseCache.length > 0) return;
+    let cancelled = false;
+    fetch('/api/v2/release/numbers', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (!cancelled && body) setReleaseCache(body.data.releases);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [kind, releaseCache.length]);
 
   const labels = useMemo<readonly string[]>(() => {
     if (kind === 'sh') return SH_STEPS;
@@ -26,16 +68,26 @@ export default function Intake() {
     return ['Choose'];
   }, [kind]);
 
-  const canBack = step > 0;
-  const canNext = step < labels.length - 1;
+  const canBack = step > 0 && submitState !== 'submitting';
+  const isReviewStep = kind === 'sales' && step === SALES_STEPS.length - 1;
+  const isFinalStep = step === labels.length - 1;
+
+  const salesDetailsValid =
+    salesForm.unit_number.trim() &&
+    salesForm.size.trim() &&
+    salesForm.damage.trim() &&
+    salesForm.release_number_id !== null;
+
+  // Going forward from the Details step is blocked until the form validates.
+  const isSalesDetailsStep = kind === 'sales' && step === 3;
+  const canNext =
+    !isFinalStep && !(isSalesDetailsStep && !salesDetailsValid) && submitState !== 'submitting';
 
   const back = () => {
-    if (step === 1) {
-      // Going back from the first branch step clears the kind selection
-      // so the user can re-pick Sales vs Storage cleanly.
-      setKind(null);
-    }
+    if (step === 1) setKind(null);
     setStep((s) => Math.max(0, s - 1));
+    setSubmitState('idle');
+    setSubmitError(null);
   };
 
   const next = () => setStep((s) => Math.min(labels.length - 1, s + 1));
@@ -44,6 +96,60 @@ export default function Intake() {
     setKind(k);
     setStep(1);
   };
+
+  const resetForNextBox = () => {
+    setSalesForm(EMPTY_SALES);
+    setSubmitState('idle');
+    setSubmitError(null);
+    setKind(null);
+    setStep(0);
+  };
+
+  const submit = async () => {
+    if (kind !== 'sales' || !salesForm.release_number_id) return;
+    const release = releaseCache.find(
+      (r) => r.release_number_id === salesForm.release_number_id,
+    );
+    if (!release) {
+      setSubmitState('error');
+      setSubmitError('Picked release is no longer available — pick another.');
+      return;
+    }
+    setSubmitState('submitting');
+    setSubmitError(null);
+    try {
+      const res = await fetch('/api/v1/inventory/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          container: {
+            unit_number: salesForm.unit_number.trim(),
+            size: salesForm.size.trim(),
+            damage: salesForm.damage.trim(),
+            trucking_company: salesForm.trucking_company.trim() || null,
+            notes: salesForm.notes.trim() || null,
+            acquisition_price: salesForm.acquisition_price || null,
+            state: 'pending',
+          },
+          release: [release],
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setSubmitState('success');
+    } catch (e) {
+      setSubmitState('error');
+      setSubmitError(e instanceof Error ? e.message : 'Submit failed');
+    }
+  };
+
+  const pickedReleaseLabel = useMemo(() => {
+    if (!salesForm.release_number_id) return undefined;
+    const r = releaseCache.find(
+      (rel) => rel.release_number_id === salesForm.release_number_id,
+    );
+    return r?.release_number_value;
+  }, [salesForm.release_number_id, releaseCache]);
 
   return (
     <div className={styles.page}>
@@ -103,7 +209,7 @@ export default function Intake() {
               <FlowStep>
                 <Placeholder
                   title="Take photos"
-                  body="S3 upload + Textract OCR land in PR 2.6. For now this step is structural only."
+                  body="S3 upload + Textract OCR land in PR 2.6. Tap Next to skip for now."
                 />
               </FlowStep>
               <FlowStep>
@@ -113,16 +219,19 @@ export default function Intake() {
                 />
               </FlowStep>
               <FlowStep>
-                <Placeholder
-                  title="Container details"
-                  body="Size, damage, release number, trucking, notes. Real fields land in PR 2.2."
+                <SalesDetailsStep
+                  value={salesForm}
+                  onChange={(patch) => setSalesForm((f) => ({ ...f, ...patch }))}
                 />
               </FlowStep>
               <FlowStep>
-                <Placeholder
-                  title="Review and submit"
-                  body="Submits as pending_audit=true. PR 2.2 wires this to POST /api/v1/inventory/add."
-                />
+                <SalesReviewStep value={salesForm} releaseLabel={pickedReleaseLabel} />
+                {submitError && <div className={styles.errorBox}>{submitError}</div>}
+                {submitState === 'success' && (
+                  <div className={styles.successBox}>
+                    Box logged. An admin will review it before it goes available.
+                  </div>
+                )}
               </FlowStep>
             </>
           )}
@@ -159,13 +268,30 @@ export default function Intake() {
         <span className={styles.footerHint}>
           {step + 1} of {labels.length}
         </span>
-        <Button
-          variant="primary"
-          onClick={next}
-          disabled={!canNext || (step === 0 && kind === null)}
-        >
-          {step === labels.length - 1 ? 'Submit (coming soon)' : 'Next'}
-        </Button>
+
+        {isReviewStep ? (
+          submitState === 'success' ? (
+            <Button variant="primary" onClick={resetForNextBox}>
+              Add another box
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              onClick={submit}
+              disabled={submitState === 'submitting'}
+            >
+              {submitState === 'submitting' ? 'Submitting…' : 'Submit'}
+            </Button>
+          )
+        ) : (
+          <Button
+            variant="primary"
+            onClick={next}
+            disabled={!canNext || (step === 0 && kind === null)}
+          >
+            Next
+          </Button>
+        )}
       </footer>
     </div>
   );
