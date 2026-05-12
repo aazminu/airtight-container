@@ -19,6 +19,7 @@ import Auth from "./routes/Auth";
 import PopupContainer from "./components/PopupContainer";
 import CreateInvoice from "./routes/CreateInvoice";
 import Clients from "./routes/Clients";
+import Intake from "./routes/Intake";
 
 const App = () => {
 	const router = createBrowserRouter(
@@ -34,6 +35,7 @@ const App = () => {
 				<Route path="/yardview" element={<YardView />} />
 				<Route path="/dashboard" element={<Dashboard />} />
 				<Route path="/clients" element={<Clients />} />
+				<Route path="/intake" element={<Intake />} />
 				<Route path="/reports/form" element={<Printout />} />
 			</React.Fragment>
 		)
