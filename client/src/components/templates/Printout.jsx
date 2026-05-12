@@ -2,7 +2,6 @@ import React from 'react';
 import { useLocation } from 'react-router-dom';
 import Delivery from './Delivery';
 import Invoice from './Invoice';
-import Template from './Template';
 function Printout() {
   let location = useLocation();
   return (
