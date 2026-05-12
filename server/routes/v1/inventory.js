@@ -1,18 +1,22 @@
 import express from "express";
+import { desc } from "drizzle-orm";
 import db from "../../db/index.js";
+import { db as drizzleDb } from "../../db/drizzle.js";
+import { inventory } from "../../db/schema.js";
 import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
 
 const router = express.Router();
 
 router.get("/", checkEmployee, async (req, res) => {
 	try {
-		const results = await db.query(
-			"select * from inventory ORDER BY date DESC"
-		);
+		const rows = await drizzleDb
+			.select()
+			.from(inventory)
+			.orderBy(desc(inventory.date));
 		res.status(200).json({
 			status: "success",
-			results: results.rows.length,
-			data: { inventory: results.rows },
+			results: rows.length,
+			data: { inventory: rows },
 		});
 	} catch (err) {
 		res.status(500).json({ message: "Internal server error" });
