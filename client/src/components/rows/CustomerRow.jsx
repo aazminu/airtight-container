@@ -9,7 +9,7 @@ function CustomerRow({ customer, sendContactUpstream, sendSelected }) {
 	const [showEdit, setShowEdit] = useState(false);
 	const [selected, setSelected] = useState(false);
 	const updateContact = (editedContact) => {
-		fetch(`/api/v2/contact/${editedContact.contact_id}`, {
+		fetch(`/api/v2/clients/${editedContact.contact_id}`, {
 			method: "PUT",
 			headers: {
 				"Content-Type": "application/json",

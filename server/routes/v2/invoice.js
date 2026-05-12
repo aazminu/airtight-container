@@ -4,6 +4,17 @@ import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
 
 const router = express.Router();
 
+const composeAddress = (row) => {
+	const parts = [];
+	if (row.street) parts.push(row.street);
+	if (row.city || row.client_state || row.zip) {
+		const cityState = [row.city, row.client_state].filter(Boolean).join(", ");
+		const tail = [cityState, row.zip].filter(Boolean).join(" ");
+		if (tail) parts.push(tail);
+	}
+	return parts.join(", ") || null;
+};
+
 const groupInvoices = (data) => {
 	return data.reduce((acc, row) => {
 		let invoice = acc.find((inv) => inv.invoice_id === row.invoice_id);
@@ -14,21 +25,37 @@ const groupInvoices = (data) => {
 				invoice_taxed: row.invoice_taxed,
 				invoice_credit: row.invoice_credit,
 				invoice_date: row.invoice_date,
+				// Snapshot totals (populated by PR 1.3 backfill; consumed by Phase 3)
+				subtotal: row.subtotal,
+				tax_rate: row.tax_rate,
+				tax_amount: row.tax_amount,
+				cc_fee_rate: row.cc_fee_rate,
+				cc_fee_amount: row.cc_fee_amount,
+				total: row.total,
 				customer: {
-					contact_id: row.contact_id,
-					contact_name: row.contact_name,
+					// Legacy keys preserved for backwards compat
+					contact_id: row.client_id,
+					contact_name: row.client_name,
 					contact_email: row.contact_email,
 					contact_phone: row.contact_phone,
-					contact_address: row.contact_address,
+					contact_address: composeAddress(row),
+					// New-shape fields
+					id: row.client_id,
+					client_name: row.client_name,
+					business_name: row.business_name,
+					street: row.street,
+					city: row.city,
+					state: row.client_state,
+					zip: row.zip,
 				},
 				containers: [],
 			};
 			acc.push(invoice);
 		}
 		invoice.containers.push({
-			inventory_id: row.id,
+			inventory_id: row.container_id,
 			unit_number: row.unit_number,
-			state: row.state,
+			state: row.inventory_state,
 			size: row.size,
 			damage: row.damage,
 			destination: row.destination,
@@ -42,18 +69,38 @@ const groupInvoices = (data) => {
 	}, []);
 };
 
+// Explicit column list — both `clients.state` and `inventory.state` exist,
+// so they get separate aliases. Same for inventory.id (renamed to
+// container_id) so it doesn't collide with potential future invoice columns.
+const INVOICE_SELECT_COLS = `
+	i.invoice_id, i.invoice_number, i.invoice_taxed, i.invoice_credit, i.invoice_date,
+	i.subtotal, i.tax_rate, i.tax_amount, i.cc_fee_rate, i.cc_fee_amount, i.total,
+	i.pdf_s3_key, i.sent_at, i.client_id,
+	cl.client_name, cl.business_name, cl.contact_email, cl.contact_phone,
+	cl.street, cl.city, cl.state AS client_state, cl.zip,
+	ct.id AS container_id, ct.unit_number, ct.size, ct.damage, ct.state AS inventory_state,
+	sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price, sc.modification_price, sc.invoice_notes
+`;
+
 router.get("/", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
-			"SELECT i.*, c.*, ct.id, ct.unit_number, ct.size, ct.damage, ct.state, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price, sc.modification_price, sc.invoice_notes FROM invoices i JOIN contacts c ON i.contact_id = c.contact_id JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id JOIN inventory ct ON ci.container_id = ct.id LEFT JOIN sold sc ON ct.id = sc.inventory_id ORDER BY i.invoice_id DESC"
+			`SELECT ${INVOICE_SELECT_COLS}
+			 FROM invoices i
+			 JOIN clients cl ON i.client_id = cl.id
+			 JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id
+			 JOIN inventory ct ON ci.container_id = ct.id
+			 LEFT JOIN sold sc ON ct.id = sc.inventory_id
+			 ORDER BY i.invoice_id DESC`
 		);
-		const groupedInvoices = groupInvoices(results.rows);
+		const grouped = groupInvoices(results.rows);
 		res.status(200).json({
 			status: "success",
-			results: groupedInvoices.length,
-			data: { invoices: groupedInvoices },
+			results: grouped.length,
+			data: { invoices: grouped },
 		});
 	} catch (err) {
+		console.error("invoice.get error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -65,7 +112,7 @@ router.get("/latest", async (req, res) => {
 		);
 		res.status(200).json({
 			status: "success",
-			latest: results.rows[0].invoice_number,
+			latest: results.rows[0]?.invoice_number ?? null,
 		});
 	} catch (err) {
 		res.status(500).json({ message: "Internal server error" });
@@ -75,14 +122,21 @@ router.get("/latest", async (req, res) => {
 router.get("/:id", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
-			"SELECT i.*, c.*, ct.unit_number, ct.size, ct.damage, ct.state, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price, sc.modification_price, sc.invoice_notes FROM invoices i JOIN contacts c ON i.contact_id = c.contact_id JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id JOIN inventory ct ON ci.container_id = ct.id LEFT JOIN sold sc ON ct.id = sc.inventory_id WHERE i.invoice_id = $1 ORDER BY i.invoice_id, ci.container_id",
+			`SELECT ${INVOICE_SELECT_COLS}
+			 FROM invoices i
+			 JOIN clients cl ON i.client_id = cl.id
+			 JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id
+			 JOIN inventory ct ON ci.container_id = ct.id
+			 LEFT JOIN sold sc ON ct.id = sc.inventory_id
+			 WHERE i.invoice_id = $1
+			 ORDER BY i.invoice_id, ci.container_id`,
 			[req.params.id]
 		);
-		const groupedInvoices = groupInvoices(results.rows);
+		const grouped = groupInvoices(results.rows);
 		res.status(200).json({
 			status: "success",
-			results: groupedInvoices.length,
-			data: { invoices: groupedInvoices },
+			results: grouped.length,
+			data: { invoices: grouped },
 		});
 	} catch (err) {
 		res.status(500).json({ message: "Internal server error" });
@@ -91,11 +145,13 @@ router.get("/:id", checkEmployee, async (req, res) => {
 
 router.post("/", checkEmployee, async (req, res) => {
 	try {
+		// Accept either client_id (new) or contact_id (legacy) in the body
+		const clientId = req.body.client_id ?? req.body.contact_id;
 		const results = await db.query(
-			"INSERT INTO invoices (invoice_number, contact_id, invoice_taxed, invoice_credit) VALUES ($1, $2, $3, $4) RETURNING invoice_id",
+			"INSERT INTO invoices (invoice_number, client_id, invoice_taxed, invoice_credit) VALUES ($1, $2, $3, $4) RETURNING invoice_id",
 			[
 				req.body.invoice_number,
-				req.body.contact_id,
+				clientId,
 				req.body.invoice_taxed,
 				req.body.invoice_credit,
 			]
@@ -109,6 +165,7 @@ router.post("/", checkEmployee, async (req, res) => {
 		}
 		res.status(200).json({ status: "success", id: invoiceID });
 	} catch (err) {
+		console.error("invoice.post error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });

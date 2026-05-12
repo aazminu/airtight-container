@@ -60,7 +60,7 @@ function DeliverySheet() {
 				setSelection(data.data.inventory[0].unit_number);
 			});
 
-		fetch(`/api/v2/contact`, {
+		fetch(`/api/v2/clients`, {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
