@@ -13,7 +13,7 @@ cleanup() { echo ""; info "Shutting down..."; kill "$CLIENT_PID" 2>/dev/null; wa
 trap cleanup EXIT INT TERM
 
 info "Starting frontend →  http://localhost:3000"
-(cd "$CLIENT" && BROWSER=none npm start 2>&1 | sed $'s/^/\033[35m[client]\033[0m /') &
+(cd "$CLIENT" && npm run dev 2>&1 | sed $'s/^/\033[35m[client]\033[0m /') &
 CLIENT_PID=$!
 
 wait
