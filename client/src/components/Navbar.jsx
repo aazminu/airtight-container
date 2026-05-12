@@ -58,7 +58,7 @@ function Navbar() {
 								<a href="/yardview">Yard View</a>
 							</li>
 							<li>
-								<a href="/add">Add A Box</a>
+								<a href="/intake">Add A Box</a>
 							</li>
 							<li>
 								<a href="/help">Help</a>

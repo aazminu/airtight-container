@@ -1,11 +1,11 @@
 import React from "react";
 import {
 	Route,
+	Navigate,
 	createBrowserRouter,
 	createRoutesFromElements,
 	RouterProvider,
 } from "react-router-dom";
-import Add from "./routes/Add";
 import Detail from "./routes/Detail";
 import Home from "./routes/Home";
 import { Provider } from "./context/restaurantcontext";
@@ -28,7 +28,8 @@ const App = () => {
 				<Route path="/" element={<Home />} />
 				<Route path="/auth" element={<Auth />} />
 				<Route path="/inventory/:id" element={<Detail />} />
-				<Route path="/add" element={<Add />} />
+				{/* Legacy /add path → new multi-step intake (PR 2.2). */}
+				<Route path="/add" element={<Navigate to="/intake" replace />} />
 				<Route path="/invoices" element={<Invoices />} />
 				<Route path="/invoices/create" element={<CreateInvoice />} />
 				<Route path="/reports" element={<Reports />} />
