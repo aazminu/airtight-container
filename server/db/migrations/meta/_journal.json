@@ -15,6 +15,13 @@
       "when": 1778610979163,
       "tag": "0001_phase1_invoice_client_id",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778612107132,
+      "tag": "0002_phase1_cutover",
+      "breakpoints": true
     }
   ]
 }

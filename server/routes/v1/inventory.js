@@ -61,22 +61,21 @@ router.post("/add", checkEmployee, async (req, res) => {
 		const releaseId = release[0].release_number_id;
 		const newCount = release[0].release_number_count - 1;
 
-		// Insert with both legacy text columns (acceptance_number, sale_company)
-		// and the new FK columns. Legacy cols are dropped in PR 1.6; until then
-		// keep them populated so existing reads stay consistent. sale_company_id
-		// is inherited from the release's sale_company_id since every container's
-		// sale_company should match its release.
+		// release_number_id comes from the picker; sale_company_id is inherited
+		// from the release since every container's sale_company should match its
+		// release. The legacy acceptance_number / sale_company text columns
+		// (still in the request body for backwards compat) are now ignored —
+		// PR 1.6 dropped them once every container had a proper FK.
 		await db.query(
 			`INSERT INTO inventory (
 				date, unit_number, size, damage, trucking_company,
-				acceptance_number, sale_company, state, notes,
-				acquisition_price, release_number_id, sale_company_id,
-				is_pending_audit
+				state, notes, acquisition_price,
+				release_number_id, sale_company_id, is_pending_audit
 			) VALUES (
 				CURRENT_TIMESTAMP, $1, $2, $3, $4,
-				$5, $6, $7, $8,
-				$9, $10,
-				(SELECT sale_company_id FROM release_numbers WHERE release_number_id = $10),
+				$5, $6, $7,
+				$8,
+				(SELECT sale_company_id FROM release_numbers WHERE release_number_id = $8),
 				true
 			)`,
 			[
@@ -84,8 +83,6 @@ router.post("/add", checkEmployee, async (req, res) => {
 				container.size,
 				container.damage,
 				container.trucking_company,
-				container.acceptance_number,
-				container.sale_company,
 				container.state || "available",
 				container.notes,
 				container.acquisition_price,
@@ -119,15 +116,18 @@ router.post("/add", checkEmployee, async (req, res) => {
 
 router.put("/:id", checkAdmin, async (req, res) => {
 	try {
+		// acceptance_number / sale_company in req.body are accepted but ignored —
+		// the source of truth is release_number_id / sale_company_id (both
+		// non-null after PR 1.6). Phase 2's audit flow will let admins reassign
+		// the release; for now the legacy edit form can only tweak the other
+		// fields without breaking anything if those inputs are filled in.
 		const results = await db.query(
-			"UPDATE inventory SET unit_number = $1, size = $2, damage = $3, trucking_company = $4, acceptance_number = $5, sale_company = $6, state = $7, acquisition_price = $8 where id = $9 returning *",
+			"UPDATE inventory SET unit_number = $1, size = $2, damage = $3, trucking_company = $4, state = $5, acquisition_price = $6 where id = $7 returning *",
 			[
 				req.body.unit_number,
 				req.body.size,
 				req.body.damage,
 				req.body.trucking_company,
-				req.body.acceptance_number,
-				req.body.sale_company,
 				req.body.state,
 				req.body.acquisition_price,
 				req.params.id,
