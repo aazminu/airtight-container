@@ -4,103 +4,106 @@
 
 ---
 
-## You are starting Phase 1
+## You are starting Phase 2
 
-**Phase 1 — Schema 2.0 + Clients page.** The biggest phase of the rewrite. This is mostly backend and database work.
+**Phase 2 — Intake flow + S&H domain.** Frontend-heavy this time, after Phase 1's near-pure backend work. The schema 2.0 substrate is already in place on the `2.0` branch (PRs 1.1 – 1.6 all merged via `--no-ff`).
 
 ### Do these things before you write any code
 
-1. **Read [PLAN.md](PLAN.md) end-to-end**, especially §3 (Schema 2.0 — the rename table, new columns, new tables, drops, the seven backfill steps, new constraints/indexes), §4.4 (Clients model), and §7 Phase 1 (scope + exit criteria).
-2. **Read [docs/schema.psql](schema.psql)** so you know exactly what's in prod today.
-3. **Run the two preflight queries against the local Postgres** (the local DB is a prod mirror; connection string in `server/.env`):
-   ```sql
-   SELECT count(*) FROM inventory WHERE aquisition_price IS NULL;
-   SELECT count(*) FROM sold WHERE modification_price = 0;
-   ```
-   The results affect how the migration script handles defaults for historical rows. Surface the numbers to the user before designing the script.
-4. **Branch off `2.0`**, not `main`. Suggested first branch: `phase-1/schema-2.0`.
+1. **Read [PLAN.md](PLAN.md) §4.1 + §4.2 (sales/S&H lifecycle), §4.5 (intake spec), §5 (UI rework summary), and §7 Phase 2 (scope + exit criteria).**
+2. **Skim [server/db/schema.ts](../server/db/schema.ts)** for the actual 2.0 tables you'll be writing against (`inventory` + `sh_inventory` mostly, plus `release_numbers`, `release_number_containers`, `clients`, `sale_companies`).
+3. **The local DB is already in schema-2.0 state** — every migration in [server/db/migrations/](../server/db/migrations/) has been applied locally. If you wipe and recreate, run `npm run db:migrate` from `server/` and then `npx tsx scripts/migrate-data-v2.ts --apply` to repopulate.
+4. **Branch off `2.0`**, not `main`. Suggested first branch: `phase-2-intake-skeleton` or similar (dashed to match Phase 0 / Phase 1 convention since `phase-2` may exist as a leaf later).
 
-### Recommended PR breakdown for Phase 1
+### Open conversations to schedule before Phase 2 work goes deep
 
-Don't land all of Phase 1 in one PR — it's too big to review. Suggested split (the user prefers staged PRs):
+- **OCR field spec** — exact fields, regex/parsing rules, error tolerance. PLAN §1 lists this as a Phase 2 prep convo.
+- **AWS S3 bucket setup** — bucket name(s), IAM credentials, env vars, region. Photos + invoice PDFs will share or split.
+- **AWS Textract** — same setup. Region (Textract availability), credentials.
+- **Intake animation polish** — references / inspiration the user has for the multi-step flow look-and-feel.
+- **iPad target** — specific iPad model + iOS version for the yard usage; affects viewport/CSS testing targets.
 
-1. **PR 1.1 — Drizzle schema definitions for 2.0.** Write the new TS schema in `server/db/schema.ts` covering every table in PLAN.md §3 (renames, new columns, new tables). No SQL migrations yet, no data changes. Just the source of truth.
-2. **PR 1.2 — Additive migration.** `drizzle-kit generate` to create the SQL that *adds* new columns, new tables, new indexes — but doesn't drop anything legacy yet and doesn't enforce new NOT NULL FKs. Reversible.
-3. **PR 1.3 — Backfill script.** `scripts/migrate-data-v2.ts` implementing the seven steps in PLAN.md §3.5. Runs on a copy of the local DB; surface counts and any rows that don't parse cleanly.
-4. **PR 1.4 — Route ports.** Port existing routes to use the new schema names (especially `contacts` → `clients`). Lazy migration: keep .js routes as .js, import Drizzle from .ts. The `inventory` GET / port from PR 0.2 is the pattern.
-5. **PR 1.5 — Clients page.** New `/clients` rolodex on the frontend. Uses the UI primitives in `client/src/components/ui/` — don't roll new ones.
-6. **PR 1.6 — Cutover migration.** Drop legacy `releases` and `users` tables. Enforce new NOT NULL FKs (only safe after backfill ran). Pin invoice numbers UNIQUE. This is the irreversible step — pair with a fresh `pg_dump` backup.
+### Recommended PR breakdown for Phase 2
 
-Each PR off `2.0`, merged back with `--no-ff` to preserve boundaries.
+A reasonable first split (refine after Phase 2 kickoff with the user):
 
-### Things to ask the user about as they come up
-
-- **Defaults for historical `sold` rows** on the new `material_cost` / `labor_cost` columns — NULL or 0? My lean is NULL ("we don't know" is honest), but ask.
-- **Address-split heuristic** for `contacts.contact_address` — the current logic is "split on first comma." For the 150 historical contacts, some won't parse cleanly. Surface the unparseable rows for manual review before cutover; don't guess.
-- **Whether historical invoice re-render belongs in Phase 1 or Phase 3.** Currently scheduled for Phase 3 (after PDF pipeline exists), but snapshot totals must go in at Phase 1 cutover. User said this is flippable.
-- **Cutover timing.** User can tolerate up to a weekend of downtime. Don't propose a cutover plan without confirming the window.
+1. **PR 2.1 — Intake flow skeleton.** Multi-step FlowStep primitive (add to `ui/`), navigation, no upload/OCR yet. Wire the Sales vs Storage branch.
+2. **PR 2.2 — Sales intake details + submit-as-pending.** Replaces `/add`. Uses `is_pending_audit=true`. Old `/add` 301s.
+3. **PR 2.3 — S&H domain wiring.** Routes for `sh_inventory`, lifecycle transitions, day counting (inclusive of arrival).
+4. **PR 2.4 — S&H intake branch.** Client picker, rate confirm, submit-as-pending into `sh_inventory`.
+5. **PR 2.5 — Pending-audit screen.** Admin-only, both Sales and S&H. Date override included.
+6. **PR 2.6 — S3 photo upload + Textract OCR.** Backend signed-URL endpoint + frontend upload + Textract pipeline.
+7. **PR 2.7 — Yard view S&H integration + navbar pending-action dropdown.**
 
 ### Don't
 
-- **Don't touch Better Auth tables** (`user`, `session`, `account`, `verification`). They're managed by Better Auth itself.
-- **Don't run anything against prod.** The local Postgres is the only DB you should query. Prod migration is a human-supervised event.
-- **Don't roll new UI primitives.** Use what's in `client/src/components/ui/` (Button, Modal, Badge, Toast). If you need something else, ask the user first.
-- **Don't bypass the lazy migration rule.** Convert `.js` → `.ts` only as you touch a file for real work, not just to "modernize."
+- **Don't touch Better Auth tables** (`user`, `session`, `account`, `verification`). Owned by Better Auth.
+- **Don't run anything against prod.** Local DB only. Prod stays on legacy until the eventual `2.0` → `main` rollout.
+- **Don't roll new UI primitives without asking.** Only `FlowStep` is a known new add for Phase 2.
+- **Don't bypass lazy migration.** Convert `.jsx` → `.tsx` only as you touch a file for real work.
+- **Don't `git push` `2.0` to origin without an ask.** It's been local-only since PR 1.1; the user is keeping it that way until the rewrite ships.
 
 ---
 
-## Status entering Phase 1
+## Status after Phase 1
 
-Phase 0 is fully merged to `2.0` on origin. Two merge commits visible in the graph:
+Phase 1 complete on `2.0` (local-only — not yet pushed). Six PR merge commits visible:
 
-| Commit on `2.0` | Phase 0 contents |
-|---|---|
-| `34c635b` | PR 0.6 — dep audit + slim (drop react-email, -6.1MB cruft, 231 → 121 client packages) |
-| `409dc7b` | PRs 0.1-0.5 + workflow docs (Vite+TS, Drizzle+tsx, Vitest+Playwright, helmet+Zod, UI primitives) |
+| Commit on `2.0` | PR | Contents |
+|---|---|---|
+| `ebf4e88` | 1.1 | Drizzle schema 2.0 + PLAN/HANDOFF doc fixes |
+| `8365255` | 1.2 | Additive migration: new tables, columns, indexes, enums; type cleanups |
+| `deeaca0` | 1.3 | Backfill script + address-review CSV; snapshot totals; dup-invoice cleanup |
+| `6ad8c66` | 1.4 | Route ports to schema 2.0 (clients, client_id, acquisition_price) |
+| `d70dce5` | 1.5 | `/clients` page (rolodex + create/edit modal, uses UI primitives) |
+| `75360cc` | 1.6 | Cutover migration: DROP legacy tables, enforce NOT NULL FKs, UNIQUE on invoice_number |
 
-`2.0` head is `43e1179` (the HANDOFF update above the second merge).
+`2.0` head is `75360cc`.
 
-**Verified end-to-end at Phase 0 close:** client builds in 735ms (84KB gz), server boots via tsx (105ms), 25 unit tests pass (18 client + 7 server), Playwright config validates, Drizzle round-trips against local Postgres, helmet adds expected security headers.
+**Local DB state after PR 1.6:** schema-2.0 complete. `contacts` / `releases` / `users` tables gone. `inventory.acceptance_number` / `inventory.sale_company` text columns gone. `inventory.release_number_id` / `sale_company_id` NOT NULL. `invoices.invoice_number` UNIQUE. Row counts: 656 inventory, 238 invoices (post dup-cleanup), 437 sold, 150 clients, 280 release_numbers (143 original + 137 placeholders from PR 1.3 step 3a/3b).
 
-Stack you're inheriting: Vite + TypeScript on the client, Express 4 + tsx + Drizzle ORM on the server, Postgres system service, Better Auth (admin plugin, roles: pending/employee/admin), Resend for email, helmet + Zod for security/validation, Vitest + Playwright for tests, CSS Modules for the new `ui/` primitives.
+**Verified at Phase 1 close:** server boots, server vitest 8/8 pass, client builds 86.80 KB gz, `/api/v2/invoice/latest` returns 200. Backups for each PR are in `/tmp/airtight-backups/pre-pr1{2,3,4,6}-*.dump` if you need to roll back locally.
+
+Stack you're inheriting: Vite + TypeScript on the client, Express 4 + tsx + Drizzle ORM on the server, Postgres system service with the full 2.0 schema (4 enums, 12 tables — clients, sale_companies, release_numbers, release_number_containers, inventory, sold, invoices, invoice_containers, sh_inventory, sh_invoices, sh_invoice_lines, reports). Better Auth (admin plugin, roles: pending/employee/admin), Resend for email, helmet + Zod for security/validation, Vitest + Playwright for tests, CSS Modules for new `ui/` primitives, csv-parse/csv-stringify as scripts-only deps.
 
 ---
 
 ## Open threads / blockers
 
-None block Phase 1.
+None block Phase 2.
 
-- **A80 thermal printer** (FCC ID `2A6FW-A80`) — need spec sheet. Convo before Phase 7.
+- **40 orphan invoices with no `invoice_containers`** — flagged in PR 1.3 backfill. Have customer + invoice_number + rate flags but no attached containers, so snapshot subtotal = 0. Pre-existing legacy data. User to decide whether to keep, clean up, or audit before prod cutover.
+- **Legacy text columns dropped, transitional UI still has inputs** — `AddForm.jsx`/`UpdateForm.jsx` still expose `acceptance_number` and `sale_company` inputs. Backend now ignores those fields. UX is mildly broken (user can type and have value silently dropped). Phase 2's intake rewrite kills these forms entirely, which fixes it.
+- **A80 thermal printer** (FCC ID `2A6FW-A80`) — spec sheet conversation needed before Phase 7.
 - **QuickBooks Online vs Desktop** — resolve before Phase 8.
 - **Hardware swap** (iPad → rugged Android handheld) — raise inside printer convo.
-- **OCR field spec** — confer at Phase 2 kickoff.
-- **Three invoice template designs** — to be pitched in Phase 3 PR.
+- **Three invoice template designs** — Phase 3 PR description.
 - **Spanish translation source** — Phase 6 prep.
 - **Help page content** — author vs draft. Phase 6 prep.
-- **Staging environment** — none today. Worth asking the user if they want a dry-run env for the Phase 1 cutover weekend.
-- **40 orphan invoices with no `invoice_containers`** — discovered during PR 1.3 backfill. Have customer + invoice_number + rate flags but no attached containers, so snapshot subtotal = 0. Pre-existing legacy data (not caused by Phase 1). User may want to decide whether to keep, clean up, or audit individually before prod cutover.
-- **Vite 8 / vitest 4 bumps** to close remaining dev-tooling-only esbuild advisories (GHSA-67mh-4wv8-2f99) — separate conversation when worth the breakage.
-- **`docs/PLAN.md`** has IDE auto-formatter whitespace tweaks uncommitted. User to decide.
-- **Root `.gitignore`** comment-line removal uncommitted. User to decide.
+- **Staging environment** — none today. Probably worth standing up before the eventual `2.0` → `main` cutover.
+- **Vite 8 / vitest 4 bumps** — close remaining dev-tooling-only esbuild advisories (GHSA-67mh-4wv8-2f99) when worth the breakage.
+- **`docs/PLAN.md`** still has IDE auto-formatter whitespace tweaks uncommitted on the user's working tree (stashed at `stash@{0}` from PR 1.1 prep, if not already popped). User to decide.
+- **Root `.gitignore`** EB-comment-line removal also in that stash. User to decide.
 
 ---
 
 ## Decisions worth remembering (since they're not obvious from the code)
 
-- **In-place rewrite** with a weekend-tolerable cutover. Drizzle migrations + a one-shot data transformation script run during cutover.
-- **`contacts` → `clients` rename** with split address (`street`, `city`, `state`, `zip`), new `business_name`, and S&H rate defaults (`default_in_fee=65`, `default_out_fee=65`, `default_daily_rate=1`).
-- **Storage & Handling is brand new** — completely separate tables (`sh_inventory`, `sh_invoices`, `sh_invoice_lines`). Boxes do not cross domains.
-- **S&H billing** = cron-generated on the last day of each month in `pending_review` → admin reviews → admin clicks Send. Day counting is **inclusive** of arrival day.
-- **Every container always has a release_number FK** (NOT NULL, enforced at the DB level after a one-time backfill of the single legacy NULL row).
-- **Invoice totals snapshot** onto each invoice row (`subtotal`, `tax_rate`, `tax_amount`, `cc_fee_rate`, `cc_fee_amount`, `total`) so historical totals never drift if rates change.
-- **Invoice numbers** stay `YYYYMM` + 3-digit sequence; concurrency fixed via server-side `pg_advisory_xact_lock` + `UNIQUE` constraint.
+- **In-place rewrite** with a single end-of-month-ish cutover when all phases are done. `2.0` stays local-only until then; prod runs legacy.
+- **`contacts` → `clients` rename** complete, with split address, `business_name`, S&H rate defaults (`default_in_fee=65`, `default_out_fee=65`, `default_daily_rate=1`).
+- **Storage & Handling is brand new** — separate tables (`sh_inventory`, `sh_invoices`, `sh_invoice_lines`). Boxes do not cross domains.
+- **S&H billing** = cron-generated month-end → `pending_review` → admin reviews → admin clicks Send. Inclusive day counting.
+- **Every container has a release_number FK** (NOT NULL, enforced as of PR 1.6 after PR 1.3's 297-row placeholder backfill).
+- **Invoice totals snapshot** onto each invoice row (`subtotal`, `tax_rate`, `tax_amount`, `cc_fee_rate`, `cc_fee_amount`, `total`). Formula matches legacy `floor(parseInt(sale_price))+...` math so historical totals match what was printed.
+- **Invoice numbers** stay `YYYYMM`+ 3-digit sequence; `UNIQUE` constraint enforced (PR 1.6). Server-side `pg_advisory_xact_lock` around generation lands in Phase 3 alongside the new create flow.
+- **Sale-company normalization map** in `migrate-data-v2.ts` — 32 distinct legacy values collapse to existing 5 + 8 new vendors + Unknown fallback. User-confirmed 2026-05-12. Re-applied at eventual prod cutover.
+- **Address splits** for 150 historical clients: CSV-edit workflow via `--emit-address-csv`. Local DB currently has auto-parsed addresses (mostly street only); user can re-edit the CSV and re-run `--apply` to UPSERT. Mandatory re-edit at prod cutover against fresh prod data.
+- **Inventory release-when-empty semantics:** changed from DELETE to `UPDATE is_complete=true` (PR 1.4). Completed releases stay queryable but hidden from intake pickers.
 - **Mobile + Spanish are yard-only.** Admin views stay desktop and English.
 - **TypeScript everywhere** by end of Phase 5. Lazy migration, not big-bang.
-- **PDFs in S3.** Invoices and saved reports both. Consistency enforced by storing `pdf_s3_key` alongside structured rows.
-- **Component library** lives at `client/src/components/ui/`. Add primitives there as their consumers get built.
-- **Drizzle schema** at `server/db/schema.ts` currently mirrors *current* prod (just the `inventory` table for the PR 0.2 POC). Phase 1 PR 1.1 rewrites it to the 2.0 shape.
-- **`tsx`** is the prod runtime on the server — chosen for simplicity over a tsc build step.
-- **CSS Modules** for new UI; legacy global CSS in `src/styles/` stays until pages get refactored.
+- **PDFs in S3.** Invoices and saved reports. `pdf_s3_key` column populated in Phase 3 once the Puppeteer pipeline lands.
+- **Component library** lives at `client/src/components/ui/` — Button, Modal, Badge, Toast. Phase 2 will add `FlowStep`.
+- **`tsx`** is the prod runtime on the server. CSS Modules for new UI primitives; legacy global CSS stays until pages get refactored.
 - **Phase 4 notes in user's auto-memory** refer to the *Better Auth migration's* Phase 4, NOT the PLAN.md phases. Different numbering.
 
 ---
