@@ -13,3 +13,6 @@ notepad.sql
 /package.json
 /package-lock.json
 out.txt
+
+# Phase 1 migration working files (regenerated each run; user-edited locally)
+server/scripts/migration-data/

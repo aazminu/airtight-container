@@ -78,6 +78,7 @@ None block Phase 1.
 - **Spanish translation source** — Phase 6 prep.
 - **Help page content** — author vs draft. Phase 6 prep.
 - **Staging environment** — none today. Worth asking the user if they want a dry-run env for the Phase 1 cutover weekend.
+- **40 orphan invoices with no `invoice_containers`** — discovered during PR 1.3 backfill. Have customer + invoice_number + rate flags but no attached containers, so snapshot subtotal = 0. Pre-existing legacy data (not caused by Phase 1). User may want to decide whether to keep, clean up, or audit individually before prod cutover.
 - **Vite 8 / vitest 4 bumps** to close remaining dev-tooling-only esbuild advisories (GHSA-67mh-4wv8-2f99) — separate conversation when worth the breakage.
 - **`docs/PLAN.md`** has IDE auto-formatter whitespace tweaks uncommitted. User to decide.
 - **Root `.gitignore`** comment-line removal uncommitted. User to decide.

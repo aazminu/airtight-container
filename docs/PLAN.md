@@ -11,7 +11,7 @@ This plan is the source of truth for the 2.0 rewrite. It captures every decision
 - Brand-new S&H domain (inventory, lifecycle, rate model, month-end billing)
 - Pending-audit workflow for both Sales and S&H, surfaced to admins via a navbar dropdown
 - Clients page (renamed from contacts), with split address fields, business name, and S&H rate defaults
-- Invoice rewrite: tiled list, per-invoice detail page, new template, snapshot totals, PDF-in-S3 storage, historical migration of all 240 prior invoices
+- Invoice rewrite: tiled list, per-invoice detail page, new template, snapshot totals, PDF-in-S3 storage, historical migration of all 238 prior invoices (240 raw, minus 2 orphan duplicates cleaned up in Phase 1 Step 0)
 - Reports rewrite: extensible form-driven generation with saved history
 - Inventory page rework: three state-segmented tables, popup edit, fixed pagination/search/sort
 - Dashboard facelift with P&L and admin pending count
@@ -79,7 +79,7 @@ Migration strategy: **drizzle-kit migrations**, with a one-shot data-transformat
 1. Stop traffic
 2. Take a pg_dump backup
 3. Run drizzle-kit migrations (new tables, columns, constraints, FKs)
-4. Run [scripts/migrate-data-v2.ts](../scripts/migrate-data-v2.ts) (transforms + backfills + invoice re-render)
+4. Run [server/scripts/migrate-data-v2.ts](../server/scripts/migrate-data-v2.ts) (transforms + backfills + invoice re-render)
 5. Drop legacy tables
 6. Smoke test
 7. Resume traffic
@@ -197,20 +197,27 @@ emailed_to          text[]
 | `releases` (the v1 table with `number text[]`) | Dead; v1 route has a bug inserting scalar into array. No client usage. |
 | `users` (old pre-Better-Auth) | Better Auth `"user"` is canonical |
 
-### 3.5 Backfills (in [scripts/migrate-data-v2.ts](../scripts/migrate-data-v2.ts))
+### 3.5 Backfills (in [server/scripts/migrate-data-v2.ts](../server/scripts/migrate-data-v2.ts))
 
+0. **Cleanup orphan duplicate invoices.** Delete any `invoices` row that has zero attached `invoice_containers` AND shares its `invoice_number` with another invoice — a legacy double-submit artifact that PR 1.6's `UNIQUE(invoice_number)` constraint would otherwise reject. Today: 2 rows (invoice_ids 122, 123 — both `invoice_number=202505021`, Belleayre Mountain, dup within 1 minute on 2025-05-27). User-confirmed delete 2026-05-12.
 1. **Split `contacts.contact_address` → street/city/state/zip.** The script runs in two passes:
-   - **Pass A (`--emit-address-csv`):** apply the "split on first comma" heuristic across all 150 historical contacts and emit `scripts/migration-data/addresses.csv` with `[contact_id, original_address, parsed_street, parsed_city, parsed_state, parsed_zip, needs_review]`. The `needs_review` flag is set for rows the heuristic can't cleanly resolve (e.g., no state+ZIP tail).
+   - **Pass A (`--emit-address-csv`):** apply the "split on first comma" heuristic across all 150 historical contacts and emit `server/scripts/migration-data/addresses.csv` with `[contact_id, original_address, parsed_street, parsed_city, parsed_state, parsed_zip, needs_review]`. The `needs_review` flag is set for rows the heuristic can't cleanly resolve (e.g., no state+ZIP tail, or no comma between street and city).
    - User edits the CSV in place to correct unparseable rows.
-   - **Pass B (the real backfill run):** consumes the edited CSV. Errors if missing.
+   - **Pass B (the real backfill run):** consumes the edited CSV. Errors if missing. Step 1 UPSERTs on `clients.id` so re-runs after CSV edits update existing rows.
    - At the eventual prod cutover, regenerate Pass A against then-current prod data (new clients may have been added in the months since), re-edit, re-run.
-2. **Map `inventory.sale_company` (text) → `sale_company_id` FK** by matching name. Create `sale_companies` rows for any name with no match. The one inventory row with NULL/empty `sale_company` (id=192 today) gets an `Unknown` placeholder.
-3. **Map `inventory.acceptance_number` (text) → `release_number_id` FK** by matching value. The one inventory row with NULL/empty `acceptance_number` (id=449 today) → backfill with a placeholder `release_numbers` row (`release_number_value='LEGACY-UNKNOWN'`, `release_number_count=0`, `is_complete=true`, paired with that row's existing sale_company).
-4. **Compute snapshot totals on the 240 historical invoices** using the *current rates the invoices were sent under* (6.625% NJ tax if `invoice_taxed`, 3.5% CC fee if `invoice_credit`) and the line items in `sold` joined through `invoice_containers`. Persist into the new `subtotal`/`tax_rate`/`tax_amount`/`cc_fee_rate`/`cc_fee_amount`/`total` columns.
+2. **Map `inventory.sale_company` (text) → `sale_company_id` FK.** The legacy text column is noisy — 32 distinct values, mostly case/whitespace variants of the existing 5 sale_companies, plus 8 apparent new vendors (18W, Beacon, D'Annunzio, DiFazio, LMD, Logistics, Matthews, UBPS — Logitics → Logistics treated as typo) and 5 noise strings (COMPANY, N/A, TEST, RENTAL RETURN, rental) folded to a single `Unknown` placeholder. Normalization map is hard-coded in the script; user-confirmed 2026-05-12. The 8 new vendor names are inserted into `sale_companies`.
+3. **Map `inventory.acceptance_number` (text) → `release_number_id` FK.**
+   - **3a.** Insert a new `release_numbers` row (`count=0, is_complete=true`) for each orphan `acceptance_number` — 296 inventory rows reference an acceptance number whose `release_numbers` row was wiped by the legacy DELETE-when-count-zero pattern. Each orphan gets its own row so the historical paper trail is preserved.
+   - **3b.** Insert a single `LEGACY-UNKNOWN` placeholder for any inventory row with empty `acceptance_number` (id=449 today; paired with Triton from id=449's existing sale_company value).
+   - **3c.** Populate `inventory.release_number_id` by matching on `release_number_value`; remaining unmatched rows point at `LEGACY-UNKNOWN`.
+   - **3d.** Populate `inventory.sale_company_id`. First pass: inherit `sale_company_id` from the row's `release_numbers` FK when `inventory.sale_company` is null/noise (this gives id=192 a SeaCube sale_company via its real `P534112` acceptance instead of the `Unknown` placeholder PLAN originally suggested). Second pass: normalize the remaining `inventory.sale_company` text values and look up the matching `sale_companies` row.
+4. **Compute snapshot totals on the 238 historical invoices** (240 raw minus the 2 orphans removed in step 0) using the *current rates the invoices were sent under* (6.625% NJ tax if `invoice_taxed`, 3.5% CC fee if `invoice_credit`) and the line items in `sold` joined through `invoice_containers`. Formula matches the legacy [InvoiceForm.jsx:341-347](../client/src/components/forms/InvoiceForm.jsx#L341-L347) — `subtotal = Σ floor(sale_price)+floor(modification_price)+floor(trucking_rate)`, `tax = subtotal*tax_rate`, `cc_fee = (subtotal+tax)*cc_fee_rate`. Persist into the new `subtotal`/`tax_rate`/`tax_amount`/`cc_fee_rate`/`cc_fee_amount`/`total` columns.
 5. **Nullify `sold.modification_price = 0`.** 280 historical sold rows have explicit zero and 146 already have NULL; convert the 0s to NULL so the column reflects "we don't know" rather than "we know it was free." (Originally a PDF re-render step here — deferred to Phase 3 once the Puppeteer pipeline exists.)
 6. **Set `is_pending_audit = false`** on all 656 existing inventory rows (legacy boxes are grandfathered, no audit needed).
-7. **Set `is_complete = true`** on any `release_numbers` row with `release_number_count = 0` (no-op today — zero rows match — but future-proofs the new state machine).
+7. **Set `is_complete = true`** on any `release_numbers` row with `release_number_count = 0` (no-op today — zero rows match the pre-existing rows, but the 297 new placeholder rows inserted in step 3 are already `is_complete=true`).
 8. **Nullify the `sold.outbound_date = '2024-01-01'` sentinel** (280 rows) so the column is honestly NULL when delivery hasn't happened.
+
+The script wraps everything in a single transaction; if any step fails the whole backfill rolls back. After all steps run, the script asserts the preconditions PR 1.6 needs: 0 inventory rows with NULL `release_number_id`, 0 with NULL `sale_company_id`, 0 invoices with NULL `subtotal`, distinct `invoice_number` count = total invoice count.
 
 ### 3.6 New constraints / indexes
 
@@ -387,9 +394,9 @@ Eight phases, staged. Each phase is one or more PRs; each PR is mergeable to mai
 **Exit:** App builds and runs identically on Vite. All feature pages unchanged. Test commands work.
 
 ### Phase 1 — Schema 2.0 + Clients page
-**Goal:** New schema in prod with all 240 invoices and 656 inventory rows backfilled.
+**Goal:** New schema in prod with all 238 invoices (240 minus 2 orphan duplicates) and 656 inventory rows backfilled.
 - Drizzle migrations for all schema changes in [Section 3](#3-schema-20)
-- `scripts/migrate-data-v2.ts` with the seven backfill steps
+- `server/scripts/migrate-data-v2.ts` with the eight backfill steps
 - Drop legacy `releases` and `users` tables
 - New `/clients` page (rolodex + edit/create) with S&H rate defaults
 - Update all existing routes to use Drizzle and the renamed `clients` table
@@ -416,7 +423,7 @@ Eight phases, staged. Each phase is one or more PRs; each PR is mergeable to mai
 - `/invoices/:id` detail page with edit/regen/email/delete
 - Snapshot totals + tax-rate dropdown (state defaults)
 - PDF generation via Puppeteer + S3 upload
-- Historical re-render of 240 invoices through new template (deferred from Phase 1; lands here once the Puppeteer pipeline exists so we can manually verify outputs)
+- Historical re-render of 238 invoices through new template (deferred from Phase 1; lands here once the Puppeteer pipeline exists so we can manually verify outputs)
 - Server-side invoice number sequencing with advisory lock
 - S&H month-end cron job + pending review queue
 - S&H invoice detail page (read-only, with Send button)
