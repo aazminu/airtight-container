@@ -11,7 +11,7 @@ This plan is the source of truth for the 2.0 rewrite. It captures every decision
 - Brand-new S&H domain (inventory, lifecycle, rate model, month-end billing)
 - Pending-audit workflow for both Sales and S&H, surfaced to admins via a navbar dropdown
 - Clients page (renamed from contacts), with split address fields, business name, and S&H rate defaults
-- Invoice rewrite: tiled list, per-invoice detail page, new template, snapshot totals, PDF-in-S3 storage, historical migration of all 239 prior invoices
+- Invoice rewrite: tiled list, per-invoice detail page, new template, snapshot totals, PDF-in-S3 storage, historical migration of all 240 prior invoices
 - Reports rewrite: extensible form-driven generation with saved history
 - Inventory page rework: three state-segmented tables, popup edit, fixed pagination/search/sort
 - Dashboard facelift with P&L and admin pending count
@@ -107,8 +107,8 @@ Migration strategy: **drizzle-kit migrations**, with a one-shot data-transformat
 | Table | Column | Type | Purpose |
 |---|---|---|---|
 | `inventory` | `is_pending_audit` | `boolean DEFAULT true` | Pending until admin audits acquisition price + mods |
-| `sold` | `material_cost` | `numeric DEFAULT 0` | Mod material |
-| `sold` | `labor_cost` | `numeric DEFAULT 0` | Mod labor |
+| `sold` | `material_cost` | `numeric` nullable | Mod material; NULL means "not recorded" |
+| `sold` | `labor_cost` | `numeric` nullable | Mod labor; NULL means "not recorded" |
 | `invoices` | `subtotal` | `numeric` | Snapshot |
 | `invoices` | `tax_rate` | `numeric` | Snapshot (e.g., 0.06625) |
 | `invoices` | `tax_amount` | `numeric` | Snapshot |
@@ -199,13 +199,18 @@ emailed_to          text[]
 
 ### 3.5 Backfills (in [scripts/migrate-data-v2.ts](../scripts/migrate-data-v2.ts))
 
-1. **Split `contacts.contact_address` → street/city/state/zip** using the current "split on first comma" heuristic, then a manual review pass before cutover. Document any rows that won't parse.
-2. **Map `inventory.sale_company` (text) → `sale_company_id` FK** by matching name. Create `sale_companies` rows for any name with no match (or fold into "Unknown" if too sparse).
-3. **Map `inventory.acceptance_number` (text) → `release_number_id` FK** by matching value. The one inventory row with NULL/empty `acceptance_number` → backfill with a placeholder `release_numbers` row (`release_number_value='LEGACY-UNKNOWN'`, `release_number_count=0`, `is_complete=true`, paired with a `sale_companies` row `'Unknown'`).
-4. **Compute snapshot totals on the 239 historical invoices** using the *current rates the invoices were sent under* (6.625% NJ tax if `invoice_taxed`, 3.5% CC fee if `invoice_credit`) and the line items in `sold` joined through `invoice_containers`. Persist into the new `subtotal`/`tax_rate`/`tax_amount`/`cc_fee_rate`/`cc_fee_amount`/`total` columns.
-5. **Re-render all 239 invoices** through the new template → PDF → S3, persist `pdf_s3_key`. Verify totals match the snapshots.
+1. **Split `contacts.contact_address` → street/city/state/zip.** The script runs in two passes:
+   - **Pass A (`--emit-address-csv`):** apply the "split on first comma" heuristic across all 150 historical contacts and emit `scripts/migration-data/addresses.csv` with `[contact_id, original_address, parsed_street, parsed_city, parsed_state, parsed_zip, needs_review]`. The `needs_review` flag is set for rows the heuristic can't cleanly resolve (e.g., no state+ZIP tail).
+   - User edits the CSV in place to correct unparseable rows.
+   - **Pass B (the real backfill run):** consumes the edited CSV. Errors if missing.
+   - At the eventual prod cutover, regenerate Pass A against then-current prod data (new clients may have been added in the months since), re-edit, re-run.
+2. **Map `inventory.sale_company` (text) → `sale_company_id` FK** by matching name. Create `sale_companies` rows for any name with no match. The one inventory row with NULL/empty `sale_company` (id=192 today) gets an `Unknown` placeholder.
+3. **Map `inventory.acceptance_number` (text) → `release_number_id` FK** by matching value. The one inventory row with NULL/empty `acceptance_number` (id=449 today) → backfill with a placeholder `release_numbers` row (`release_number_value='LEGACY-UNKNOWN'`, `release_number_count=0`, `is_complete=true`, paired with that row's existing sale_company).
+4. **Compute snapshot totals on the 240 historical invoices** using the *current rates the invoices were sent under* (6.625% NJ tax if `invoice_taxed`, 3.5% CC fee if `invoice_credit`) and the line items in `sold` joined through `invoice_containers`. Persist into the new `subtotal`/`tax_rate`/`tax_amount`/`cc_fee_rate`/`cc_fee_amount`/`total` columns.
+5. **Nullify `sold.modification_price = 0`.** 280 historical sold rows have explicit zero and 146 already have NULL; convert the 0s to NULL so the column reflects "we don't know" rather than "we know it was free." (Originally a PDF re-render step here — deferred to Phase 3 once the Puppeteer pipeline exists.)
 6. **Set `is_pending_audit = false`** on all 656 existing inventory rows (legacy boxes are grandfathered, no audit needed).
-7. **Set `is_complete = true`** on any `release_numbers` row with `release_number_count = 0`.
+7. **Set `is_complete = true`** on any `release_numbers` row with `release_number_count = 0` (no-op today — zero rows match — but future-proofs the new state machine).
+8. **Nullify the `sold.outbound_date = '2024-01-01'` sentinel** (280 rows) so the column is honestly NULL when delivery hasn't happened.
 
 ### 3.6 New constraints / indexes
 
@@ -382,7 +387,7 @@ Eight phases, staged. Each phase is one or more PRs; each PR is mergeable to mai
 **Exit:** App builds and runs identically on Vite. All feature pages unchanged. Test commands work.
 
 ### Phase 1 — Schema 2.0 + Clients page
-**Goal:** New schema in prod with all 239 invoices and 656 inventory rows backfilled.
+**Goal:** New schema in prod with all 240 invoices and 656 inventory rows backfilled.
 - Drizzle migrations for all schema changes in [Section 3](#3-schema-20)
 - `scripts/migrate-data-v2.ts` with the seven backfill steps
 - Drop legacy `releases` and `users` tables
@@ -411,7 +416,7 @@ Eight phases, staged. Each phase is one or more PRs; each PR is mergeable to mai
 - `/invoices/:id` detail page with edit/regen/email/delete
 - Snapshot totals + tax-rate dropdown (state defaults)
 - PDF generation via Puppeteer + S3 upload
-- Historical re-render of 239 invoices through new template (one-off script under Phase 1 cutover, or backfilled here — TBD; safer here so we can manually verify)
+- Historical re-render of 240 invoices through new template (deferred from Phase 1; lands here once the Puppeteer pipeline exists so we can manually verify outputs)
 - Server-side invoice number sequencing with advisory lock
 - S&H month-end cron job + pending review queue
 - S&H invoice detail page (read-only, with Send button)

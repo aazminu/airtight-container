@@ -36,7 +36,7 @@ Each PR off `2.0`, merged back with `--no-ff` to preserve boundaries.
 ### Things to ask the user about as they come up
 
 - **Defaults for historical `sold` rows** on the new `material_cost` / `labor_cost` columns — NULL or 0? My lean is NULL ("we don't know" is honest), but ask.
-- **Address-split heuristic** for `contacts.contact_address` — the current logic is "split on first comma." For the 239 historical contacts, some won't parse cleanly. Surface the unparseable rows for manual review before cutover; don't guess.
+- **Address-split heuristic** for `contacts.contact_address` — the current logic is "split on first comma." For the 150 historical contacts, some won't parse cleanly. Surface the unparseable rows for manual review before cutover; don't guess.
 - **Whether historical invoice re-render belongs in Phase 1 or Phase 3.** Currently scheduled for Phase 3 (after PDF pipeline exists), but snapshot totals must go in at Phase 1 cutover. User said this is flippable.
 - **Cutover timing.** User can tolerate up to a weekend of downtime. Don't propose a cutover plan without confirming the window.
 

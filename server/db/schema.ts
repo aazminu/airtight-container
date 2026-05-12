@@ -1,30 +1,286 @@
 import {
   pgTable,
+  pgEnum,
   serial,
-  varchar,
-  char,
-  timestamp,
+  integer,
+  text,
+  boolean,
   numeric,
+  timestamp,
+  date,
+  jsonb,
+  index,
+  uniqueIndex,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 
-// This file mirrors the *current* prod schema (see docs/schema.psql).
-// Phase 1 of the 2.0 rewrite replaces this with the redesigned schema:
-// `aquisition_price` typo fix, `state` Postgres enum, FK additions on
-// sale_company / release_number, etc. (see docs/PLAN.md §3).
+// Source of truth for the 2.0 database shape. Reflects the END state after
+// Phase 1's two migrations (additive in PR 1.2, cutover in PR 1.6) and the
+// backfill in PR 1.3. Until both migrations have run on a given database,
+// this file describes a state the DB has not yet reached — drizzle-kit's
+// auto-diff against a not-yet-cut-over DB will be misleading; we hand-write
+// the Phase 1 migration SQL.
 //
-// Add tables here only as routes that use them are ported to Drizzle.
-// The full backfill happens during the Phase 1 cutover, not piecemeal here.
+// Better Auth owns its own tables (user / session / account / verification).
+// Only `user` is declared here, as a thin FK target for `reports.generated_by`.
 
-export const inventory = pgTable('inventory', {
+// ---- enums ------------------------------------------------------------
+
+export const inventoryState = pgEnum('inventory_state', [
+  'pending',
+  'available',
+  'hold',
+  'sold',
+  'outbound',
+]);
+
+export const shState = pgEnum('sh_state', [
+  'pending',
+  'in_storage',
+  'checked_out',
+]);
+
+export const shInvoiceStatus = pgEnum('sh_invoice_status', [
+  'pending_review',
+  'sent',
+  'paid',
+]);
+
+export const shLineType = pgEnum('sh_line_type', [
+  'in_fee',
+  'out_fee',
+  'storage_days',
+]);
+
+// ---- Better Auth reference (managed externally) -----------------------
+
+export const user = pgTable('user', {
+  id: text('id').primaryKey(),
+});
+
+// ---- sales domain -----------------------------------------------------
+
+export const clients = pgTable('clients', {
   id: serial('id').primaryKey(),
-  date: timestamp('date', { withTimezone: true }).notNull().defaultNow(),
-  unit_number: char('unit_number', { length: 12 }).notNull(),
-  size: char('size', { length: 5 }).notNull(),
-  damage: varchar('damage', { length: 60 }).notNull(),
-  trucking_company: varchar('trucking_company', { length: 40 }),
-  acceptance_number: varchar('acceptance_number', { length: 15 }),
-  sale_company: varchar('sale_company', { length: 20 }),
-  notes: varchar('notes', { length: 255 }),
-  aquisition_price: numeric('aquisition_price'),
-  state: varchar('state', { length: 10 }).notNull().default('available'),
+  client_name: text('client_name').notNull(),
+  business_name: text('business_name'),
+  contact_email: text('contact_email'),
+  contact_phone: text('contact_phone'),
+  street: text('street'),
+  city: text('city'),
+  state: text('state'),
+  zip: text('zip'),
+  default_in_fee: numeric('default_in_fee').notNull().default('65'),
+  default_out_fee: numeric('default_out_fee').notNull().default('65'),
+  default_daily_rate: numeric('default_daily_rate').notNull().default('1'),
+});
+
+export const sale_companies = pgTable('sale_companies', {
+  sale_company_id: serial('sale_company_id').primaryKey(),
+  sale_company_name: text('sale_company_name').notNull().unique(),
+});
+
+export const release_numbers = pgTable('release_numbers', {
+  release_number_id: serial('release_number_id').primaryKey(),
+  release_number_value: text('release_number_value').notNull().unique(),
+  release_number_count: integer('release_number_count').notNull().default(1),
+  sale_company_id: integer('sale_company_id')
+    .notNull()
+    .references(() => sale_companies.sale_company_id, { onDelete: 'cascade' }),
+  is_complete: boolean('is_complete').notNull().default(false),
+  completed_at: timestamp('completed_at', { withTimezone: true }),
+});
+
+export const release_number_containers = pgTable(
+  'release_number_containers',
+  {
+    release_number_id: integer('release_number_id')
+      .notNull()
+      .references(() => release_numbers.release_number_id, {
+        onDelete: 'cascade',
+      }),
+    container_number: text('container_number').notNull(),
+    is_used: boolean('is_used').notNull().default(false),
+  },
+  (table) => ({
+    pk: primaryKey({
+      columns: [table.release_number_id, table.container_number],
+    }),
+  }),
+);
+
+export const inventory = pgTable(
+  'inventory',
+  {
+    id: serial('id').primaryKey(),
+    date: timestamp('date', { withTimezone: true }).notNull().defaultNow(),
+    unit_number: text('unit_number').notNull(),
+    size: text('size').notNull(),
+    damage: text('damage').notNull(),
+    trucking_company: text('trucking_company'),
+    release_number_id: integer('release_number_id')
+      .notNull()
+      .references(() => release_numbers.release_number_id),
+    sale_company_id: integer('sale_company_id')
+      .notNull()
+      .references(() => sale_companies.sale_company_id),
+    notes: text('notes'),
+    acquisition_price: numeric('acquisition_price'),
+    state: inventoryState('state').notNull().default('available'),
+    is_pending_audit: boolean('is_pending_audit').notNull().default(true),
+  },
+  (table) => ({
+    stateIdx: index('inventory_state_idx').on(table.state),
+    pendingAuditIdx: index('inventory_pending_audit_idx').on(
+      table.is_pending_audit,
+    ),
+  }),
+);
+
+export const sold = pgTable('sold', {
+  id: serial('id').primaryKey(),
+  inventory_id: integer('inventory_id')
+    .notNull()
+    .unique()
+    .references(() => inventory.id, { onDelete: 'cascade' }),
+  sold_date: timestamp('sold_date', { withTimezone: true }).defaultNow(),
+  outbound_trucker: text('outbound_trucker'),
+  destination: text('destination'),
+  sale_price: numeric('sale_price'),
+  release_number: text('release_number'),
+  trucking_rate: numeric('trucking_rate'),
+  modification_price: numeric('modification_price'),
+  material_cost: numeric('material_cost'),
+  labor_cost: numeric('labor_cost'),
+  invoice_notes: text('invoice_notes'),
+  outbound_date: timestamp('outbound_date', { withTimezone: true }),
+});
+
+export const invoices = pgTable(
+  'invoices',
+  {
+    invoice_id: serial('invoice_id').primaryKey(),
+    invoice_number: integer('invoice_number').notNull().unique(),
+    invoice_taxed: boolean('invoice_taxed').notNull().default(false),
+    client_id: integer('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    invoice_date: timestamp('invoice_date', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    invoice_credit: boolean('invoice_credit').default(false),
+    subtotal: numeric('subtotal'),
+    tax_rate: numeric('tax_rate'),
+    tax_amount: numeric('tax_amount'),
+    cc_fee_rate: numeric('cc_fee_rate'),
+    cc_fee_amount: numeric('cc_fee_amount'),
+    total: numeric('total'),
+    pdf_s3_key: text('pdf_s3_key'),
+    sent_at: timestamp('sent_at', { withTimezone: true }),
+  },
+  (table) => ({
+    invoiceDateIdx: index('invoices_invoice_date_idx').on(table.invoice_date),
+  }),
+);
+
+export const invoice_containers = pgTable(
+  'invoice_containers',
+  {
+    invoice_id: integer('invoice_id')
+      .notNull()
+      .references(() => invoices.invoice_id, { onDelete: 'cascade' }),
+    container_id: integer('container_id')
+      .notNull()
+      .unique()
+      .references(() => inventory.id, { onDelete: 'cascade' }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.invoice_id, table.container_id] }),
+  }),
+);
+
+// ---- storage & handling domain ---------------------------------------
+
+export const sh_inventory = pgTable(
+  'sh_inventory',
+  {
+    id: serial('id').primaryKey(),
+    client_id: integer('client_id')
+      .notNull()
+      .references(() => clients.id),
+    unit_number: text('unit_number').notNull(),
+    size: text('size').notNull(),
+    damage: text('damage'),
+    intake_date: timestamp('intake_date', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    in_fee: numeric('in_fee').notNull(),
+    out_fee: numeric('out_fee').notNull(),
+    daily_rate: numeric('daily_rate').notNull(),
+    state: shState('state').notNull().default('pending'),
+    is_pending_audit: boolean('is_pending_audit').notNull().default(true),
+    checkout_date: timestamp('checkout_date', { withTimezone: true }),
+    notes: text('notes'),
+    photos: text('photos').array(),
+  },
+  (table) => ({
+    stateIdx: index('sh_inventory_state_idx').on(table.state),
+    pendingAuditIdx: index('sh_inventory_pending_audit_idx').on(
+      table.is_pending_audit,
+    ),
+    clientIdx: index('sh_inventory_client_idx').on(table.client_id),
+  }),
+);
+
+export const sh_invoices = pgTable(
+  'sh_invoices',
+  {
+    id: serial('id').primaryKey(),
+    client_id: integer('client_id')
+      .notNull()
+      .references(() => clients.id),
+    billing_month: date('billing_month').notNull(),
+    invoice_number: integer('invoice_number').notNull().unique(),
+    subtotal: numeric('subtotal'),
+    tax_rate: numeric('tax_rate'),
+    tax_amount: numeric('tax_amount'),
+    total: numeric('total'),
+    pdf_s3_key: text('pdf_s3_key'),
+    status: shInvoiceStatus('status').notNull().default('pending_review'),
+    generated_at: timestamp('generated_at', { withTimezone: true }),
+    sent_at: timestamp('sent_at', { withTimezone: true }),
+  },
+  (table) => ({
+    clientMonthUniq: uniqueIndex('sh_invoices_client_month_uniq').on(
+      table.client_id,
+      table.billing_month,
+    ),
+  }),
+);
+
+export const sh_invoice_lines = pgTable('sh_invoice_lines', {
+  id: serial('id').primaryKey(),
+  sh_invoice_id: integer('sh_invoice_id')
+    .notNull()
+    .references(() => sh_invoices.id, { onDelete: 'cascade' }),
+  sh_box_id: integer('sh_box_id')
+    .notNull()
+    .references(() => sh_inventory.id),
+  line_type: shLineType('line_type').notNull(),
+  days_count: integer('days_count'),
+  rate: numeric('rate'),
+  amount: numeric('amount'),
+  description: text('description'),
+});
+
+// ---- reports ---------------------------------------------------------
+
+export const reports = pgTable('reports', {
+  id: serial('id').primaryKey(),
+  report_type: text('report_type').notNull(),
+  generated_by: text('generated_by').references(() => user.id),
+  generated_at: timestamp('generated_at', { withTimezone: true }).defaultNow(),
+  parameters: jsonb('parameters'),
+  pdf_s3_key: text('pdf_s3_key'),
+  emailed_to: text('emailed_to').array(),
 });
