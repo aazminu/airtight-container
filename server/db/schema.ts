@@ -157,6 +157,27 @@ export const sold = pgTable('sold', {
   outbound_date: timestamp('outbound_date', { withTimezone: true }),
 });
 
+// Per-modification line items, ordered by `position`. Each row
+// becomes one sub-row beneath its container's primary line in the
+// invoice template. Legacy `sold.modification_price` stays as a
+// fallback for invoices that pre-date Phase 3 PR 3.4 — never
+// backfilled, per owner.
+export const sold_modifications = pgTable(
+  'sold_modifications',
+  {
+    id: serial('id').primaryKey(),
+    sold_id: integer('sold_id')
+      .notNull()
+      .references(() => sold.id, { onDelete: 'cascade' }),
+    description: text('description').notNull(),
+    price: numeric('price').notNull(),
+    position: integer('position').notNull().default(0),
+  },
+  (table) => ({
+    soldIdx: index('sold_modifications_sold_idx').on(table.sold_id),
+  }),
+);
+
 export const invoices = pgTable(
   'invoices',
   {

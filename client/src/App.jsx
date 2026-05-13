@@ -23,6 +23,7 @@ import Intake from "./routes/Intake";
 import Audit from "./routes/Audit";
 import Releases from "./routes/Releases";
 import InvoiceTemplatePreview from "./routes/InvoiceTemplatePreview";
+import InvoiceDetail from "./routes/InvoiceDetail";
 
 const App = () => {
 	const router = createBrowserRouter(
@@ -35,6 +36,7 @@ const App = () => {
 				<Route path="/add" element={<Navigate to="/intake" replace />} />
 				<Route path="/invoices" element={<Invoices />} />
 				<Route path="/invoices/create" element={<CreateInvoice />} />
+				<Route path="/invoices/:id" element={<InvoiceDetail />} />
 				<Route path="/reports" element={<Reports />} />
 				<Route path="/yardview" element={<YardView />} />
 				<Route path="/dashboard" element={<Dashboard />} />

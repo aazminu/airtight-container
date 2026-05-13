@@ -26,7 +26,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import db from '../db/index.js';
-import { putObject } from './s3.js';
+import { putObject, getObjectBytes } from './s3.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -257,4 +257,8 @@ export async function renderAndStoreInvoicePdf(
   const key = invoicePdfS3Key(invoiceId);
   await putObject(key, buf, 'application/pdf');
   return { s3Key: key, bytes: buf.length };
+}
+
+export async function getInvoicePdfBytes(s3Key: string): Promise<Buffer> {
+  return getObjectBytes(s3Key);
 }

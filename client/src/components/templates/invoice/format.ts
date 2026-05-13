@@ -62,17 +62,6 @@ export interface InvoiceLineGroup {
   subs: InvoiceLine[];
 }
 
-// One group per container. Primary = the container sale row; subs =
-// optional modification and delivery rows. Templates render subs as
-// visually-indented child rows under their parent.
-//
-// Legacy schema stores a single scalar `sold.modification_price` per
-// container, so today every container can produce at most one
-// modification sub-row. The Phase 3 create-invoice flow will let
-// admins enter modifications as separate line items (e.g. "paint
-// job", "rollup door"). When that lands, this function should consume
-// an array of mod entries per container; the rendering loop already
-// handles N subs.
 // Container numbers contain hyphens (ISO 6346 check-digit separator,
 // e.g. TCKU287291-3). The default browser line-breaking algorithm
 // treats hyphens as wrap points, so a long invoice_notes + container
@@ -82,6 +71,14 @@ export interface InvoiceLineGroup {
 const NB_HYPHEN = '‑';
 const protectUnitNumber = (un: string) => un.replace(/-/g, NB_HYPHEN);
 
+// One group per container. Primary = the container sale row; subs =
+// optional modification and delivery rows. Templates render subs as
+// visually-indented child rows under their parent.
+//
+// Modification sub-rows come from `container.modifications` (the
+// `sold_modifications` table, ordered by `position`). For invoices
+// pre-dating PR 3.4 (no per-mod line items in the database), fall
+// back to the legacy `sold.modification_price` scalar.
 export const buildLineGroups = (data: InvoiceData): InvoiceLineGroup[] => {
   const groups: InvoiceLineGroup[] = [];
   for (const c of data.containers) {
@@ -95,14 +92,26 @@ export const buildLineGroups = (data: InvoiceData): InvoiceLineGroup[] => {
       lineTotal: c.sale_price,
     };
     const subs: InvoiceLine[] = [];
-    const mod = Number(c.modification_price ?? 0);
-    if (Number.isFinite(mod) && mod > 0) {
-      subs.push({
-        qty: 1,
-        description: 'Modification',
-        unitPrice: null,
-        lineTotal: c.modification_price,
-      });
+    const mods = Array.isArray(c.modifications) ? c.modifications : [];
+    if (mods.length > 0) {
+      for (const m of mods) {
+        subs.push({
+          qty: 1,
+          description: m.description,
+          unitPrice: null,
+          lineTotal: m.price,
+        });
+      }
+    } else {
+      const legacyMod = Number(c.modification_price ?? 0);
+      if (Number.isFinite(legacyMod) && legacyMod > 0) {
+        subs.push({
+          qty: 1,
+          description: 'Modification',
+          unitPrice: null,
+          lineTotal: c.modification_price,
+        });
+      }
     }
     const truck = Number(c.trucking_rate ?? 0);
     if (Number.isFinite(truck) && truck > 0) {

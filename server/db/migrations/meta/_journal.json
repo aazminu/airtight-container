@@ -29,6 +29,13 @@
       "when": 1778788800000,
       "tag": "0003_phase2_inventory_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779004800000,
+      "tag": "0004_phase3_sold_modifications",
+      "breakpoints": true
     }
   ]
 }
