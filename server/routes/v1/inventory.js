@@ -143,6 +143,18 @@ router.post("/add", checkEmployee, async (req, res) => {
 			);
 		}
 
+		// PR 2.8 auto-association: if this release has pre-loaded container
+		// numbers and one matches the new box's unit_number, mark it used.
+		// No-op when the release has no enumeration loaded.
+		if (container.unit_number) {
+			await db.query(
+				`UPDATE release_number_containers
+				 SET is_used = true
+				 WHERE release_number_id = $1 AND container_number = $2`,
+				[releaseId, container.unit_number.trim().toUpperCase()],
+			);
+		}
+
 		res.status(200).json({
 			status: "success",
 			data: { completed: newCount <= 0 },

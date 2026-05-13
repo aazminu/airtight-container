@@ -1,6 +1,8 @@
 import express from "express";
 import db from "../../db/index.js";
 import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
+import { validateBody } from "../../middleware/validate.js";
+import { addContainersSchema } from "../../validation/release.js";
 
 const router = express.Router();
 
@@ -114,6 +116,75 @@ router.delete("/:id", checkAdmin, async (req, res) => {
 		await db.query(
 			"UPDATE release_numbers SET is_complete = true, completed_at = COALESCE(completed_at, now()) WHERE release_number_id = $1",
 			[req.params.id]
+		);
+		res.status(200).json({ status: "success" });
+	} catch (err) {
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
+
+// ---- release_number_containers (PR 2.8) ---------------------------
+// Pre-loaded container numbers per release. Intake auto-associates by
+// unit_number on insert (see server/routes/v1/inventory.js POST /add) —
+// no client-side change required for the legacy intake form.
+
+router.get("/:id/containers", checkEmployee, async (req, res) => {
+	try {
+		const results = await db.query(
+			`SELECT container_number, is_used
+			 FROM release_number_containers
+			 WHERE release_number_id = $1
+			 ORDER BY container_number`,
+			[req.params.id],
+		);
+		res.status(200).json({
+			status: "success",
+			results: results.rows.length,
+			data: { containers: results.rows },
+		});
+	} catch (err) {
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
+
+// Bulk add. Composite PK (release_number_id, container_number) makes
+// this idempotent — duplicates are silently ignored.
+router.post(
+	"/:id/containers",
+	checkAdmin,
+	validateBody(addContainersSchema),
+	async (req, res) => {
+		try {
+			const releaseId = Number(req.params.id);
+			const numbers = req.body.numbers.map((n) => n.toUpperCase());
+			// Build a multi-row INSERT in a single round-trip.
+			const values = numbers
+				.map((_, i) => `($1, $${i + 2})`)
+				.join(", ");
+			const result = await db.query(
+				`INSERT INTO release_number_containers (release_number_id, container_number)
+				 VALUES ${values}
+				 ON CONFLICT DO NOTHING
+				 RETURNING container_number`,
+				[releaseId, ...numbers],
+			);
+			res.status(201).json({
+				status: "success",
+				data: { added: result.rows.map((r) => r.container_number) },
+			});
+		} catch (err) {
+			console.error("release.containers.post error:", err);
+			res.status(500).json({ message: "Internal server error" });
+		}
+	},
+);
+
+router.delete("/:id/containers/:number", checkAdmin, async (req, res) => {
+	try {
+		await db.query(
+			`DELETE FROM release_number_containers
+			 WHERE release_number_id = $1 AND container_number = $2`,
+			[req.params.id, req.params.number.toUpperCase()],
 		);
 		res.status(200).json({ status: "success" });
 	} catch (err) {
