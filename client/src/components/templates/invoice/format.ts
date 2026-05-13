@@ -73,11 +73,21 @@ export interface InvoiceLineGroup {
 // job", "rollup door"). When that lands, this function should consume
 // an array of mod entries per container; the rendering loop already
 // handles N subs.
+// Container numbers contain hyphens (ISO 6346 check-digit separator,
+// e.g. TCKU287291-3). The default browser line-breaking algorithm
+// treats hyphens as wrap points, so a long invoice_notes + container
+// number can wrap such that the trailing check digit ends up alone on
+// its own line. Swap ASCII hyphens for U+2011 NON-BREAKING HYPHEN to
+// keep the unit number visually intact.
+const NB_HYPHEN = '‑';
+const protectUnitNumber = (un: string) => un.replace(/-/g, NB_HYPHEN);
+
 export const buildLineGroups = (data: InvoiceData): InvoiceLineGroup[] => {
   const groups: InvoiceLineGroup[] = [];
   for (const c of data.containers) {
     const notes = (c.invoice_notes ?? '').trim();
-    const containerDesc = notes ? `${notes} ${c.unit_number}` : c.unit_number;
+    const safeUnit = protectUnitNumber(c.unit_number);
+    const containerDesc = notes ? `${notes} ${safeUnit}` : safeUnit;
     const primary: InvoiceLine = {
       qty: 1,
       description: containerDesc,

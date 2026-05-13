@@ -1,7 +1,36 @@
+# --- Stage 1: build the InvoiceTemplate library bundle ----------------
+# Vite library mode → server-consumable ESM + inlined CSS at
+# server/template-dist/. Consumed by server/lib/pdf.ts via SSR.
+FROM node:20-alpine AS template-build
+WORKDIR /build/client
+COPY client/package.json client/package-lock.json* ./
+RUN npm ci
+COPY client/ ./
+# vite.config.server.ts writes to ../server/template-dist relative to
+# client/, so the sibling directory must exist before the build runs.
+RUN mkdir -p ../server
+RUN npm run build:server-template
+
+# --- Stage 2: backend runtime -----------------------------------------
 FROM node:20-alpine
+
+# Puppeteer needs system Chromium + a few font/lib deps. Skip the
+# bundled Chromium download — we point Puppeteer at the Alpine package.
+ENV PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+RUN apk add --no-cache \
+      chromium \
+      nss \
+      freetype \
+      freetype-dev \
+      harfbuzz \
+      ca-certificates \
+      ttf-freefont
+
 WORKDIR /app
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev
-COPY server/ .
+COPY server/ ./
+COPY --from=template-build /build/server/template-dist ./template-dist
 EXPOSE 3001
 CMD ["npm", "start"]
