@@ -4,6 +4,7 @@ import styles from './PendingAuditNav.module.css';
 interface Counts {
   sales: number;
   sh: number;
+  sh_invoices: number;
 }
 
 // Navbar dropdown for pending audits (PR 2.8.1 rev).
@@ -66,7 +67,7 @@ export function PendingAuditNav() {
     closeHandle.current = window.setTimeout(() => setOpen(false), 120);
   };
 
-  const total = counts ? counts.sales + counts.sh : 0;
+  const total = counts ? counts.sales + counts.sh + counts.sh_invoices : 0;
 
   return (
     <div
@@ -100,12 +101,20 @@ export function PendingAuditNav() {
           ) : (
             <>
               <a className={styles.menuItem} href="/audit" role="menuitem">
-                <span className={styles.menuLabel}>Sales</span>
+                <span className={styles.menuLabel}>Sales intake</span>
                 <span className={styles.menuCount}>{counts.sales}</span>
               </a>
               <a className={styles.menuItem} href="/audit" role="menuitem">
-                <span className={styles.menuLabel}>Storage</span>
+                <span className={styles.menuLabel}>Storage intake</span>
                 <span className={styles.menuCount}>{counts.sh}</span>
+              </a>
+              <a
+                className={styles.menuItem}
+                href="/sh-invoices?status=pending_review"
+                role="menuitem"
+              >
+                <span className={styles.menuLabel}>S&amp;H invoices</span>
+                <span className={styles.menuCount}>{counts.sh_invoices}</span>
               </a>
             </>
           )}
