@@ -11,6 +11,7 @@ interface PendingSalesBox {
   acquisition_price: string | null;
   date: string;
   notes: string | null;
+  photo_urls: string[] | null;
 }
 
 interface PendingShBox {
@@ -26,6 +27,7 @@ interface PendingShBox {
   daily_rate: string;
   intake_date: string;
   notes: string | null;
+  photo_urls: string[] | null;
 }
 
 interface SalesEdit {
@@ -272,6 +274,7 @@ function SalesRow({
       </button>
       {open && (
         <div className={styles.rowBody}>
+          <PhotoStrip urls={box.photo_urls} />
           <div className={styles.formRow}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Acquisition price ($)</span>
@@ -388,6 +391,7 @@ function ShRow({
       </button>
       {open && (
         <div className={styles.rowBody}>
+          <PhotoStrip urls={box.photo_urls} />
           <div className={styles.formRow}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>In fee ($)</span>
@@ -455,6 +459,28 @@ function ShRow({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Thumbnail strip rendered above the audit form. URLs are presigned by
+// the server when the list endpoint runs with a pending filter; if AWS
+// is misconfigured the server returns null and we render nothing rather
+// than blocking the audit.
+function PhotoStrip({ urls }: { urls: string[] | null }) {
+  if (!urls || urls.length === 0) return null;
+  return (
+    <div className={styles.photoStrip}>
+      {urls.map((url, i) => (
+        <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+          <img
+            src={url}
+            alt={`Intake photo ${i + 1}`}
+            className={styles.photoThumb}
+            data-role={i === 0 ? 'primary' : 'extra'}
+          />
+        </a>
+      ))}
     </div>
   );
 }

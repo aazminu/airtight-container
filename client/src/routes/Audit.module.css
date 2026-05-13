@@ -186,3 +186,24 @@
   border-radius: 8px;
   font-size: 0.875rem;
 }
+
+.photoStrip {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.photoThumb {
+  display: block;
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border, #d0d7de);
+  background: var(--surface-soft, #f6f8fa);
+}
+
+.photoThumb[data-role='primary'] {
+  border-color: var(--accent, #0969da);
+  box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.18);
+}

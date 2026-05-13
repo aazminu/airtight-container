@@ -16,3 +16,9 @@ out.txt
 
 # Phase 1 migration working files (regenerated each run; user-edited locally)
 server/scripts/migration-data/
+
+# Phase 2 PR 2.6: local OCR fixtures (real container photos; don't commit)
+server/tests/fixtures/*.jpg
+server/tests/fixtures/*.jpeg
+server/tests/fixtures/*.heic
+server/tests/fixtures/*.png

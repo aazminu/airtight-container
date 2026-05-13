@@ -6,12 +6,36 @@ import { inventory } from "../../db/schema.js";
 import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
 import { auditInventorySchema } from "../../validation/inventory.js";
+import { presignedGet } from "../../lib/s3.js";
 
 const router = express.Router();
+
+// Best-effort presigning: if AWS env vars are missing the URL helper
+// throws; we degrade to null photo_urls so the UI just shows no
+// thumbnails rather than the whole list call failing.
+async function attachPhotoUrls(rows) {
+	return Promise.all(
+		rows.map(async (r) => {
+			if (!Array.isArray(r.photos) || r.photos.length === 0) {
+				return { ...r, photo_urls: null };
+			}
+			try {
+				const urls = await Promise.all(r.photos.map((k) => presignedGet(k)));
+				return { ...r, photo_urls: urls };
+			} catch (err) {
+				console.error("presign error for inventory row", r.id, err);
+				return { ...r, photo_urls: null };
+			}
+		}),
+	);
+}
 
 // GET /api/v1/inventory?pending_audit=true → filter to rows the audit
 // screen (PR 2.5) needs. Default list keeps the legacy behavior of
 // returning everything.
+// PR 2.6: when pending_audit is set, also attach presigned GET URLs for
+// each stored photo key so the audit screen can render thumbnails
+// without a per-row round-trip.
 router.get("/", checkEmployee, async (req, res) => {
 	try {
 		const wantsPending = req.query.pending_audit === "true";
@@ -20,10 +44,11 @@ router.get("/", checkEmployee, async (req, res) => {
 			.from(inventory)
 			.where(wantsPending ? eq(inventory.is_pending_audit, true) : undefined)
 			.orderBy(desc(inventory.date));
+		const enriched = wantsPending ? await attachPhotoUrls(rows) : rows;
 		res.status(200).json({
 			status: "success",
-			results: rows.length,
-			data: { inventory: rows },
+			results: enriched.length,
+			data: { inventory: enriched },
 		});
 	} catch (err) {
 		res.status(500).json({ message: "Internal server error" });
@@ -73,17 +98,23 @@ router.post("/add", checkEmployee, async (req, res) => {
 		// release. The legacy acceptance_number / sale_company text columns
 		// (still in the request body for backwards compat) are now ignored —
 		// PR 1.6 dropped them once every container had a proper FK.
+		// photos: optional list of S3 keys captured during intake; first key is
+		// the OCR target by convention. Defaults to NULL when the client skips
+		// the photo step (legacy /add callers always do).
+		const photos = Array.isArray(container.photos) && container.photos.length
+			? container.photos
+			: null;
 		await db.query(
 			`INSERT INTO inventory (
 				date, unit_number, size, damage, trucking_company,
 				state, notes, acquisition_price,
-				release_number_id, sale_company_id, is_pending_audit
+				release_number_id, sale_company_id, is_pending_audit, photos
 			) VALUES (
 				CURRENT_TIMESTAMP, $1, $2, $3, $4,
 				$5, $6, $7,
 				$8,
 				(SELECT sale_company_id FROM release_numbers WHERE release_number_id = $8),
-				true
+				true, $9
 			)`,
 			[
 				container.unit_number,
@@ -94,6 +125,7 @@ router.post("/add", checkEmployee, async (req, res) => {
 				container.notes,
 				container.acquisition_price,
 				releaseId,
+				photos,
 			]
 		);
 

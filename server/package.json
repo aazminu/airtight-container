@@ -18,6 +18,9 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1045.0",
+    "@aws-sdk/client-textract": "^3.1045.0",
+    "@aws-sdk/s3-request-presigner": "^3.1045.0",
     "better-auth": "^1.2.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

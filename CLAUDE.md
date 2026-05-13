@@ -1,6 +1,6 @@
 # Airtight Container
 
-Inventory management system for **airtightstorage.com** — a working container yard in Manalapan, NJ. The repo is mid-2.0 rewrite. The owner (the user) is the only engineer.
+Inventory management system for **airtightshippingcontainer.com** — a working container yard in Manalapan, NJ. (Business email + invoicing identity is still `airtightstorage.com` / "Airtight Storage Systems Inc" — site rebrand only.) The repo is mid-2.0 rewrite. The owner (the user) is the only engineer.
 
 ---
 

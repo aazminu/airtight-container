@@ -31,6 +31,10 @@ export const createShInventorySchema = z.object({
     // Optional admin override for intake_date — yard staff usually leaves
     // unset so the DB default of now() applies. Audit screen can override.
     intake_date: z.string().datetime().nullable().optional(),
+    // Optional list of S3 keys (PR 2.6). First key is the OCR target by
+    // convention; the rest are documentation. Bounded at 20 to keep the
+    // audit screen's thumbnail strip sane and limit S3 spend per box.
+    photos: z.array(z.string()).max(20).optional(),
   }),
 });
 
