@@ -4,25 +4,23 @@
 
 ---
 
-## You are mid-Phase 3 (PR 3.3 next)
+## You are mid-Phase 3 (PR 3.4 next)
 
-Phase 3 PRs 3.1 (template) and 3.2 (Puppeteer PDF pipeline) are landed on `2.0` via `--no-ff` merges. **Next up is PR 3.3 — tiled `/invoices` list + filter-by-client, replacing the legacy `InvoiceList.jsx`.** Branch off `2.0` as `phase-3-invoices-list` (dashed convention).
+Phase 3 PRs 3.1 (template), 3.2 (Puppeteer PDF pipeline), and 3.3 (tiled `/invoices`) are done. PR 3.3 sits **unmerged** on branch `phase-3-invoices-list`; ask before merging into `2.0`. **Next up is PR 3.4 — `/invoices/:id` read-only detail page (admin-only edit / regen / email / delete) + per-modification line items schema.** Branch off `2.0` as `phase-3-invoice-detail` (or `phase-3-invoices-detail` for consistency with 3.3's slug).
 
 ### Do these things before you write any code
 
-1. **Read [PLAN.md](PLAN.md) §5 (UI rework — invoices section) and §7 Phase 3 PR 3.3.**
-2. **Read the canonical template** at `client/src/components/templates/invoice/InvoiceTemplate.tsx` + the related modules in the same dir (`format.ts`, `types.ts`). PR 3.3's tiled list will link to a future detail page (PR 3.4) which will render this template inline.
-3. **Read `server/lib/pdf.ts`** for the PDF rendering plumbing. PR 3.3's list view doesn't render PDFs itself, but the detail page in PR 3.4 will trigger them via `POST /api/v2/invoice/:id/pdf`.
-4. **Skim `client/src/components/lists/InvoiceList.jsx`** — that's what PR 3.3 replaces. Note the current table layout, search behavior, and how it links to the create flow.
-5. **Sanity-check the dev environment:** `./dev.sh`. Sign in. Hit `/admin/invoice-templates` to verify the template still renders. Optional: `cd server && npx tsx scripts/smoke-pdf.ts` writes a PDF to `/tmp/invoice-202604009.pdf` if you want to confirm the PDF pipeline is healthy before touching list code.
+1. **Read [PLAN.md](PLAN.md) §5 (UI rework — invoices section) and §7 Phase 3 PR 3.4.**
+2. **Read `client/src/components/templates/invoice/InvoiceTemplate.tsx`** — the detail page renders it inline. Tiles in PR 3.3 already do (scaled-down preview); detail page will use it at full size.
+3. **Read `server/routes/v2/invoice.js`** for current endpoints + the `INVOICE_SELECT_COLS` shape. The grouped output now includes `sent_at` and `pdf_s3_key` (added in PR 3.3) — used by the status pill and presumably by the "View PDF" button on the detail page.
+4. **Per-modification line items spec** — owner confirmed schema change lands in PR 3.4 (see "Decisions worth remembering" below). Probably a new `sold_modifications` table; the InvoiceTemplate already renders N sub-rows per container, so the template doesn't change — just the create-form UI and a backfill of `sold.modification_price` into the new table.
 
-### Open conversations before PR 3.3 work goes deep
+### Open conversations before PR 3.4 work goes deep
 
-- **Tile layout spec** — PLAN §5 says "tiled grid" but doesn't pin dimensions. Confirm at PR 3.3 kickoff: how many tiles per row (3? 4? responsive?), what each tile shows (number + customer + date + total + status pill?), and whether tiles link to the detail page only or also have an inline preview.
-- **Filter-by-client UX** — sidebar dropdown vs header search vs both? PLAN §5 says "filter-by-client". Resolve at kickoff.
-- **Pagination vs infinite scroll** — 238 invoices, growing ~10/month. A simple paginated list (20-50 per page) is probably right; flag if the user wants infinite scroll or virtualized rendering instead.
-- **Status pill values** — what "status" actually means on a sales invoice (sent? paid? draft?). The schema has `sent_at` (nullable) which gives us "sent vs unsent". No "paid" status yet. Confirm whether to show this column at all in PR 3.3.
-- **Tax rate dropdown defaults** — NJ 6.625% + NY 8.875% + "Other (type a rate)" decided 2026-05-13. Wires in during PR 3.4 (invoice create form), not PR 3.3.
+- **Tax rate dropdown defaults** — NJ 6.625% + NY 8.875% + "Other (type a rate)" decided 2026-05-13. Wires in during PR 3.4 (invoice create form).
+- **Per-modification line items schema** — `sold_modifications`? Columns: `id`, `sold_id` (FK), `description text`, `price numeric(10,2)`, `position smallint`? Confirm at PR 3.4 kickoff. Legacy `sold.modification_price` stays as-is (not backfilled, per "Decisions worth remembering").
+- **Detail-page edit affordances** — which fields editable? Customer pickable from clients dropdown? Containers add/remove? Confirm scope at kickoff.
+- **PR 3.3 merge-or-iterate decision** — branch is local, awaiting user verification at `http://localhost:3000/invoices`. Owner may want tweaks to tile content (currently mini-preview thumbnail + caption with #, customer, date, total, container count, sent/unsent pill) or sidebar UX (currently left rail with all clients alphabetical + counts) — fall-back options live in [docs/session-notes/](session-notes/) if needed.
 - **S&H month-end cron job** — where it runs. Resolve before PR 3.6.
 - **Historical re-render of 238 invoices** — opt-in batch script, PR 3.8. The PDF pipeline (PR 3.2) is ready for it.
 
@@ -30,7 +28,7 @@ Phase 3 PRs 3.1 (template) and 3.2 (Puppeteer PDF pipeline) are landed on `2.0` 
 
 1. ~~**PR 3.1** — New invoice template~~ ✅ landed
 2. ~~**PR 3.2** — Puppeteer PDF pipeline~~ ✅ landed
-3. **PR 3.3 — Tiled `/invoices` list + filter-by-client.** Replaces legacy `InvoiceList.jsx`. Search moved into table header per PLAN §5.
+3. ~~**PR 3.3** — Tiled `/invoices` list + filter-by-client~~ ✅ branch ready, awaiting user merge
 4. **PR 3.4 — `/invoices/:id` detail page.** Read-only by default; admin-only edit / regenerate / email / delete. **Per-modification line items land here** — schema for `sold_modifications` or similar, plus the create-form UI. Template rendering already handles N sub-rows per container.
 5. **PR 3.5 — Server-side invoice number sequencing.** `pg_advisory_xact_lock` around the `YYYYMM<seq>` insert.
 6. **PR 3.6 — S&H month-end pipeline.** Cron → `sh_invoices` (pending_review) + `sh_invoice_lines`.
@@ -54,8 +52,9 @@ Phase 3 PRs 3.1 (template) and 3.2 (Puppeteer PDF pipeline) are landed on `2.0` 
 |---|---|---|
 | `(merge)` | 3.1 | Invoice template — A wins. Canonical at `client/src/components/templates/invoice/InvoiceTemplate.tsx`. Dev-only preview route at `/admin/invoice-templates`. Format helpers + types in same dir. |
 | `(merge)` | 3.2 | Server-side PDF pipeline. Vite library build of `InvoiceTemplate.tsx` → `server/template-dist/`. `server/lib/pdf.ts` SSR-renders + Puppeteer-snapshots. `POST /api/v2/invoice/:id/pdf` (admin-only) renders + uploads to `invoices/<id>.pdf` + updates `pdf_s3_key`. `server/scripts/smoke-pdf.ts` writes a sample PDF to `/tmp/`. Dockerfile.backend now multi-stage with Alpine Chromium. |
+| `(unmerged)` | 3.3 | Tiled `/invoices` UI on branch `phase-3-invoices-list`. `client/src/components/lists/InvoicesGrid.tsx` + `.module.css`. Replaces `InvoiceList.jsx` and `routes/Invoices.jsx`; both removed along with orphaned `InvoiceRow.jsx`, `InvoiceDetails.jsx`, `EmailPrompt.jsx`, `SoldList.jsx`, `SoldRow.jsx`, `styles/invoicelist.css`. Layout: left sidebar with alphabetical client list + counts; 240px tiles in `repeat(auto-fill, 240px)` grid; mini-preview thumbnail (full `InvoiceTemplate` scaled 0.294×) + caption (#, customer, date, total, container count, sent/unsent `Badge`); 24-per-page classic pagination; header free-text search across invoice #, customer, container unit_number. Tiles link `/invoices/:id` (404 until PR 3.4 lands). Server change: `groupInvoices` in `routes/v2/invoice.js` now passes through `sent_at` + `pdf_s3_key`; `types.ts` updated to match. |
 
-`2.0` head is the PR 3.2 merge commit.
+`2.0` head is the PR 3.2 merge commit. PR 3.3 lives only on the feature branch.
 
 **What's new in the user-facing app (after PRs 3.1 + 3.2):**
 - `/admin/invoice-templates` — dev-only preview route. Picks an invoice from the local DB, renders it through the canonical template. "Print preview" button exercises the `@media print` pagination rules.
@@ -97,7 +96,7 @@ Phase 2 complete on `2.0` (local-only). Eight feature PRs + four follow-ups:
 
 ## Open threads / blockers
 
-None block PR 3.2.
+None block PR 3.4.
 
 - **Pre-existing global dark-mode bug** — `client/src/styles/inventorylist.css` owns `:root` and `[data-theme=dark]` tokens but is only imported by `InventoryList.jsx`. Fix in Phase 6 polish.
 - **40 orphan invoices with no `invoice_containers`** — flagged in PR 1.3 backfill. User to decide before prod cutover.

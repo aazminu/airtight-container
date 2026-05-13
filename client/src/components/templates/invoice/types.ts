@@ -35,6 +35,8 @@ export interface InvoiceData {
   invoice_taxed: boolean;
   invoice_credit: boolean;
   invoice_date: string;
+  sent_at: string | null;
+  pdf_s3_key: string | null;
   subtotal: string | null;
   tax_rate: string | null;
   tax_amount: string | null;
