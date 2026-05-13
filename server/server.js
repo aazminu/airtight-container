@@ -7,6 +7,7 @@ import { toNodeHandler } from "better-auth/node";
 import rateLimit from "express-rate-limit";
 import cors from "cors";
 import helmet from "helmet";
+import cron from "node-cron";
 import { auth } from "./auth.js";
 import { checkAuth } from "./middleware/auth.js";
 import soldRoute from "./routes/v1/sold.js";
@@ -16,7 +17,9 @@ import invoiceRoute from "./routes/v2/invoice.js";
 import dashboardRoute from "./routes/v2/dashboard.js";
 import clientRoute from "./routes/v2/client.js";
 import shInventoryRoute from "./routes/v2/sh_inventory.js";
+import shInvoiceRoute from "./routes/v2/sh_invoice.js";
 import intakeRoute from "./routes/v2/intake.js";
+import { generateShMonthEnd, priorMonth } from "./lib/sh-month-end.js";
 
 const app = express();
 const port = process.env.PORT;
@@ -46,6 +49,7 @@ app.use("/api/v2/dashboard", dashboardRoute);
 app.use("/api/v2/invoice", invoiceRoute);
 app.use("/api/v2/clients", clientRoute);
 app.use("/api/v2/sh-inventory", shInventoryRoute);
+app.use("/api/v2/sh-invoice", shInvoiceRoute);
 app.use("/api/v2/intake", intakeRoute);
 
 app.post("/api/v1/send", emailLimiter, checkAuth, async (req, res) => {
@@ -65,6 +69,23 @@ app.post("/api/v1/send", emailLimiter, checkAuth, async (req, res) => {
 	}
 	res.status(200).json({ data });
 });
+
+// PR 3.6: S&H month-end cron. Runs at 01:00 on the 1st of each month,
+// billing the previous month. Disabled outside production by default —
+// dev/CI environments shouldn't fire it accidentally. Admins can still
+// trigger ad-hoc via POST /api/v2/sh-invoice/run-month-end.
+if (process.env.SH_MONTH_END_CRON !== "off") {
+	cron.schedule("0 1 1 * *", async () => {
+		const { year, monthIndex } = priorMonth();
+		console.log(`[sh-cron] firing month-end for ${year}-${monthIndex + 1}`);
+		try {
+			const summary = await generateShMonthEnd(year, monthIndex);
+			console.log("[sh-cron] done", summary);
+		} catch (err) {
+			console.error("[sh-cron] failed", err);
+		}
+	});
+}
 
 app.listen(port, () => {
 	console.log(`Server is up and listening on port ${port}`);
