@@ -26,6 +26,8 @@ const groupInvoices = (data) => {
 				invoice_taxed: row.invoice_taxed,
 				invoice_credit: row.invoice_credit,
 				invoice_date: row.invoice_date,
+				sent_at: row.sent_at,
+				pdf_s3_key: row.pdf_s3_key,
 				// Snapshot totals (populated by PR 1.3 backfill; consumed by Phase 3)
 				subtotal: row.subtotal,
 				tax_rate: row.tax_rate,
