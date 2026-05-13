@@ -360,6 +360,22 @@ function ReleaseRow({
   );
 }
 
+interface CreateReleaseResponse {
+  data: Array<{ release_number_id: number }>;
+}
+
+function parseContainerNumbers(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of text.split(/[\n,]+/)) {
+    const trimmed = raw.trim().toUpperCase();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
 function NewReleaseForm({
   companies,
   onCancel,
@@ -373,8 +389,23 @@ function NewReleaseForm({
   const [newCompany, setNewCompany] = useState('');
   const [releaseNumber, setReleaseNumber] = useState('');
   const [count, setCount] = useState('1');
+  const [countTouched, setCountTouched] = useState(false);
+  const [containerText, setContainerText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const parsedNumbers = useMemo(
+    () => parseContainerNumbers(containerText),
+    [containerText],
+  );
+
+  // Auto-track count to parsed numbers until the admin types in the count
+  // field themselves — then we stop nudging.
+  useEffect(() => {
+    if (countTouched) return;
+    if (parsedNumbers.length === 0) return;
+    setCount(String(parsedNumbers.length));
+  }, [parsedNumbers.length, countTouched]);
 
   const submit = async () => {
     setError(null);
@@ -430,6 +461,21 @@ function NewReleaseForm({
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = (await res.json()) as CreateReleaseResponse;
+      const newId = body.data?.[0]?.release_number_id;
+      if (parsedNumbers.length > 0 && typeof newId === 'number') {
+        const addRes = await fetch(`/api/v2/release/${newId}/containers`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ numbers: parsedNumbers }),
+        });
+        if (!addRes.ok) {
+          throw new Error(
+            'Release created, but container numbers failed to attach. Open the release to add them manually.',
+          );
+        }
+      }
       onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Create failed');
@@ -491,8 +537,28 @@ function NewReleaseForm({
         className={styles.formInput}
         min="1"
         value={count}
-        onChange={(e) => setCount(e.target.value)}
+        onChange={(e) => {
+          setCountTouched(true);
+          setCount(e.target.value);
+        }}
       />
+
+      <label className={styles.addLabel}>
+        Container numbers (optional — one per line or comma-separated)
+      </label>
+      <textarea
+        className={styles.addTextarea}
+        value={containerText}
+        onChange={(e) => setContainerText(e.target.value)}
+        placeholder="MSCU1234567&#10;TRHU2174232"
+        spellCheck={false}
+      />
+      {parsedNumbers.length > 0 && (
+        <div className={styles.parsedHint}>
+          {parsedNumbers.length} number{parsedNumbers.length === 1 ? '' : 's'}{' '}
+          will be attached on create.
+        </div>
+      )}
 
       {error && <div className={styles.error}>{error}</div>}
 

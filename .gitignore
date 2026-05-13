@@ -22,3 +22,9 @@ server/tests/fixtures/*.jpg
 server/tests/fixtures/*.jpeg
 server/tests/fixtures/*.heic
 server/tests/fixtures/*.png
+
+# Playwright MCP local cache (snapshots, console logs, screenshots)
+.playwright-mcp/
+
+# Planning scratch — stays local, not version-controlled
+docs/agent_questions.md

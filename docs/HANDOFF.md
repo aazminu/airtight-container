@@ -13,7 +13,7 @@
 1. **Read [PLAN.md](PLAN.md) §3 (snapshot totals on invoices), §4.4 (S&H billing flow), §5 (UI rework — invoice template + tiled list + detail page), and §7 Phase 3 (scope + exit criteria).**
 2. **Skim [server/db/schema.ts](../server/db/schema.ts)** for `invoices`, `invoice_containers`, `sh_invoices`, `sh_invoice_lines`, `reports`. All exist with the right shape after Phase 1.
 3. **Look at the live invoice template** — `client/src/components/forms/InvoiceForm.jsx` (the giant template literal, NOT the `invoice.html` reference). Phase 3 PR 3.1 replaces it.
-4. **Browser-test what Phase 2 left you:** sign in, hit `/intake`, run a Sales box and an S&H box end-to-end including the photo capture (real S3 + Textract are wired and verified). Hit `/audit` and exercise the inline forms. Hit `/yardview` and the new Storage section. Hit `/releases` and pre-load a container number, then run an intake matching it and confirm the row flipped to `is_used=true`.
+4. **Browser-test what Phase 2 left you:** sign in, hit `/intake`, run a Sales box and an S&H box end-to-end including the photo capture (real S3 + Textract are wired and verified). Hit `/audit` and exercise the inline forms. Hit `/yardview` and the new Storage section. Hit `/releases` and pre-load a container number, then run an intake matching it and confirm the row flipped to `is_used=true`. The `+ New release` modal now accepts pre-loaded container numbers at creation — exercise that path too.
 5. **Branch off `2.0`**, not `main`. Suggested first branch: `phase-3-invoice-template` or similar (dashed convention).
 
 ### Open conversations to schedule before Phase 3 work goes deep
@@ -50,7 +50,7 @@
 
 ## Status after Phase 2
 
-Phase 2 complete on `2.0` (local-only — not yet pushed). Eight feature PRs + three follow-ups visible:
+Phase 2 complete on `2.0` (local-only — not yet pushed). Eight feature PRs + four follow-ups visible:
 
 | Commit on `2.0` | PR | Contents |
 |---|---|---|
@@ -64,8 +64,10 @@ Phase 2 complete on `2.0` (local-only — not yet pushed). Eight feature PRs + t
 | `cb1521a` | follow-up | ISO 6346-aware unit-number extraction (cross-line, check-digit validation) |
 | `fef7858` | 2.7 | Yard view S&H section + navbar pending-audit dropdown |
 | `b1d10a0` | 2.8 | Release-number enumeration UX + intake auto-association |
+| `d2a0f38` | 2.8.1 | Intake/audit/releases polish — language + UX + dark mode |
+| `(this commit)` | follow-up | 2.8.1 follow-ups: re-skin Button/Modal to project tokens; pre-load container numbers from `+ New release` modal |
 
-`2.0` head is `b1d10a0`.
+`2.0` head is this follow-up commit.
 
 **Local DB state after Phase 2:** unchanged from end of Phase 1 except for migration 0003 (added `inventory.photos text[]`). All 67 server vitest cases pass; client builds clean (~330 KB JS / 56 KB CSS gzipped). AWS S3 + Textract verified end-to-end by the user (smoke scripts in `server/scripts/smoke-s3.ts` and `server/scripts/smoke-textract.ts`; bucket `airtight-container-prod-381491901964-us-east-1-an` in `us-east-1`).
 
@@ -88,6 +90,7 @@ Phase 2 complete on `2.0` (local-only — not yet pushed). Eight feature PRs + t
 
 None block Phase 3.
 
+- **Pre-existing global dark-mode bug** — not introduced by 2.8.1 but worth resolving before the eventual cutover. `client/src/styles/inventorylist.css` owns the `:root` and `[data-theme=dark]` token definitions, but the file is only imported by `InventoryList.jsx`. Routes that don't load InventoryList load `--bg-page` / `--text-primary` etc. as **undefined**, so the body background and page-level headings never flip to dark — even though component-scoped tokens (resolved against the cascade fallback chain) sometimes do. Right fix is to move the token blocks into a global stylesheet imported once at the app root. Cheap, but it's a Phase 6 polish item or a separate one-off — don't bundle it into Phase 3.
 - **40 orphan invoices with no `invoice_containers`** — same as end-of-Phase 1. Flagged in PR 1.3 backfill. User to decide before prod cutover.
 - **A80 thermal printer** (FCC ID `2A6FW-A80`) — spec sheet conversation needed before Phase 7.
 - **QuickBooks Online vs Desktop** — resolve before Phase 8.

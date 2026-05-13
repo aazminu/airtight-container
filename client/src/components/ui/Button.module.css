@@ -42,41 +42,42 @@
   padding: 10px 18px;
 }
 
-/* Variants */
+/* Variants — wired to the project theme tokens (--accent, --bg-surface, etc).
+   Tokens defined in client/src/styles/inventorylist.css :root + [data-theme=dark]. */
 .primary {
-  background: var(--btn-primary-bg, #1f2937);
-  color: var(--btn-primary-fg, #ffffff);
-  border-color: var(--btn-primary-bg, #1f2937);
+  background: var(--accent);
+  color: var(--accent-fg, #ffffff);
+  border-color: var(--accent);
 }
 .primary:hover:not(:disabled) {
-  background: var(--btn-primary-bg-hover, #111827);
-  border-color: var(--btn-primary-bg-hover, #111827);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .secondary {
-  background: var(--btn-secondary-bg, #ffffff);
-  color: var(--btn-secondary-fg, #1f2937);
-  border-color: var(--btn-secondary-border, #d1d5db);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-strong, var(--border));
 }
 .secondary:hover:not(:disabled) {
-  background: var(--btn-secondary-bg-hover, #f3f4f6);
+  background: var(--bg-surface-2);
 }
 
 .danger {
-  background: var(--btn-danger-bg, #dc2626);
-  color: var(--btn-danger-fg, #ffffff);
-  border-color: var(--btn-danger-bg, #dc2626);
+  background: var(--danger, #dc2626);
+  color: #ffffff;
+  border-color: var(--danger, #dc2626);
 }
 .danger:hover:not(:disabled) {
-  background: var(--btn-danger-bg-hover, #b91c1c);
-  border-color: var(--btn-danger-bg-hover, #b91c1c);
+  background: var(--danger-hover, #b91c1c);
+  border-color: var(--danger-hover, #b91c1c);
 }
 
 .ghost {
   background: transparent;
-  color: var(--btn-ghost-fg, #1f2937);
+  color: var(--text-primary);
   border-color: transparent;
 }
 .ghost:hover:not(:disabled) {
-  background: var(--btn-ghost-bg-hover, rgba(31, 41, 55, 0.06));
+  background: var(--bg-surface-2);
 }
