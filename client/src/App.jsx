@@ -20,6 +20,7 @@ import PopupContainer from "./components/PopupContainer";
 import CreateInvoice from "./routes/CreateInvoice";
 import Clients from "./routes/Clients";
 import Intake from "./routes/Intake";
+import Audit from "./routes/Audit";
 
 const App = () => {
 	const router = createBrowserRouter(
@@ -37,6 +38,7 @@ const App = () => {
 				<Route path="/dashboard" element={<Dashboard />} />
 				<Route path="/clients" element={<Clients />} />
 				<Route path="/intake" element={<Intake />} />
+				<Route path="/audit" element={<Audit />} />
 				<Route path="/reports/form" element={<Printout />} />
 			</React.Fragment>
 		)

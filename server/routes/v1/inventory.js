@@ -1,17 +1,24 @@
 import express from "express";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import db from "../../db/index.js";
 import { db as drizzleDb } from "../../db/drizzle.js";
 import { inventory } from "../../db/schema.js";
 import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
+import { validateBody } from "../../middleware/validate.js";
+import { auditInventorySchema } from "../../validation/inventory.js";
 
 const router = express.Router();
 
+// GET /api/v1/inventory?pending_audit=true → filter to rows the audit
+// screen (PR 2.5) needs. Default list keeps the legacy behavior of
+// returning everything.
 router.get("/", checkEmployee, async (req, res) => {
 	try {
+		const wantsPending = req.query.pending_audit === "true";
 		const rows = await drizzleDb
 			.select()
 			.from(inventory)
+			.where(wantsPending ? eq(inventory.is_pending_audit, true) : undefined)
 			.orderBy(desc(inventory.date));
 		res.status(200).json({
 			status: "success",
@@ -113,6 +120,49 @@ router.post("/add", checkEmployee, async (req, res) => {
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
+
+// Admin audit (PR 2.5). Confirms / overrides acquisition_price + date,
+// clears is_pending_audit, transitions pending → available. Returns 404
+// if the row has already been audited or doesn't exist (mirrors the S&H
+// audit endpoint's behavior so the UI can treat them uniformly).
+router.put(
+	"/audit/:id",
+	checkAdmin,
+	validateBody(auditInventorySchema),
+	async (req, res) => {
+		try {
+			const b = req.body;
+			const result = await db.query(
+				`UPDATE inventory SET
+					acquisition_price = COALESCE($1, acquisition_price),
+					date = COALESCE($2::timestamptz, date),
+					notes = COALESCE($3, notes),
+					is_pending_audit = false,
+					state = CASE WHEN state = 'pending' THEN 'available'::inventory_state ELSE state END
+				 WHERE id = $4 AND is_pending_audit = true
+				 RETURNING id, state, is_pending_audit`,
+				[
+					b.acquisition_price ?? null,
+					b.date ?? null,
+					b.notes ?? null,
+					req.params.id,
+				]
+			);
+			if (result.rows.length === 0) {
+				return res
+					.status(404)
+					.json({ message: "Not found or already audited" });
+			}
+			res.status(200).json({
+				status: "success",
+				data: { box: result.rows[0] },
+			});
+		} catch (err) {
+			console.error("inventory.audit error:", err);
+			res.status(500).json({ message: "Internal server error" });
+		}
+	}
+);
 
 router.put("/:id", checkAdmin, async (req, res) => {
 	try {
