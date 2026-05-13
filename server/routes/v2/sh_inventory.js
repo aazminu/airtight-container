@@ -8,13 +8,36 @@ import {
 	checkoutShInventorySchema,
 	allowedNextStates,
 } from "../../validation/sh_inventory.js";
+import { presignedGet } from "../../lib/s3.js";
 
 const router = express.Router();
+
+// Best-effort presigning: degrade to null when AWS env is missing
+// rather than 500-ing the whole list.
+async function attachPhotoUrls(rows) {
+	return Promise.all(
+		rows.map(async (r) => {
+			if (!Array.isArray(r.photos) || r.photos.length === 0) {
+				return { ...r, photo_urls: null };
+			}
+			try {
+				const urls = await Promise.all(r.photos.map((k) => presignedGet(k)));
+				return { ...r, photo_urls: urls };
+			} catch (err) {
+				console.error("presign error for sh_inventory row", r.id, err);
+				return { ...r, photo_urls: null };
+			}
+		}),
+	);
+}
 
 // ---- list / get ---------------------------------------------------
 
 // GET /api/v2/sh-inventory?state=pending — list, optionally filtered by state.
 // Sort: most recently arrived first. Joins clients for the display name.
+// PR 2.6: photo_urls are attached for the pending list (audit screen
+// consumer); other consumers don't need them and can pay the cost when
+// they do.
 router.get("/", checkEmployee, async (req, res) => {
 	try {
 		const state = req.query.state;
@@ -32,10 +55,14 @@ router.get("/", checkEmployee, async (req, res) => {
 			 ORDER BY shi.intake_date DESC`,
 			params,
 		);
+		const enriched =
+			state === "pending"
+				? await attachPhotoUrls(results.rows)
+				: results.rows;
 		res.status(200).json({
 			status: "success",
-			results: results.rows.length,
-			data: { boxes: results.rows },
+			results: enriched.length,
+			data: { boxes: enriched },
 		});
 	} catch (err) {
 		console.error("sh_inventory.get error:", err);
@@ -75,16 +102,17 @@ router.post(
 	async (req, res) => {
 		try {
 			const b = req.body.box;
+			const photos = b.photos && b.photos.length ? b.photos : null;
 			const result = await db.query(
 				`INSERT INTO sh_inventory (
 					client_id, unit_number, size, damage, notes,
 					in_fee, out_fee, daily_rate,
-					intake_date, state, is_pending_audit
+					intake_date, state, is_pending_audit, photos
 				) VALUES (
 					$1, $2, $3, $4, $5,
 					$6, $7, $8,
 					COALESCE($9::timestamptz, now()),
-					'pending', true
+					'pending', true, $10
 				) RETURNING id`,
 				[
 					b.client_id,
@@ -96,6 +124,7 @@ router.post(
 					b.out_fee,
 					b.daily_rate,
 					b.intake_date ?? null,
+					photos,
 				],
 			);
 			res.status(201).json({

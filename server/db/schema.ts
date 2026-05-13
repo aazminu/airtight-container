@@ -128,6 +128,7 @@ export const inventory = pgTable(
     acquisition_price: numeric('acquisition_price'),
     state: inventoryState('state').notNull().default('available'),
     is_pending_audit: boolean('is_pending_audit').notNull().default(true),
+    photos: text('photos').array(),
   },
   (table) => ({
     stateIdx: index('inventory_state_idx').on(table.state),

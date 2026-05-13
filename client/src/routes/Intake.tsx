@@ -13,6 +13,8 @@ import {
   type ShIntakeForm,
 } from '../components/intake/ShDetailsStep';
 import { ShReviewStep } from '../components/intake/ShReviewStep';
+import { PhotoStep, type IntakePhoto } from '../components/intake/PhotoStep';
+import { ConfirmStep, type OcrResult } from '../components/intake/ConfirmStep';
 import styles from './Intake.module.css';
 
 type Kind = 'sales' | 'sh' | null;
@@ -55,6 +57,11 @@ export default function Intake() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [releaseCache, setReleaseCache] = useState<ReleaseOption[]>([]);
   const [clientCache, setClientCache] = useState<ClientOption[]>([]);
+  // PR 2.6: photo capture + OCR. Shared across both branches; first key
+  // is the OCR target by convention. `ocr` is null until the OCR call
+  // for the first photo lands (or null if photos were skipped entirely).
+  const [photos, setPhotos] = useState<IntakePhoto[]>([]);
+  const [ocr, setOcr] = useState<OcrResult | null>(null);
 
   // Cache the release list once so the Review step can label the picked
   // release by value without re-fetching. SalesDetailsStep also fetches —
@@ -142,11 +149,35 @@ export default function Intake() {
   const resetForNextBox = () => {
     setSalesForm(EMPTY_SALES);
     setShForm(EMPTY_SH);
+    photos.forEach((p) => p.previewUrl && URL.revokeObjectURL(p.previewUrl));
+    setPhotos([]);
+    setOcr(null);
     setSubmitState('idle');
     setSubmitError(null);
     setKind(null);
     setStep(0);
   };
+
+  // OCR comes back asynchronously after the first photo finishes uploading.
+  // Prefill whichever Details form is active with the extracted unit_number
+  // — staff confirms on the Confirm step, but seeing it pre-filled on
+  // Details too removes a re-type if they paged ahead.
+  const handleOcr = (result: OcrResult) => {
+    setOcr(result);
+    if (result.unit_number) {
+      if (kind === 'sales') {
+        setSalesForm((f) =>
+          f.unit_number.trim() ? f : { ...f, unit_number: result.unit_number ?? '' },
+        );
+      } else if (kind === 'sh') {
+        setShForm((f) =>
+          f.unit_number.trim() ? f : { ...f, unit_number: result.unit_number ?? '' },
+        );
+      }
+    }
+  };
+
+  const photoKeys = photos.filter((p) => p.key && !p.error).map((p) => p.key);
 
   const submitSales = async () => {
     if (!salesForm.release_number_id) return;
@@ -174,6 +205,7 @@ export default function Intake() {
             notes: salesForm.notes.trim() || null,
             acquisition_price: salesForm.acquisition_price || null,
             state: 'pending',
+            photos: photoKeys.length ? photoKeys : undefined,
           },
           release: [release],
         }),
@@ -206,6 +238,7 @@ export default function Intake() {
             in_fee: shForm.in_fee,
             out_fee: shForm.out_fee,
             daily_rate: shForm.daily_rate,
+            photos: photoKeys.length ? photoKeys : undefined,
           },
         }),
       });
@@ -294,15 +327,18 @@ export default function Intake() {
           {kind === 'sales' && (
             <>
               <FlowStep>
-                <Placeholder
-                  title="Take photos"
-                  body="S3 upload + Textract OCR land in PR 2.6. Tap Next to skip for now."
+                <PhotoStep
+                  kind="sales"
+                  photos={photos}
+                  onChange={setPhotos}
+                  onOcr={handleOcr}
                 />
               </FlowStep>
               <FlowStep>
-                <Placeholder
-                  title="Confirm OCR'd details"
-                  body="The user confirms or corrects fields Textract pulled off the container plate."
+                <ConfirmStep
+                  ocr={ocr}
+                  unitNumber={salesForm.unit_number}
+                  onChange={(v) => setSalesForm((f) => ({ ...f, unit_number: v }))}
                 />
               </FlowStep>
               <FlowStep>
@@ -321,15 +357,18 @@ export default function Intake() {
           {kind === 'sh' && (
             <>
               <FlowStep>
-                <Placeholder
-                  title="Take photos"
-                  body="S3 upload + Textract OCR land in PR 2.6. Tap Next to skip for now."
+                <PhotoStep
+                  kind="sh"
+                  photos={photos}
+                  onChange={setPhotos}
+                  onOcr={handleOcr}
                 />
               </FlowStep>
               <FlowStep>
-                <Placeholder
-                  title="Confirm OCR'd details"
-                  body="The user confirms or corrects fields Textract pulled off the container plate."
+                <ConfirmStep
+                  ocr={ocr}
+                  unitNumber={shForm.unit_number}
+                  onChange={(v) => setShForm((f) => ({ ...f, unit_number: v }))}
                 />
               </FlowStep>
               <FlowStep>
@@ -377,11 +416,3 @@ export default function Intake() {
   );
 }
 
-function Placeholder({ title, body }: { title: string; body: string }) {
-  return (
-    <div className={styles.placeholder}>
-      <h2 className={styles.h2}>{title}</h2>
-      <p className={styles.placeholderBody}>{body}</p>
-    </div>
-  );
-}
