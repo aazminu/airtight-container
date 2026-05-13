@@ -30,7 +30,7 @@
 .label {
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -39,11 +39,11 @@
 .field select,
 .field textarea {
   padding: 0.625rem 0.75rem;
-  border: 1px solid var(--border, #d0d7de);
+  border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 1rem;
-  background: var(--bg, #fff);
-  color: var(--text, #111);
+  background: var(--bg-surface);
+  color: var(--text-primary);
   font: inherit;
   min-height: 44px; /* iPad-friendly tap target */
 }
@@ -57,9 +57,9 @@
 .field input:focus,
 .field select:focus,
 .field textarea:focus {
-  outline: 2px solid var(--accent, #0969da);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
-  border-color: var(--accent, #0969da);
+  border-color: var(--accent);
 }
 
 /* Review summary */
@@ -72,23 +72,23 @@
 
 .reviewIntro {
   margin: 0;
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
   line-height: 1.5;
   font-size: 0.9375rem;
 }
 
 .summary {
   margin: 0;
-  border: 1px solid var(--border, #d0d7de);
+  border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
-  background: var(--surface, #fff);
+  background: var(--bg-surface);
 }
 
 .summaryRow {
   display: grid;
   grid-template-columns: 200px 1fr;
-  border-bottom: 1px solid var(--border, #d0d7de);
+  border-bottom: 1px solid var(--border);
 }
 
 .summaryRow:last-child {
@@ -98,10 +98,10 @@
 .summaryLabel {
   margin: 0;
   padding: 0.75rem 1rem;
-  background: var(--surface-soft, #f6f8fa);
+  background: var(--bg-surface-2);
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -110,7 +110,7 @@
   margin: 0;
   padding: 0.75rem 1rem;
   font-size: 0.95rem;
-  color: var(--text, #1f2328);
+  color: var(--text-primary);
   word-break: break-word;
 }
 
@@ -124,4 +124,37 @@
   .summaryValue {
     padding-top: 0.25rem;
   }
+}
+
+.matchBadge {
+  padding: 0.625rem 0.875rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--accent);
+  border-radius: 10px;
+  font-size: 0.9375rem;
+}
+
+.readonlyLine {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.625rem 0.875rem;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.readonlyLine span:first-child {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.readonlyLine span:last-child {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }

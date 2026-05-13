@@ -103,6 +103,26 @@ router.post(
 		try {
 			const b = req.body.box;
 			const photos = b.photos && b.photos.length ? b.photos : null;
+
+			// PR 2.8.1: yard staff no longer types rates during intake. When
+			// the client doesn't supply them, fall back to the client's
+			// configured defaults so the NOT NULL columns get filled. Admin
+			// can override on the audit screen.
+			let { in_fee, out_fee, daily_rate } = b;
+			if (in_fee === undefined || out_fee === undefined || daily_rate === undefined) {
+				const cli = await db.query(
+					"SELECT default_in_fee, default_out_fee, default_daily_rate FROM clients WHERE id = $1",
+					[b.client_id],
+				);
+				if (cli.rows.length === 0) {
+					return res.status(400).json({ message: "Client not found" });
+				}
+				const d = cli.rows[0];
+				if (in_fee === undefined) in_fee = d.default_in_fee;
+				if (out_fee === undefined) out_fee = d.default_out_fee;
+				if (daily_rate === undefined) daily_rate = d.default_daily_rate;
+			}
+
 			const result = await db.query(
 				`INSERT INTO sh_inventory (
 					client_id, unit_number, size, damage, notes,
@@ -120,9 +140,9 @@ router.post(
 					b.size,
 					b.damage ?? null,
 					b.notes ?? null,
-					b.in_fee,
-					b.out_fee,
-					b.daily_rate,
+					in_fee,
+					out_fee,
+					daily_rate,
 					b.intake_date ?? null,
 					photos,
 				],
@@ -156,9 +176,12 @@ router.put(
 					daily_rate = COALESCE($3, daily_rate),
 					intake_date = COALESCE($4::timestamptz, intake_date),
 					notes = COALESCE($5, notes),
+					unit_number = COALESCE($6, unit_number),
+					size = COALESCE($7, size),
+					damage = COALESCE($8, damage),
 					is_pending_audit = false,
 					state = CASE WHEN state = 'pending' THEN 'in_storage'::sh_state ELSE state END
-				 WHERE id = $6 AND is_pending_audit = true
+				 WHERE id = $9 AND is_pending_audit = true
 				 RETURNING id, state, is_pending_audit`,
 				[
 					b.in_fee ?? null,
@@ -166,6 +189,9 @@ router.put(
 					b.daily_rate ?? null,
 					b.intake_date ?? null,
 					b.notes ?? null,
+					b.unit_number ?? null,
+					b.size ?? null,
+					b.damage ?? null,
 					req.params.id,
 				],
 			);

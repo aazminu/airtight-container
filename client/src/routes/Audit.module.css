@@ -21,7 +21,7 @@
 
 .subtitle {
   margin: 0;
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
 }
 
 .section {
@@ -43,16 +43,16 @@
 }
 
 .sectionCount {
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
   font-size: 0.9375rem;
 }
 
 .empty {
   padding: 1rem;
-  background: var(--surface-soft, #f6f8fa);
-  border: 1px dashed var(--border, #d0d7de);
+  background: var(--bg-surface-2);
+  border: 1px dashed var(--border);
   border-radius: 8px;
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
   text-align: center;
 }
 
@@ -63,16 +63,16 @@
 }
 
 .row {
-  border: 1px solid var(--border, #d0d7de);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--surface, #fff);
+  background: var(--bg-surface);
   overflow: hidden;
   transition: box-shadow 160ms ease, border-color 160ms ease;
 }
 
 .row[data-open='true'] {
-  border-color: var(--accent, #0969da);
-  box-shadow: 0 2px 8px rgba(9, 105, 218, 0.12);
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .rowHead {
@@ -91,7 +91,7 @@
 }
 
 .rowHead:hover {
-  background: var(--surface-soft, #f6f8fa);
+  background: var(--bg-surface-2);
 }
 
 .rowSummary {
@@ -107,7 +107,7 @@
 }
 
 .rowMeta {
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
   font-size: 0.875rem;
   display: flex;
   gap: 0.75rem;
@@ -115,17 +115,17 @@
 }
 
 .rowChev {
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
   font-size: 0.875rem;
 }
 
 .rowBody {
-  border-top: 1px solid var(--border, #d0d7de);
+  border-top: 1px solid var(--border);
   padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
-  background: var(--surface-soft, #f8fafc);
+  background: var(--bg-surface-2);
 }
 
 .formRow {
@@ -148,7 +148,7 @@
 .fieldLabel {
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -156,20 +156,20 @@
 .field input,
 .field textarea {
   padding: 0.5rem 0.625rem;
-  border: 1px solid var(--border, #d0d7de);
+  border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 0.9375rem;
-  background: var(--bg, #fff);
-  color: var(--text, #111);
+  background: var(--bg-surface);
+  color: var(--text-primary);
   font: inherit;
   min-height: 38px;
 }
 
 .field input:focus,
 .field textarea:focus {
-  outline: 2px solid var(--accent, #0969da);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
-  border-color: var(--accent, #0969da);
+  border-color: var(--accent);
 }
 
 .actions {
@@ -193,17 +193,36 @@
   flex-wrap: wrap;
 }
 
+.photoThumbBtn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 8px;
+  display: block;
+}
+
+.photoThumbBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .photoThumb {
   display: block;
   width: 96px;
   height: 96px;
   object-fit: cover;
   border-radius: 8px;
-  border: 1px solid var(--border, #d0d7de);
-  background: var(--surface-soft, #f6f8fa);
+  border: 1px solid var(--border);
+  background: var(--bg-surface-2);
+  transition: transform 120ms ease;
+}
+
+.photoThumbBtn:hover .photoThumb {
+  transform: scale(1.02);
 }
 
 .photoThumb[data-role='primary'] {
-  border-color: var(--accent, #0969da);
-  box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.18);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
 }

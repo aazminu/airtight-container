@@ -13,15 +13,38 @@ import {
   type ShIntakeForm,
 } from '../components/intake/ShDetailsStep';
 import { ShReviewStep } from '../components/intake/ShReviewStep';
-import { PhotoStep, type IntakePhoto } from '../components/intake/PhotoStep';
+import {
+  PhotoStep,
+  type IntakePhoto,
+} from '../components/intake/PhotoStep';
 import { ConfirmStep, type OcrResult } from '../components/intake/ConfirmStep';
 import styles from './Intake.module.css';
 
 type Kind = 'sales' | 'sh' | null;
 type SubmitState = 'idle' | 'submitting' | 'error';
 
-const SALES_STEPS = ['Choose', 'Photos', 'Confirm details', 'Container details', 'Review'] as const;
-const SH_STEPS = ['Choose', 'Photos', 'Confirm details', 'Storage details', 'Review'] as const;
+interface ReleaseMatch {
+  release_number_id: number;
+  release_number_value: string;
+  sale_company_name: string;
+}
+
+const SALES_STEPS = [
+  'Choose',
+  'Door photo',
+  'Other photos',
+  'Confirm number',
+  'Container details',
+  'Review',
+] as const;
+const SH_STEPS = [
+  'Choose',
+  'Door photo',
+  'Other photos',
+  'Confirm number',
+  'Storage details',
+  'Review',
+] as const;
 
 const EMPTY_SALES: SalesIntakeForm = {
   unit_number: '',
@@ -29,7 +52,6 @@ const EMPTY_SALES: SalesIntakeForm = {
   damage: '',
   trucking_company: '',
   release_number_id: null,
-  acquisition_price: '',
   notes: '',
 };
 
@@ -38,15 +60,19 @@ const EMPTY_SH: ShIntakeForm = {
   unit_number: '',
   size: '',
   damage: '',
-  in_fee: '',
-  out_fee: '',
-  daily_rate: '',
   notes: '',
 };
 
-// Phase 2 intake. PR 2.1 shipped the skeleton + Flow primitive; PR 2.2 wired
-// Sales end-to-end; PR 2.4 wires the S&H branch (this PR). Photos + Confirm
-// remain placeholders on both branches until PR 2.6 (S3 + Textract).
+// Phase 2 intake (revised PR 2.8.1).
+// Steps:
+//   0 Choose                — pick Sales vs Storage
+//   1 Door photo            — required-ish (skippable), runs OCR
+//   2 Other photos          — optional, any number
+//   3 Confirm number        — confirm/edit the OCR'd (or hand-typed) unit number
+//   4 Sales/Storage details — the rest of the form (unit_number is read-only here)
+//   5 Review                — summary + Submit
+// Admin-only fields (acquisition_price for Sales, rates for S&H) moved
+// to the audit screen entirely.
 export default function Intake() {
   const { setPopup } = useContext(userContext);
   const [kind, setKind] = useState<Kind>(null);
@@ -57,16 +83,16 @@ export default function Intake() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [releaseCache, setReleaseCache] = useState<ReleaseOption[]>([]);
   const [clientCache, setClientCache] = useState<ClientOption[]>([]);
-  // PR 2.6: photo capture + OCR. Shared across both branches; first key
-  // is the OCR target by convention. `ocr` is null until the OCR call
-  // for the first photo lands (or null if photos were skipped entirely).
-  const [photos, setPhotos] = useState<IntakePhoto[]>([]);
+  // Photo state — doors photo is its own slot; other photos are a free list.
+  const [doorPhoto, setDoorPhoto] = useState<IntakePhoto | null>(null);
+  const [otherPhotos, setOtherPhotos] = useState<IntakePhoto[]>([]);
   const [ocr, setOcr] = useState<OcrResult | null>(null);
+  // Auto-match: filled when the typed unit number is pre-loaded under
+  // an active release. Drives the locked-release affordance on Details.
+  const [releaseMatch, setReleaseMatch] = useState<ReleaseMatch | null>(null);
 
-  // Cache the release list once so the Review step can label the picked
-  // release by value without re-fetching. SalesDetailsStep also fetches —
-  // both share the same network response; the duplicate request on a
-  // single intake session is negligible and avoids prop-drilling for now.
+  // Cache the release list once so Review can label by value without
+  // re-fetching.
   useEffect(() => {
     if (kind !== 'sales' || releaseCache.length > 0) return;
     let cancelled = false;
@@ -81,8 +107,6 @@ export default function Intake() {
     };
   }, [kind, releaseCache.length]);
 
-  // Same idea for S&H: cache the client list so Review can label the picked
-  // client without re-fetching.
   useEffect(() => {
     if (kind !== 'sh' || clientCache.length > 0) return;
     let cancelled = false;
@@ -97,6 +121,52 @@ export default function Intake() {
     };
   }, [kind, clientCache.length]);
 
+  // Auto-match the typed unit number against pre-loaded release containers.
+  // Sales-only — S&H doesn't use releases. Debounced 300 ms so a rapid
+  // typer doesn't fire one request per keystroke.
+  useEffect(() => {
+    if (kind !== 'sales') return;
+    const number = salesForm.unit_number.trim().toUpperCase();
+    if (number.length < 4) {
+      if (releaseMatch) {
+        setReleaseMatch(null);
+        setSalesForm((f) => ({ ...f, release_number_id: null }));
+      }
+      return;
+    }
+    let cancelled = false;
+    const handle = window.setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/v2/release/by-container?number=${encodeURIComponent(number)}`,
+          { credentials: 'include' },
+        );
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          data: { match: ReleaseMatch | null };
+        };
+        if (cancelled) return;
+        if (body.data.match) {
+          setReleaseMatch(body.data.match);
+          setSalesForm((f) => ({
+            ...f,
+            release_number_id: body.data.match!.release_number_id,
+          }));
+        } else if (releaseMatch) {
+          // We had a match, now we don't — clear it and let the user pick.
+          setReleaseMatch(null);
+          setSalesForm((f) => ({ ...f, release_number_id: null }));
+        }
+      } catch {
+        /* network errors don't block the flow */
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [kind, salesForm.unit_number, releaseMatch]);
+
   const labels = useMemo<readonly string[]>(() => {
     if (kind === 'sh') return SH_STEPS;
     if (kind === 'sales') return SALES_STEPS;
@@ -109,6 +179,12 @@ export default function Intake() {
     (kind === 'sh' && step === SH_STEPS.length - 1);
   const isFinalStep = step === labels.length - 1;
 
+  const confirmValid = (() => {
+    if (kind === 'sales') return salesForm.unit_number.trim().length > 0;
+    if (kind === 'sh') return shForm.unit_number.trim().length > 0;
+    return true;
+  })();
+
   const salesDetailsValid =
     salesForm.unit_number.trim() &&
     salesForm.size.trim() &&
@@ -118,16 +194,14 @@ export default function Intake() {
   const shDetailsValid =
     shForm.client_id !== null &&
     shForm.unit_number.trim() &&
-    shForm.size.trim() &&
-    shForm.in_fee.trim() &&
-    shForm.out_fee.trim() &&
-    shForm.daily_rate.trim();
+    shForm.size.trim();
 
-  // Going forward from the Details step is blocked until the form validates.
-  const isSalesDetailsStep = kind === 'sales' && step === 3;
-  const isShDetailsStep = kind === 'sh' && step === 3;
+  const isConfirmStep = step === 3 && (kind === 'sales' || kind === 'sh');
+  const isSalesDetailsStep = kind === 'sales' && step === 4;
+  const isShDetailsStep = kind === 'sh' && step === 4;
   const canNext =
     !isFinalStep &&
+    !(isConfirmStep && !confirmValid) &&
     !(isSalesDetailsStep && !salesDetailsValid) &&
     !(isShDetailsStep && !shDetailsValid) &&
     submitState !== 'submitting';
@@ -149,35 +223,51 @@ export default function Intake() {
   const resetForNextBox = () => {
     setSalesForm(EMPTY_SALES);
     setShForm(EMPTY_SH);
-    photos.forEach((p) => p.previewUrl && URL.revokeObjectURL(p.previewUrl));
-    setPhotos([]);
+    if (doorPhoto?.previewUrl) URL.revokeObjectURL(doorPhoto.previewUrl);
+    otherPhotos.forEach(
+      (p) => p.previewUrl && URL.revokeObjectURL(p.previewUrl),
+    );
+    setDoorPhoto(null);
+    setOtherPhotos([]);
     setOcr(null);
+    setReleaseMatch(null);
     setSubmitState('idle');
     setSubmitError(null);
     setKind(null);
     setStep(0);
   };
 
-  // OCR comes back asynchronously after the first photo finishes uploading.
-  // Prefill whichever Details form is active with the extracted unit_number
-  // — staff confirms on the Confirm step, but seeing it pre-filled on
-  // Details too removes a re-type if they paged ahead.
+  // Doors-photo OCR result lands here. Pre-fill the right form's
+  // unit_number + size if the field is still empty.
   const handleOcr = (result: OcrResult) => {
     setOcr(result);
     if (result.unit_number) {
       if (kind === 'sales') {
         setSalesForm((f) =>
-          f.unit_number.trim() ? f : { ...f, unit_number: result.unit_number ?? '' },
+          f.unit_number.trim()
+            ? f
+            : { ...f, unit_number: result.unit_number ?? '' },
         );
       } else if (kind === 'sh') {
         setShForm((f) =>
-          f.unit_number.trim() ? f : { ...f, unit_number: result.unit_number ?? '' },
+          f.unit_number.trim()
+            ? f
+            : { ...f, unit_number: result.unit_number ?? '' },
         );
+      }
+    }
+    if (result.size) {
+      if (kind === 'sales') {
+        setSalesForm((f) => (f.size.trim() ? f : { ...f, size: result.size ?? '' }));
+      } else if (kind === 'sh') {
+        setShForm((f) => (f.size.trim() ? f : { ...f, size: result.size ?? '' }));
       }
     }
   };
 
-  const photoKeys = photos.filter((p) => p.key && !p.error).map((p) => p.key);
+  const photoKeys = [doorPhoto?.key, ...otherPhotos.map((p) => p.key)].filter(
+    (k): k is string => !!k,
+  );
 
   const submitSales = async () => {
     if (!salesForm.release_number_id) return;
@@ -186,7 +276,7 @@ export default function Intake() {
     );
     if (!release) {
       setSubmitState('error');
-      setSubmitError('Picked release is no longer available — pick another.');
+      setSubmitError("That release isn't available anymore — pick another.");
       return;
     }
     setSubmitState('submitting');
@@ -203,7 +293,6 @@ export default function Intake() {
             damage: salesForm.damage.trim(),
             trucking_company: salesForm.trucking_company.trim() || null,
             notes: salesForm.notes.trim() || null,
-            acquisition_price: salesForm.acquisition_price || null,
             state: 'pending',
             photos: photoKeys.length ? photoKeys : undefined,
           },
@@ -211,7 +300,7 @@ export default function Intake() {
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setPopup('Box logged. An admin will review it before it goes available.');
+      setPopup('Box logged. Michelle will review it before it goes available.');
       resetForNextBox();
     } catch (e) {
       setSubmitState('error');
@@ -235,15 +324,12 @@ export default function Intake() {
             size: shForm.size.trim(),
             damage: shForm.damage.trim() || null,
             notes: shForm.notes.trim() || null,
-            in_fee: shForm.in_fee,
-            out_fee: shForm.out_fee,
-            daily_rate: shForm.daily_rate,
             photos: photoKeys.length ? photoKeys : undefined,
           },
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setPopup('Box logged. An admin will review it before it starts billing.');
+      setPopup('Box logged. Michelle will review it before billing starts.');
       resetForNextBox();
     } catch (e) {
       setSubmitState('error');
@@ -261,8 +347,8 @@ export default function Intake() {
     const r = releaseCache.find(
       (rel) => rel.release_number_id === salesForm.release_number_id,
     );
-    return r?.release_number_value;
-  }, [salesForm.release_number_id, releaseCache]);
+    return r?.release_number_value ?? releaseMatch?.release_number_value;
+  }, [salesForm.release_number_id, releaseCache, releaseMatch]);
 
   const pickedClientLabel = useMemo(() => {
     if (shForm.client_id === null) return undefined;
@@ -305,8 +391,7 @@ export default function Intake() {
                 <span className={styles.kindIcon} aria-hidden="true">📦</span>
                 <span className={styles.kindLabel}>Sales</span>
                 <span className={styles.kindSub}>
-                  Container we buy in and resell. Tracks acquisition price,
-                  release number, and final sale.
+                  A box we bought and will resell. Has a release number.
                 </span>
               </button>
               <button
@@ -317,34 +402,62 @@ export default function Intake() {
                 <span className={styles.kindIcon} aria-hidden="true">🏷️</span>
                 <span className={styles.kindLabel}>Storage</span>
                 <span className={styles.kindSub}>
-                  Customer's container we hold on the yard. Tracks daily
-                  rate, in/out fees, and billed month-end.
+                  A customer's box that we're holding on the yard.
                 </span>
               </button>
             </div>
           </FlowStep>
 
-          {kind === 'sales' && (
+          {(kind === 'sales' || kind === 'sh') && (
             <>
               <FlowStep>
                 <PhotoStep
-                  kind="sales"
-                  photos={photos}
-                  onChange={setPhotos}
+                  kind={kind}
+                  mode="doors"
+                  photos={doorPhoto ? [doorPhoto] : []}
+                  onChange={(arr) => setDoorPhoto(arr[0] ?? null)}
                   onOcr={handleOcr}
+                />
+              </FlowStep>
+              <FlowStep>
+                <PhotoStep
+                  kind={kind}
+                  mode="other"
+                  photos={otherPhotos}
+                  onChange={setOtherPhotos}
                 />
               </FlowStep>
               <FlowStep>
                 <ConfirmStep
                   ocr={ocr}
-                  unitNumber={salesForm.unit_number}
-                  onChange={(v) => setSalesForm((f) => ({ ...f, unit_number: v }))}
+                  unitNumber={
+                    kind === 'sales' ? salesForm.unit_number : shForm.unit_number
+                  }
+                  onChange={(v) =>
+                    kind === 'sales'
+                      ? setSalesForm((f) => ({ ...f, unit_number: v }))
+                      : setShForm((f) => ({ ...f, unit_number: v }))
+                  }
+                  releaseMatch={
+                    kind === 'sales' && releaseMatch
+                      ? {
+                          release_number_value: releaseMatch.release_number_value,
+                          sale_company_name: releaseMatch.sale_company_name,
+                        }
+                      : null
+                  }
                 />
               </FlowStep>
+            </>
+          )}
+
+          {kind === 'sales' && (
+            <>
               <FlowStep>
                 <SalesDetailsStep
                   value={salesForm}
                   onChange={(patch) => setSalesForm((f) => ({ ...f, ...patch }))}
+                  lockedRelease={releaseMatch}
                 />
               </FlowStep>
               <FlowStep>
@@ -356,21 +469,6 @@ export default function Intake() {
 
           {kind === 'sh' && (
             <>
-              <FlowStep>
-                <PhotoStep
-                  kind="sh"
-                  photos={photos}
-                  onChange={setPhotos}
-                  onOcr={handleOcr}
-                />
-              </FlowStep>
-              <FlowStep>
-                <ConfirmStep
-                  ocr={ocr}
-                  unitNumber={shForm.unit_number}
-                  onChange={(v) => setShForm((f) => ({ ...f, unit_number: v }))}
-                />
-              </FlowStep>
               <FlowStep>
                 <ShDetailsStep
                   value={shForm}
@@ -415,4 +513,3 @@ export default function Intake() {
     </div>
   );
 }
-

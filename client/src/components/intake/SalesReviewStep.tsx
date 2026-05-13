@@ -3,22 +3,16 @@ import type { SalesIntakeForm } from './SalesDetailsStep';
 
 interface Props {
   value: SalesIntakeForm;
-  /** Optional release info for the summary — purely cosmetic. */
   releaseLabel?: string;
 }
 
-/**
- * Sales intake review — read-only summary of what's about to be submitted.
- * The Submit button itself lives in the Intake footer so it's reachable
- * via the same Back/Next chrome as every other step.
- */
 export function SalesReviewStep({ value, releaseLabel }: Props) {
   return (
     <div className={styles.review}>
-      <h2 className={styles.h2}>Review</h2>
+      <h2 className={styles.h2}>Looks good?</h2>
       <p className={styles.reviewIntro}>
-        Submitting this box marks it <strong>pending audit</strong>. An admin will
-        confirm acquisition price and timing before it goes available.
+        Hit Submit and we'll log this box. Michelle will review the details and
+        confirm the price before it's available.
       </p>
 
       <dl className={styles.summary}>
@@ -27,10 +21,6 @@ export function SalesReviewStep({ value, releaseLabel }: Props) {
         <SummaryRow label="Damage" value={value.damage} />
         <SummaryRow label="Release" value={releaseLabel ?? '—'} />
         <SummaryRow label="Trucking company" value={value.trucking_company || '—'} />
-        <SummaryRow
-          label="Acquisition price"
-          value={value.acquisition_price ? `$${value.acquisition_price}` : '—'}
-        />
         <SummaryRow label="Notes" value={value.notes || '—'} />
       </dl>
     </div>

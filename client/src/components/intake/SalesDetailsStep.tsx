@@ -7,7 +7,6 @@ export interface SalesIntakeForm {
   damage: string;
   trucking_company: string;
   release_number_id: number | null;
-  acquisition_price: string;
   notes: string;
 }
 
@@ -20,17 +19,17 @@ export interface ReleaseOption {
 interface Props {
   value: SalesIntakeForm;
   onChange: (patch: Partial<SalesIntakeForm>) => void;
+  /** When set, the release picker is locked to this release — the
+   *  unit_number matched a pre-loaded container (PR 2.8.1). */
+  lockedRelease?: { release_number_id: number; release_number_value: string; sale_company_name: string } | null;
   onLoadError?: (msg: string) => void;
 }
 
-/**
- * Sales intake details — real form replacing the legacy AddForm. Pulls
- * active releases (is_complete=false) from /api/v2/release/numbers and
- * lets the user pick one. acceptance_number / sale_company text inputs
- * are gone — release_number_id is the only source of truth now (sale
- * company is inherited from the release's sale_company_id by the POST).
- */
-export function SalesDetailsStep({ value, onChange, onLoadError }: Props) {
+// Sales intake details (PR 2.8.1). Admin-only fields (acquisition_price)
+// moved to the audit screen. Unit number shown read-only at the top —
+// it's confirmed/edited on the prior Confirm step. Release picker is
+// locked when an auto-match landed.
+export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }: Props) {
   const [releases, setReleases] = useState<ReleaseOption[]>([]);
   const [loadingReleases, setLoadingReleases] = useState(true);
 
@@ -59,43 +58,21 @@ export function SalesDetailsStep({ value, onChange, onLoadError }: Props) {
     <div className={styles.form}>
       <h2 className={styles.h2}>Container details</h2>
 
+      <div className={styles.readonlyLine}>
+        <span>Unit number</span>
+        <span>{value.unit_number || '—'}</span>
+      </div>
+
       <label className={styles.field}>
-        <span className={styles.label}>Unit number</span>
+        <span className={styles.label}>Size</span>
         <input
           type="text"
-          value={value.unit_number}
-          onChange={(e) => onChange({ unit_number: e.target.value.toUpperCase() })}
-          placeholder="e.g. DRYU1234567"
-          autoCapitalize="characters"
-          autoCorrect="off"
-          spellCheck={false}
+          value={value.size}
+          onChange={(e) => onChange({ size: e.target.value })}
+          placeholder="20ft / 40ft / 40HC"
           required
         />
       </label>
-
-      <div className={styles.row}>
-        <label className={styles.field}>
-          <span className={styles.label}>Size</span>
-          <input
-            type="text"
-            value={value.size}
-            onChange={(e) => onChange({ size: e.target.value })}
-            placeholder="20ft / 40HC"
-            required
-          />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.label}>Acquisition price</span>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={value.acquisition_price}
-            onChange={(e) => onChange({ acquisition_price: e.target.value })}
-            placeholder="$"
-          />
-        </label>
-      </div>
 
       <label className={styles.field}>
         <span className={styles.label}>Damage / condition</span>
@@ -103,33 +80,45 @@ export function SalesDetailsStep({ value, onChange, onLoadError }: Props) {
           type="text"
           value={value.damage}
           onChange={(e) => onChange({ damage: e.target.value })}
-          placeholder="As-is / WWT / minor dent rear door / etc."
+          placeholder="As-is / minor dent rear door / etc."
           required
         />
       </label>
 
-      <label className={styles.field}>
-        <span className={styles.label}>Release</span>
-        <select
-          value={value.release_number_id ?? ''}
-          onChange={(e) =>
-            onChange({
-              release_number_id: e.target.value ? Number(e.target.value) : null,
-            })
-          }
-          disabled={loadingReleases}
-          required
-        >
-          <option value="" disabled>
-            {loadingReleases ? 'Loading…' : 'Select a release number'}
-          </option>
-          {releases.map((r) => (
-            <option key={r.release_number_id} value={r.release_number_id}>
-              {r.release_number_value} ({r.release_number_count} left)
+      {lockedRelease ? (
+        <div className={styles.readonlyLine}>
+          <span>Release</span>
+          <span>
+            {lockedRelease.release_number_value}
+            {lockedRelease.sale_company_name
+              ? ` (${lockedRelease.sale_company_name})`
+              : ''}
+          </span>
+        </div>
+      ) : (
+        <label className={styles.field}>
+          <span className={styles.label}>Release</span>
+          <select
+            value={value.release_number_id ?? ''}
+            onChange={(e) =>
+              onChange({
+                release_number_id: e.target.value ? Number(e.target.value) : null,
+              })
+            }
+            disabled={loadingReleases}
+            required
+          >
+            <option value="" disabled>
+              {loadingReleases ? 'Loading…' : 'Pick a release'}
             </option>
-          ))}
-        </select>
-      </label>
+            {releases.map((r) => (
+              <option key={r.release_number_id} value={r.release_number_id}>
+                {r.release_number_value} ({r.release_number_count} left)
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <label className={styles.field}>
         <span className={styles.label}>Trucking company</span>
@@ -137,7 +126,7 @@ export function SalesDetailsStep({ value, onChange, onLoadError }: Props) {
           type="text"
           value={value.trucking_company}
           onChange={(e) => onChange({ trucking_company: e.target.value })}
-          placeholder="Inbound trucker (optional)"
+          placeholder="Who hauled it in (optional)"
         />
       </label>
 
@@ -147,7 +136,7 @@ export function SalesDetailsStep({ value, onChange, onLoadError }: Props) {
           value={value.notes}
           onChange={(e) => onChange({ notes: e.target.value })}
           rows={3}
-          placeholder="Anything else worth flagging for the audit"
+          placeholder="Anything else worth flagging"
         />
       </label>
     </div>

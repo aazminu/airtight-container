@@ -6,12 +6,12 @@
 
 .intro {
   margin: 0;
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
   line-height: 1.45;
 }
 
 .intro strong {
-  color: var(--text, #1f2328);
+  color: var(--text-primary);
 }
 
 .captureRow {
@@ -25,10 +25,10 @@
   flex: 1 1 auto;
   min-height: 56px;
   padding: 0.875rem 1rem;
-  border: 1px dashed var(--accent, #0969da);
+  border: 1px dashed var(--accent);
   border-radius: 12px;
-  background: var(--surface-soft, #f6f8fa);
-  color: var(--accent, #0969da);
+  background: var(--bg-surface-2);
+  color: var(--accent);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -39,7 +39,7 @@
 }
 
 .captureBtn:hover {
-  background: rgba(9, 105, 218, 0.08);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .captureBtn input[type='file'] {
@@ -59,14 +59,14 @@
   position: relative;
   border-radius: 10px;
   overflow: hidden;
-  border: 1px solid var(--border, #d0d7de);
+  border: 1px solid var(--border);
   aspect-ratio: 4 / 3;
-  background: var(--surface-soft, #f6f8fa);
+  background: var(--bg-surface-2);
 }
 
 .tile[data-role='primary'] {
-  border-color: var(--accent, #0969da);
-  box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.18);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .tile img {
@@ -116,7 +116,7 @@
   width: 100%;
   height: 100%;
   font-size: 0.875rem;
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
 }
 
 .error {

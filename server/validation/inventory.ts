@@ -17,10 +17,18 @@ const positiveDecimal = z
     message: 'Must be a non-negative number with up to 2 decimals',
   });
 
+// PR 2.8.1 — the audit screen now lets admin edit any field the intake
+// captured, plus the admin-only acquisition_price / intake date. Anything
+// omitted from the body is left untouched by the UPDATE (COALESCE
+// semantics in routes/v1/inventory.js PUT /audit/:id).
 export const auditInventorySchema = z.object({
   acquisition_price: positiveDecimal.nullable().optional(),
   date: z.string().datetime().nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
+  unit_number: z.string().trim().min(1).max(40).optional(),
+  size: z.string().trim().min(1).max(40).optional(),
+  damage: z.string().trim().max(255).optional(),
+  trucking_company: z.string().trim().max(120).nullable().optional(),
 });
 
 export type AuditInventoryInput = z.infer<typeof auditInventorySchema>;

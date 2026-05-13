@@ -17,6 +17,8 @@ function getClient(): TextractClient {
 
 export interface ExtractResult {
   unit_number: string | null;
+  /** User-friendly size guess like "20ft", "20HC", "40ft", "40HC", "45HC". */
+  size: string | null;
   lines: string[];
 }
 
@@ -55,6 +57,40 @@ export function isValidIso6346(unitNumber: string): boolean {
   const actual = Number(unitNumber[10]);
   // Accept mod-10 codes that print as 0 — non-spec but seen in the wild.
   return expected === actual || (expected === 10 && actual === 0);
+}
+
+// ---- ISO 6346 size/type code -------------------------------------------
+
+// First char of the 4-char ISO 6346 size/type code → container length.
+const LENGTH_FROM_CODE: Record<string, string> = {
+  '1': '10',
+  '2': '20',
+  '3': '30',
+  '4': '40',
+  L: '45',
+  M: '48',
+  N: '49',
+};
+
+// Third char of the type code = equipment category. Restricting matches
+// to the common ones cuts down false positives from arbitrary 4-char
+// tokens that happen to look like type codes (e.g. random letter+digit
+// strings on a sticker).
+const CATEGORY_LETTERS = new Set(['G', 'R', 'U', 'P', 'T', 'S', 'H', 'A']);
+
+// Parse a 4-char ISO 6346 type code into a user-friendly size string.
+// Returns null if the token is not a recognisable code.
+export function parseTypeCode(token: string): string | null {
+  if (!/^[1-9LMN][0-9][A-Z][0-9]$/.test(token)) return null;
+  const length = LENGTH_FROM_CODE[token[0]];
+  if (!length) return null;
+  if (!CATEGORY_LETTERS.has(token[2])) return null;
+  // Height/width digit: 5 = 9'6" (high cube), 6 = >9'6", everything else
+  // we treat as standard 8'6" — distinguishing reefer high-cube vs
+  // standard reefer doesn't add anything for our yard. Staff can override.
+  const heightDigit = token[1];
+  const highCube = heightDigit === '5' || heightDigit === '6';
+  return highCube ? `${length}HC` : `${length}ft`;
 }
 
 // ---- extraction ---------------------------------------------------------
@@ -110,7 +146,18 @@ export function extractFromBlocks(blocks: Block[]): ExtractResult {
 
   const validated = unique.find(isValidIso6346);
   const unit_number = validated ?? unique[0] ?? null;
-  return { unit_number, lines };
+
+  // Size guess: scan tokens for an ISO 6346 type code. First match wins.
+  let size: string | null = null;
+  for (const t of tokens) {
+    const guess = parseTypeCode(t);
+    if (guess) {
+      size = guess;
+      break;
+    }
+  }
+
+  return { unit_number, size, lines };
 }
 
 // Runs DetectDocumentText against an object already in our intake bucket.
