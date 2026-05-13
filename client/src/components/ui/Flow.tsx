@@ -1,4 +1,4 @@
-import { Children, useEffect, useRef, useState } from 'react';
+import { Children, Fragment, isValidElement, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import styles from './Flow.module.css';
 
@@ -11,13 +11,30 @@ export interface FlowProps {
   className?: string;
 }
 
+// Children.toArray flattens nested arrays but does not flatten React.Fragment.
+// Callers like Intake wrap conditional step groups in a fragment so React's
+// JSX type-checker stays happy; we need a flat per-step array so step indexing
+// works through those fragments.
+function flattenSteps(children: ReactNode): ReactNode[] {
+  const out: ReactNode[] = [];
+  Children.forEach(children, (child) => {
+    if (isValidElement(child) && child.type === Fragment) {
+      const props = child.props as { children?: ReactNode };
+      out.push(...flattenSteps(props.children));
+    } else if (child !== null && child !== undefined && child !== false) {
+      out.push(child);
+    }
+  });
+  return out;
+}
+
 /**
  * Multi-step container with fade-with-shift transitions. Direction is
  * inferred from step-index change; forward steps shift in from the right,
  * back from the left. CSS uses prefers-reduced-motion to disable motion.
  */
 export function Flow({ step, children, className }: FlowProps) {
-  const childArray = Children.toArray(children);
+  const childArray = flattenSteps(children);
   const prev = useRef(step);
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
 
