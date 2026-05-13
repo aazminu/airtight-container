@@ -139,20 +139,6 @@ router.get("/", checkEmployee, async (req, res) => {
 	}
 });
 
-router.get("/latest", async (req, res) => {
-	try {
-		const results = await db.query(
-			"SELECT invoice_number FROM invoices ORDER BY invoice_number DESC LIMIT 1",
-		);
-		res.status(200).json({
-			status: "success",
-			latest: results.rows[0]?.invoice_number ?? null,
-		});
-	} catch (err) {
-		res.status(500).json({ message: "Internal server error" });
-	}
-});
-
 router.get("/:id", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
@@ -179,29 +165,81 @@ router.get("/:id", checkEmployee, async (req, res) => {
 	}
 });
 
+// PR 3.5: server-side YYYYMM<seq> generation. Two clients clicking
+// "Create" within the same render tick would otherwise both pick the
+// same number from /latest and collide on the UNIQUE constraint. The
+// advisory lock serializes the read-max + insert so the sequence is
+// monotonic per month. Key is a constant 64-bit int; pg_advisory_xact_lock
+// auto-releases at COMMIT/ROLLBACK.
+const INVOICE_SEQ_LOCK_KEY = 0x4149_5253_4551_4e23n; // 'AIRSEQ#'
+
+const monthPrefix = (date = new Date()) => {
+	const y = date.getFullYear();
+	const m = String(date.getMonth() + 1).padStart(2, "0");
+	return parseInt(`${y}${m}`, 10);
+};
+
 router.post("/", checkEmployee, async (req, res) => {
+	const clientId = req.body.client_id ?? req.body.contact_id;
+	if (!clientId) {
+		return res.status(400).json({ message: "client_id is required" });
+	}
+	const containers = Array.isArray(req.body.containers)
+		? req.body.containers
+		: [];
+	const client = await pool.connect();
 	try {
-		const clientId = req.body.client_id ?? req.body.contact_id;
-		const results = await db.query(
-			"INSERT INTO invoices (invoice_number, client_id, invoice_taxed, invoice_credit) VALUES ($1, $2, $3, $4) RETURNING invoice_id",
-			[
-				req.body.invoice_number,
-				clientId,
-				req.body.invoice_taxed,
-				req.body.invoice_credit,
-			],
+		await client.query("BEGIN");
+		await client.query("SELECT pg_advisory_xact_lock($1)", [
+			INVOICE_SEQ_LOCK_KEY.toString(),
+		]);
+		const prefix = monthPrefix();
+		const min = prefix * 1000 + 1;
+		const max = prefix * 1000 + 999;
+		const { rows: maxRows } = await client.query(
+			`SELECT COALESCE(MAX(invoice_number), $1::int - 1) + 1 AS next
+			 FROM invoices
+			 WHERE invoice_number BETWEEN $1 AND $2`,
+			[min, max],
 		);
-		const invoiceID = results.rows[0].invoice_id;
-		for (const container of req.body.containers) {
-			await db.query(
-				"INSERT INTO invoice_containers (invoice_id, container_id) VALUES ($1, $2)",
-				[invoiceID, container.id],
+		const invoiceNumber = maxRows[0].next;
+		if (invoiceNumber > max) {
+			throw new Error(
+				`Out of invoice numbers for ${prefix} (sequence exhausted at 999)`,
 			);
 		}
-		res.status(200).json({ status: "success", id: invoiceID });
+		const { rows: invRows } = await client.query(
+			`INSERT INTO invoices (invoice_number, client_id, invoice_taxed, invoice_credit)
+			 VALUES ($1, $2, $3, $4)
+			 RETURNING invoice_id`,
+			[
+				invoiceNumber,
+				clientId,
+				req.body.invoice_taxed ?? false,
+				req.body.invoice_credit ?? false,
+			],
+		);
+		const invoiceID = invRows[0].invoice_id;
+		for (const container of containers) {
+			const cid = container.id ?? container.inventory_id;
+			if (!cid) continue;
+			await client.query(
+				"INSERT INTO invoice_containers (invoice_id, container_id) VALUES ($1, $2)",
+				[invoiceID, cid],
+			);
+		}
+		await client.query("COMMIT");
+		res.status(200).json({
+			status: "success",
+			id: invoiceID,
+			invoice_number: invoiceNumber,
+		});
 	} catch (err) {
+		await client.query("ROLLBACK");
 		console.error("invoice.post error:", err);
-		res.status(500).json({ message: "Internal server error" });
+		res.status(500).json({ message: err.message || "Internal server error" });
+	} finally {
+		client.release();
 	}
 });
 

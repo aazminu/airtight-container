@@ -32,34 +32,22 @@ function CreateInvoice() {
 	const [usingCreditCard, setUsingCreditCard] = useState(false);
 
 	const generateInvoice = async () => {
-		const newInvoiceNumber = await calculateInvoiceNumber();
-		let address = selectedContact.contact_address;
-		let tsz = address.substring(address.indexOf(",") + 1);
-		address = address.substring(0, address.indexOf(",") + 1);
-		if (newInvoiceNumber === null) return;
-		let invoiceInfo = {
+		// PR 3.5: server picks the invoice number atomically. We post
+		// the invoice first, get the assigned number back, then call
+		// /sold for each container with that number as release_number.
+		const invoiceInfo = {
 			send_email: emailContact,
-			invoice_number: newInvoiceNumber,
 			invoice_taxed: hasSalesTax,
 			invoice_credit: usingCreditCard,
-			customer: {
-				contact_id: selectedContact.contact_id,
-				contact_name: selectedContact.contact_name,
-				contact_email: selectedContact.contact_email,
-				contact_phone: selectedContact.contact_phone,
-				contact_address: address,
-				contact_tsz: tsz,
-			},
-			containers: [],
+			contact_id: selectedContact.contact_id,
+			containers: selectedContainers,
 		};
+		const created = await postInvoice(invoiceInfo);
+		if (!created) return;
 		for (const container of selectedContainers) {
-			await markContainerSold(container, newInvoiceNumber);
-			invoiceInfo.containers = [...invoiceInfo.containers, container];
+			await markContainerSold(container, created.invoice_number);
 		}
-		let id = await postInvoice(invoiceInfo);
-		console.log("ID === " + id);
-		if (id === null) return;
-		setTimeout(() => setGenerate(id), 0);
+		setTimeout(() => setGenerate(created.id), 0);
 	};
 
 	const recieveFinalContainer = (updatedContainer) => {
@@ -90,42 +78,6 @@ function CreateInvoice() {
 			return false;
 		}
 	};
-	// Take the most recent invoice number and check if year/month has changed,
-	// if changed, reset the tail# to 001, else just increment the tail #
-	const calculateInvoiceNumber = async () => {
-		const latest = await getMostRecentInvoiceNumber();
-		if (latest === null) return null;
-
-		const date = new Date();
-		let year = String(date.getFullYear());
-		let month = String(date.getMonth() + 1);
-
-		if (month.length === 1) month = "0" + month;
-
-		if (String(latest).includes(year + month)) return latest + 1;
-		else return parseInt(year + month + "001");
-	};
-
-	const getMostRecentInvoiceNumber = async () => {
-		try {
-			const res = await fetch(`/api/v2/invoice/latest`, {
-				method: "GET",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				credentials: "include",
-			});
-			if (!res.ok) {
-				setPopup("ERROR Could not fetch most recent invoice number.");
-			}
-			const data = await res.json();
-			return data.latest;
-		} catch (err) {
-			setPopup("ERROR Could not fetch most recent invoice number");
-			return null;
-		}
-	};
-
 	const markContainerSold = async (container, invoice_number) => {
 		fetch(`/api/v1/inventory/sold`, {
 			method: "POST",
@@ -165,8 +117,7 @@ function CreateInvoice() {
 				},
 				body: JSON.stringify({
 					containers: invoiceData.containers,
-					invoice_number: invoiceData.invoice_number,
-					contact_id: invoiceData.customer.contact_id,
+					contact_id: invoiceData.contact_id,
 					invoice_taxed: invoiceData.invoice_taxed,
 					invoice_credit: invoiceData.invoice_credit,
 				}),
@@ -177,8 +128,7 @@ function CreateInvoice() {
 				return null;
 			}
 			const data = await res.json();
-			console.log("DATA FROM FETCH: ", data);
-			return data.id;
+			return { id: data.id, invoice_number: data.invoice_number };
 		} catch (err) {
 			setPopup("ERROR Unable to save Invoice");
 			return null;
