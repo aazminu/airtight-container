@@ -22,6 +22,7 @@ import Clients from "./routes/Clients";
 import Intake from "./routes/Intake";
 import Audit from "./routes/Audit";
 import Releases from "./routes/Releases";
+import InvoiceTemplatePreview from "./routes/InvoiceTemplatePreview";
 
 const App = () => {
 	const router = createBrowserRouter(
@@ -42,6 +43,12 @@ const App = () => {
 				<Route path="/audit" element={<Audit />} />
 				<Route path="/releases" element={<Releases />} />
 				<Route path="/reports/form" element={<Printout />} />
+				{import.meta.env.DEV && (
+					<Route
+						path="/admin/invoice-templates"
+						element={<InvoiceTemplatePreview />}
+					/>
+				)}
 			</React.Fragment>
 		)
 	);
@@ -50,7 +57,9 @@ const App = () => {
 	return (
 		<>
 			<Provider>
-				{!url.includes("form") && path !== "/auth" && <Navbar />}
+				{!url.includes("form") &&
+					path !== "/auth" &&
+					!path.startsWith("/admin/invoice-templates") && <Navbar />}
 				<PopupContainer />
 				<div className="container">
 					<RouterProvider router={router} />
