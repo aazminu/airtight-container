@@ -15,8 +15,17 @@ export interface InvoiceCustomer {
   zip: string | null;
 }
 
+export interface InvoiceModification {
+  id: number;
+  sold_id: number;
+  description: string;
+  price: string;
+  position: number;
+}
+
 export interface InvoiceLineContainer {
   inventory_id: number;
+  sold_id: number | null;
   unit_number: string;
   state: string;
   size: string;
@@ -27,6 +36,7 @@ export interface InvoiceLineContainer {
   modification_price: string | null;
   outbound_date: string | null;
   invoice_notes: string | null;
+  modifications: InvoiceModification[];
 }
 
 export interface InvoiceData {

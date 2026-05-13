@@ -90,3 +90,18 @@ export async function putObject(
     }),
   );
 }
+
+// PR 3.4: server-side fetch used by the email pipeline to attach the
+// stored PDF directly (vs. signed URL) so the customer sees an
+// attachment instead of a link.
+export async function getObjectBytes(key: string): Promise<Buffer> {
+  const resp = await getClient().send(
+    new GetObjectCommand({ Bucket: getBucket(), Key: key }),
+  );
+  if (!resp.Body) throw new Error(`S3 object ${key} has no body`);
+  const chunks: Buffer[] = [];
+  for await (const chunk of resp.Body as AsyncIterable<Uint8Array>) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
