@@ -52,6 +52,9 @@ function Navbar() {
 									<li>
 										<a href="/clients">Clients</a>
 									</li>
+									<li>
+										<a href="/audit">Audit</a>
+									</li>
 								</>
 							)}
 							<li>

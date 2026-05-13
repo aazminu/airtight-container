@@ -1,0 +1,460 @@
+import { useEffect, useState } from 'react';
+import { Badge, Button } from '../components/ui';
+import styles from './Audit.module.css';
+
+interface PendingSalesBox {
+  id: number;
+  unit_number: string;
+  size: string;
+  damage: string;
+  trucking_company: string | null;
+  acquisition_price: string | null;
+  date: string;
+  notes: string | null;
+}
+
+interface PendingShBox {
+  id: number;
+  client_id: number;
+  client_name?: string;
+  business_name?: string | null;
+  unit_number: string;
+  size: string;
+  damage: string | null;
+  in_fee: string;
+  out_fee: string;
+  daily_rate: string;
+  intake_date: string;
+  notes: string | null;
+}
+
+interface SalesEdit {
+  acquisition_price: string;
+  date: string;
+  notes: string;
+}
+
+interface ShEdit {
+  in_fee: string;
+  out_fee: string;
+  daily_rate: string;
+  intake_date: string;
+  notes: string;
+}
+
+// Trim an ISO timestamp to the format <input type="datetime-local"> expects.
+const isoToLocalInput = (iso: string | null | undefined): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+const localInputToIso = (v: string): string | null => {
+  if (!v) return null;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+};
+
+// Admin pending-audit screen (PR 2.5). One screen, two sections.
+// Sales rows audit acquisition_price + date + notes; S&H rows audit
+// in_fee / out_fee / daily_rate + intake_date + notes. Confirming a row
+// hits the matching audit endpoint and drops it from the list.
+export default function Audit() {
+  const [sales, setSales] = useState<PendingSalesBox[]>([]);
+  const [sh, setSh] = useState<PendingShBox[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [openKey, setOpenKey] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [salesRes, shRes] = await Promise.all([
+        fetch('/api/v1/inventory?pending_audit=true', { credentials: 'include' }),
+        fetch('/api/v2/sh-inventory?state=pending', { credentials: 'include' }),
+      ]);
+      if (!salesRes.ok) throw new Error(`Sales HTTP ${salesRes.status}`);
+      if (!shRes.ok) throw new Error(`S&H HTTP ${shRes.status}`);
+      const salesBody = (await salesRes.json()) as {
+        data: { inventory: PendingSalesBox[] };
+      };
+      const shBody = (await shRes.json()) as { data: { boxes: PendingShBox[] } };
+      setSales(salesBody.data.inventory);
+      setSh(shBody.data.boxes);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const total = sales.length + sh.length;
+
+  return (
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <h1 className={styles.title}>Pending audit</h1>
+        <p className={styles.subtitle}>
+          {loading
+            ? 'Loading…'
+            : total === 0
+              ? 'All caught up — nothing to audit right now.'
+              : `${total} box${total === 1 ? '' : 'es'} waiting for review.`}
+        </p>
+      </header>
+
+      {loadError && <div className={styles.error}>{loadError}</div>}
+
+      <SalesSection
+        boxes={sales}
+        openKey={openKey}
+        setOpenKey={setOpenKey}
+        onConfirmed={(id) => {
+          setSales((s) => s.filter((b) => b.id !== id));
+          setOpenKey(null);
+        }}
+      />
+
+      <ShSection
+        boxes={sh}
+        openKey={openKey}
+        setOpenKey={setOpenKey}
+        onConfirmed={(id) => {
+          setSh((s) => s.filter((b) => b.id !== id));
+          setOpenKey(null);
+        }}
+      />
+    </div>
+  );
+}
+
+function SalesSection({
+  boxes,
+  openKey,
+  setOpenKey,
+  onConfirmed,
+}: {
+  boxes: PendingSalesBox[];
+  openKey: string | null;
+  setOpenKey: (k: string | null) => void;
+  onConfirmed: (id: number) => void;
+}) {
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHead}>
+        <h2 className={styles.sectionTitle}>Sales</h2>
+        <span className={styles.sectionCount}>{boxes.length}</span>
+        <Badge tone="info">Acquisition price + date</Badge>
+      </div>
+      {boxes.length === 0 ? (
+        <div className={styles.empty}>No Sales boxes pending audit.</div>
+      ) : (
+        <div className={styles.list}>
+          {boxes.map((b) => (
+            <SalesRow
+              key={b.id}
+              box={b}
+              open={openKey === `sales-${b.id}`}
+              onToggle={() =>
+                setOpenKey(openKey === `sales-${b.id}` ? null : `sales-${b.id}`)
+              }
+              onConfirmed={() => onConfirmed(b.id)}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ShSection({
+  boxes,
+  openKey,
+  setOpenKey,
+  onConfirmed,
+}: {
+  boxes: PendingShBox[];
+  openKey: string | null;
+  setOpenKey: (k: string | null) => void;
+  onConfirmed: (id: number) => void;
+}) {
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHead}>
+        <h2 className={styles.sectionTitle}>Storage</h2>
+        <span className={styles.sectionCount}>{boxes.length}</span>
+        <Badge tone="info">Rates + intake date</Badge>
+      </div>
+      {boxes.length === 0 ? (
+        <div className={styles.empty}>No Storage boxes pending audit.</div>
+      ) : (
+        <div className={styles.list}>
+          {boxes.map((b) => (
+            <ShRow
+              key={b.id}
+              box={b}
+              open={openKey === `sh-${b.id}`}
+              onToggle={() =>
+                setOpenKey(openKey === `sh-${b.id}` ? null : `sh-${b.id}`)
+              }
+              onConfirmed={() => onConfirmed(b.id)}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SalesRow({
+  box,
+  open,
+  onToggle,
+  onConfirmed,
+}: {
+  box: PendingSalesBox;
+  open: boolean;
+  onToggle: () => void;
+  onConfirmed: () => void;
+}) {
+  const [edit, setEdit] = useState<SalesEdit>({
+    acquisition_price: box.acquisition_price ?? '',
+    date: isoToLocalInput(box.date),
+    notes: box.notes ?? '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/v1/inventory/audit/${box.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          acquisition_price: edit.acquisition_price || null,
+          date: localInputToIso(edit.date),
+          notes: edit.notes || null,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onConfirmed();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className={styles.row} data-open={open}>
+      <button type="button" className={styles.rowHead} onClick={onToggle}>
+        <div className={styles.rowSummary}>
+          <span className={styles.rowTitle}>{box.unit_number}</span>
+          <span className={styles.rowMeta}>
+            <span>{box.size}</span>
+            <span>{box.damage}</span>
+            {box.acquisition_price && <span>${box.acquisition_price}</span>}
+            <span>Arrived {new Date(box.date).toLocaleDateString()}</span>
+          </span>
+        </div>
+        <span className={styles.rowChev}>{open ? 'Close' : 'Audit ›'}</span>
+      </button>
+      {open && (
+        <div className={styles.rowBody}>
+          <div className={styles.formRow}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Acquisition price ($)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={edit.acquisition_price}
+                onChange={(e) =>
+                  setEdit((s) => ({ ...s, acquisition_price: e.target.value }))
+                }
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Intake date</span>
+              <input
+                type="datetime-local"
+                value={edit.date}
+                onChange={(e) =>
+                  setEdit((s) => ({ ...s, date: e.target.value }))
+                }
+              />
+            </label>
+          </div>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Notes</span>
+            <textarea
+              rows={2}
+              value={edit.notes}
+              onChange={(e) => setEdit((s) => ({ ...s, notes: e.target.value }))}
+            />
+          </label>
+          {error && <div className={styles.error}>{error}</div>}
+          <div className={styles.actions}>
+            <Button variant="ghost" onClick={onToggle} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={submit} disabled={submitting}>
+              {submitting ? 'Confirming…' : 'Confirm audit'}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ShRow({
+  box,
+  open,
+  onToggle,
+  onConfirmed,
+}: {
+  box: PendingShBox;
+  open: boolean;
+  onToggle: () => void;
+  onConfirmed: () => void;
+}) {
+  const [edit, setEdit] = useState<ShEdit>({
+    in_fee: box.in_fee,
+    out_fee: box.out_fee,
+    daily_rate: box.daily_rate,
+    intake_date: isoToLocalInput(box.intake_date),
+    notes: box.notes ?? '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/v2/sh-inventory/audit/${box.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          in_fee: edit.in_fee,
+          out_fee: edit.out_fee,
+          daily_rate: edit.daily_rate,
+          intake_date: localInputToIso(edit.intake_date),
+          notes: edit.notes || null,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onConfirmed();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const clientLabel =
+    box.business_name && box.client_name
+      ? `${box.client_name} — ${box.business_name}`
+      : box.client_name ?? `Client #${box.client_id}`;
+
+  return (
+    <div className={styles.row} data-open={open}>
+      <button type="button" className={styles.rowHead} onClick={onToggle}>
+        <div className={styles.rowSummary}>
+          <span className={styles.rowTitle}>{box.unit_number}</span>
+          <span className={styles.rowMeta}>
+            <span>{clientLabel}</span>
+            <span>{box.size}</span>
+            <span>
+              ${box.in_fee} in · ${box.out_fee} out · ${box.daily_rate}/day
+            </span>
+            <span>Arrived {new Date(box.intake_date).toLocaleDateString()}</span>
+          </span>
+        </div>
+        <span className={styles.rowChev}>{open ? 'Close' : 'Audit ›'}</span>
+      </button>
+      {open && (
+        <div className={styles.rowBody}>
+          <div className={styles.formRow}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>In fee ($)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={edit.in_fee}
+                onChange={(e) =>
+                  setEdit((s) => ({ ...s, in_fee: e.target.value }))
+                }
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Out fee ($)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={edit.out_fee}
+                onChange={(e) =>
+                  setEdit((s) => ({ ...s, out_fee: e.target.value }))
+                }
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Daily rate ($)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={edit.daily_rate}
+                onChange={(e) =>
+                  setEdit((s) => ({ ...s, daily_rate: e.target.value }))
+                }
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Intake date</span>
+              <input
+                type="datetime-local"
+                value={edit.intake_date}
+                onChange={(e) =>
+                  setEdit((s) => ({ ...s, intake_date: e.target.value }))
+                }
+              />
+            </label>
+          </div>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Notes</span>
+            <textarea
+              rows={2}
+              value={edit.notes}
+              onChange={(e) => setEdit((s) => ({ ...s, notes: e.target.value }))}
+            />
+          </label>
+          {error && <div className={styles.error}>{error}</div>}
+          <div className={styles.actions}>
+            <Button variant="ghost" onClick={onToggle} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={submit} disabled={submitting}>
+              {submitting ? 'Confirming…' : 'Confirm audit'}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
