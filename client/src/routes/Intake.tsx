@@ -6,13 +6,19 @@ import {
   type SalesIntakeForm,
 } from '../components/intake/SalesDetailsStep';
 import { SalesReviewStep } from '../components/intake/SalesReviewStep';
+import {
+  ShDetailsStep,
+  type ClientOption,
+  type ShIntakeForm,
+} from '../components/intake/ShDetailsStep';
+import { ShReviewStep } from '../components/intake/ShReviewStep';
 import styles from './Intake.module.css';
 
 type Kind = 'sales' | 'sh' | null;
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
 const SALES_STEPS = ['Choose', 'Photos', 'Confirm details', 'Container details', 'Review'] as const;
-const SH_STEPS = ['Choose', 'Client', 'Rates', 'Review'] as const;
+const SH_STEPS = ['Choose', 'Photos', 'Confirm details', 'Storage details', 'Review'] as const;
 
 const EMPTY_SALES: SalesIntakeForm = {
   unit_number: '',
@@ -24,25 +30,29 @@ const EMPTY_SALES: SalesIntakeForm = {
   notes: '',
 };
 
-/**
- * Phase 2 intake. PR 2.1 shipped the skeleton + Flow primitive.
- * PR 2.2 wires the Sales branch end-to-end:
- *  - Step 3 Container details: real form
- *  - Step 4 Review: read-only summary + Submit
- *  - Submit POSTs /api/v1/inventory/add with state='pending' so the
- *    audit screen (PR 2.5) can pick it up.
- *  - Steps 1 (Photos) and 2 (Confirm) remain placeholders for PR 2.6
- *    (S3 + Textract). Users can tap Next through them today.
- *
- * S&H branch remains a placeholder chain until PR 2.4.
- */
+const EMPTY_SH: ShIntakeForm = {
+  client_id: null,
+  unit_number: '',
+  size: '',
+  damage: '',
+  in_fee: '',
+  out_fee: '',
+  daily_rate: '',
+  notes: '',
+};
+
+// Phase 2 intake. PR 2.1 shipped the skeleton + Flow primitive; PR 2.2 wired
+// Sales end-to-end; PR 2.4 wires the S&H branch (this PR). Photos + Confirm
+// remain placeholders on both branches until PR 2.6 (S3 + Textract).
 export default function Intake() {
   const [kind, setKind] = useState<Kind>(null);
   const [step, setStep] = useState(0);
   const [salesForm, setSalesForm] = useState<SalesIntakeForm>(EMPTY_SALES);
+  const [shForm, setShForm] = useState<ShIntakeForm>(EMPTY_SH);
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [releaseCache, setReleaseCache] = useState<ReleaseOption[]>([]);
+  const [clientCache, setClientCache] = useState<ClientOption[]>([]);
 
   // Cache the release list once so the Review step can label the picked
   // release by value without re-fetching. SalesDetailsStep also fetches —
@@ -62,6 +72,22 @@ export default function Intake() {
     };
   }, [kind, releaseCache.length]);
 
+  // Same idea for S&H: cache the client list so Review can label the picked
+  // client without re-fetching.
+  useEffect(() => {
+    if (kind !== 'sh' || clientCache.length > 0) return;
+    let cancelled = false;
+    fetch('/api/v2/clients', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (!cancelled && body) setClientCache(body.data.clients);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [kind, clientCache.length]);
+
   const labels = useMemo<readonly string[]>(() => {
     if (kind === 'sh') return SH_STEPS;
     if (kind === 'sales') return SALES_STEPS;
@@ -69,7 +95,9 @@ export default function Intake() {
   }, [kind]);
 
   const canBack = step > 0 && submitState !== 'submitting';
-  const isReviewStep = kind === 'sales' && step === SALES_STEPS.length - 1;
+  const isReviewStep =
+    (kind === 'sales' && step === SALES_STEPS.length - 1) ||
+    (kind === 'sh' && step === SH_STEPS.length - 1);
   const isFinalStep = step === labels.length - 1;
 
   const salesDetailsValid =
@@ -78,10 +106,22 @@ export default function Intake() {
     salesForm.damage.trim() &&
     salesForm.release_number_id !== null;
 
+  const shDetailsValid =
+    shForm.client_id !== null &&
+    shForm.unit_number.trim() &&
+    shForm.size.trim() &&
+    shForm.in_fee.trim() &&
+    shForm.out_fee.trim() &&
+    shForm.daily_rate.trim();
+
   // Going forward from the Details step is blocked until the form validates.
   const isSalesDetailsStep = kind === 'sales' && step === 3;
+  const isShDetailsStep = kind === 'sh' && step === 3;
   const canNext =
-    !isFinalStep && !(isSalesDetailsStep && !salesDetailsValid) && submitState !== 'submitting';
+    !isFinalStep &&
+    !(isSalesDetailsStep && !salesDetailsValid) &&
+    !(isShDetailsStep && !shDetailsValid) &&
+    submitState !== 'submitting';
 
   const back = () => {
     if (step === 1) setKind(null);
@@ -99,14 +139,15 @@ export default function Intake() {
 
   const resetForNextBox = () => {
     setSalesForm(EMPTY_SALES);
+    setShForm(EMPTY_SH);
     setSubmitState('idle');
     setSubmitError(null);
     setKind(null);
     setStep(0);
   };
 
-  const submit = async () => {
-    if (kind !== 'sales' || !salesForm.release_number_id) return;
+  const submitSales = async () => {
+    if (!salesForm.release_number_id) return;
     const release = releaseCache.find(
       (r) => r.release_number_id === salesForm.release_number_id,
     );
@@ -143,6 +184,41 @@ export default function Intake() {
     }
   };
 
+  const submitSh = async () => {
+    if (shForm.client_id === null) return;
+    setSubmitState('submitting');
+    setSubmitError(null);
+    try {
+      const res = await fetch('/api/v2/sh-inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          box: {
+            client_id: shForm.client_id,
+            unit_number: shForm.unit_number.trim(),
+            size: shForm.size.trim(),
+            damage: shForm.damage.trim() || null,
+            notes: shForm.notes.trim() || null,
+            in_fee: shForm.in_fee,
+            out_fee: shForm.out_fee,
+            daily_rate: shForm.daily_rate,
+          },
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setSubmitState('success');
+    } catch (e) {
+      setSubmitState('error');
+      setSubmitError(e instanceof Error ? e.message : 'Submit failed');
+    }
+  };
+
+  const submit = () => {
+    if (kind === 'sales') return submitSales();
+    if (kind === 'sh') return submitSh();
+  };
+
   const pickedReleaseLabel = useMemo(() => {
     if (!salesForm.release_number_id) return undefined;
     const r = releaseCache.find(
@@ -150,6 +226,13 @@ export default function Intake() {
     );
     return r?.release_number_value;
   }, [salesForm.release_number_id, releaseCache]);
+
+  const pickedClientLabel = useMemo(() => {
+    if (shForm.client_id === null) return undefined;
+    const c = clientCache.find((cl) => cl.id === shForm.client_id);
+    if (!c) return undefined;
+    return c.business_name ? `${c.client_name} — ${c.business_name}` : c.client_name;
+  }, [shForm.client_id, clientCache]);
 
   return (
     <div className={styles.page}>
@@ -240,21 +323,30 @@ export default function Intake() {
             <>
               <FlowStep>
                 <Placeholder
-                  title="Pick a client"
-                  body="Client picker with typeahead and 'Add new' shortcut. Pulls from /api/v2/clients."
+                  title="Take photos"
+                  body="S3 upload + Textract OCR land in PR 2.6. Tap Next to skip for now."
                 />
               </FlowStep>
               <FlowStep>
                 <Placeholder
-                  title="Confirm rates"
-                  body="Pre-fills in_fee / out_fee / daily_rate from client.default_*. Admin override happens in PR 2.5 audit."
+                  title="Confirm OCR'd details"
+                  body="The user confirms or corrects fields Textract pulled off the container plate."
                 />
               </FlowStep>
               <FlowStep>
-                <Placeholder
-                  title="Review and submit"
-                  body="Submits into sh_inventory with state='pending'. PR 2.4 wires this up."
+                <ShDetailsStep
+                  value={shForm}
+                  onChange={(patch) => setShForm((f) => ({ ...f, ...patch }))}
                 />
+              </FlowStep>
+              <FlowStep>
+                <ShReviewStep value={shForm} clientLabel={pickedClientLabel} />
+                {submitError && <div className={styles.errorBox}>{submitError}</div>}
+                {submitState === 'success' && (
+                  <div className={styles.successBox}>
+                    Box logged. An admin will review it before it starts billing.
+                  </div>
+                )}
               </FlowStep>
             </>
           )}
