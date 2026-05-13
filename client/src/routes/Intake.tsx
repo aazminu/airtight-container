@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { Button, Flow, FlowStep } from '../components/ui';
+import { userContext } from '../context/restaurantcontext';
 import {
   SalesDetailsStep,
   type ReleaseOption,
@@ -15,7 +16,7 @@ import { ShReviewStep } from '../components/intake/ShReviewStep';
 import styles from './Intake.module.css';
 
 type Kind = 'sales' | 'sh' | null;
-type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
+type SubmitState = 'idle' | 'submitting' | 'error';
 
 const SALES_STEPS = ['Choose', 'Photos', 'Confirm details', 'Container details', 'Review'] as const;
 const SH_STEPS = ['Choose', 'Photos', 'Confirm details', 'Storage details', 'Review'] as const;
@@ -45,6 +46,7 @@ const EMPTY_SH: ShIntakeForm = {
 // Sales end-to-end; PR 2.4 wires the S&H branch (this PR). Photos + Confirm
 // remain placeholders on both branches until PR 2.6 (S3 + Textract).
 export default function Intake() {
+  const { setPopup } = useContext(userContext);
   const [kind, setKind] = useState<Kind>(null);
   const [step, setStep] = useState(0);
   const [salesForm, setSalesForm] = useState<SalesIntakeForm>(EMPTY_SALES);
@@ -177,7 +179,8 @@ export default function Intake() {
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSubmitState('success');
+      setPopup('Box logged. An admin will review it before it goes available.');
+      resetForNextBox();
     } catch (e) {
       setSubmitState('error');
       setSubmitError(e instanceof Error ? e.message : 'Submit failed');
@@ -207,7 +210,8 @@ export default function Intake() {
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSubmitState('success');
+      setPopup('Box logged. An admin will review it before it starts billing.');
+      resetForNextBox();
     } catch (e) {
       setSubmitState('error');
       setSubmitError(e instanceof Error ? e.message : 'Submit failed');
@@ -310,11 +314,6 @@ export default function Intake() {
               <FlowStep>
                 <SalesReviewStep value={salesForm} releaseLabel={pickedReleaseLabel} />
                 {submitError && <div className={styles.errorBox}>{submitError}</div>}
-                {submitState === 'success' && (
-                  <div className={styles.successBox}>
-                    Box logged. An admin will review it before it goes available.
-                  </div>
-                )}
               </FlowStep>
             </>
           )}
@@ -342,11 +341,6 @@ export default function Intake() {
               <FlowStep>
                 <ShReviewStep value={shForm} clientLabel={pickedClientLabel} />
                 {submitError && <div className={styles.errorBox}>{submitError}</div>}
-                {submitState === 'success' && (
-                  <div className={styles.successBox}>
-                    Box logged. An admin will review it before it starts billing.
-                  </div>
-                )}
               </FlowStep>
             </>
           )}
@@ -362,19 +356,13 @@ export default function Intake() {
         </span>
 
         {isReviewStep ? (
-          submitState === 'success' ? (
-            <Button variant="primary" onClick={resetForNextBox}>
-              Add another box
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              onClick={submit}
-              disabled={submitState === 'submitting'}
-            >
-              {submitState === 'submitting' ? 'Submitting…' : 'Submit'}
-            </Button>
-          )
+          <Button
+            variant="primary"
+            onClick={submit}
+            disabled={submitState === 'submitting'}
+          >
+            {submitState === 'submitting' ? 'Submitting…' : 'Submit'}
+          </Button>
         ) : (
           <Button
             variant="primary"

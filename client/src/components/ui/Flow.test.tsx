@@ -36,6 +36,29 @@ describe('Flow', () => {
     expect(screen.getByText('second')).toBeInTheDocument();
   });
 
+  it('flattens fragment-wrapped step groups (Intake-style conditional branches)', () => {
+    // Intake.tsx wraps Sales / S&H step bundles in fragments; the active step
+    // must address through those fragments rather than treating each fragment
+    // as a single child.
+    const cond = true;
+    render(
+      <Flow step={2}>
+        <FlowStep>step zero</FlowStep>
+        {cond && (
+          <>
+            <FlowStep>step one</FlowStep>
+            <FlowStep>step two</FlowStep>
+            <FlowStep>step three</FlowStep>
+          </>
+        )}
+      </Flow>
+    );
+    expect(screen.queryByText('step zero')).not.toBeInTheDocument();
+    expect(screen.queryByText('step one')).not.toBeInTheDocument();
+    expect(screen.getByText('step two')).toBeInTheDocument();
+    expect(screen.queryByText('step three')).not.toBeInTheDocument();
+  });
+
   it('renders nothing when step is out of range', () => {
     const { container } = render(
       <Flow step={5}>
