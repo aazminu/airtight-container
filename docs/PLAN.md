@@ -495,6 +495,7 @@ Things we don't need to decide now but should resolve before they block:
 - **Three invoice template designs**: pitch in the Phase 3 PR description.
 - **P&L "labor cost" granularity**: single number per box is the plan. Confirm one more time when we wire the audit screen — easy to expand if you change your mind.
 - **Reports library extension**: design `report_type` to be enum-extensible. Future report ideas you have should land in this file as they come up.
+- **Admin-editable modification presets**: the per-modification line-item dropdown in the invoice editor + create flow currently uses a hard-coded list (Installation of Rollup Door, Paint Job, Installation of Man Door, Installation of Window — `client/src/components/forms/modificationPresets.ts`). Promote to a small `mod_presets` table with admin CRUD on the dashboard so Michelle can add / edit / remove without a deploy. Phase 5 dashboard work is the natural home.
 
 ---
 

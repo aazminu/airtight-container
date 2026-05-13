@@ -6,6 +6,10 @@ import type {
 } from '../templates/invoice/types';
 import { Button } from '../ui';
 import { fmtCurrency } from '../templates/invoice/format';
+import {
+  MODIFICATION_PRESETS,
+  MODIFICATION_DATALIST_ID,
+} from './modificationPresets';
 import styles from './InvoiceEditor.module.css';
 
 interface ClientSummary {
@@ -258,6 +262,12 @@ export default function InvoiceEditor({
 
   return (
     <div className={styles.editor}>
+      <datalist id={MODIFICATION_DATALIST_ID}>
+        {MODIFICATION_PRESETS.map((d) => (
+          <option key={d} value={d} />
+        ))}
+      </datalist>
+
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Invoice</h2>
         <div className={styles.fieldGrid}>
@@ -326,15 +336,33 @@ export default function InvoiceEditor({
             )}
           </label>
           <label className={styles.field}>
-            <span className={styles.label}>CC fee rate</span>
-            <input
-              type="number"
-              step="0.0001"
-              className={styles.input}
-              value={draft.cc_fee_rate ?? ''}
-              placeholder="e.g. 0.035 for 3.5%"
-              onChange={(e) => updateInvoice('cc_fee_rate', e.target.value)}
-            />
+            <span className={styles.label}>Credit Card fee (percent)</span>
+            <div className={styles.suffixInput}>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={styles.input}
+                value={
+                  draft.cc_fee_rate != null && draft.cc_fee_rate !== ''
+                    ? String(Number(draft.cc_fee_rate) * 100)
+                    : ''
+                }
+                onChange={(e) => {
+                  const pct = e.target.value;
+                  if (pct === '') {
+                    updateInvoice('cc_fee_rate', null);
+                  } else {
+                    const n = Number(pct);
+                    updateInvoice(
+                      'cc_fee_rate',
+                      Number.isFinite(n) ? String(n / 100) : null,
+                    );
+                  }
+                }}
+              />
+              <span className={styles.suffix}>%</span>
+            </div>
           </label>
           <div className={styles.field}>
             <span className={styles.label}>Charges</span>
@@ -352,7 +380,7 @@ export default function InvoiceEditor({
                 checked={!!draft.invoice_credit}
                 onChange={(e) => updateInvoice('invoice_credit', e.target.checked)}
               />
-              Add credit-card fee
+              Add Credit Card fee
             </label>
           </div>
         </div>
@@ -453,12 +481,22 @@ export default function InvoiceEditor({
               )}
             </div>
             <div className={styles.modsList}>
-              <div className={styles.label}>Per-modification line items</div>
+              <div className={styles.modsHeader}>
+                <span className={styles.label}>Per-modification line items</span>
+                <button
+                  type="button"
+                  className={styles.linkBtn}
+                  onClick={() => addMod(ctIdx)}
+                >
+                  + Add modification
+                </button>
+              </div>
               {c.modifications.map((m, mIdx) => (
                 <div key={m.id} className={styles.modRow}>
                   <input
                     className={styles.input}
-                    placeholder="Description (e.g. rollup door)"
+                    list={MODIFICATION_DATALIST_ID}
+                    placeholder="Description (or pick a preset)"
                     value={m.description}
                     onChange={(e) =>
                       updateMod(ctIdx, mIdx, { description: e.target.value })
@@ -500,13 +538,6 @@ export default function InvoiceEditor({
                   </button>
                 </div>
               ))}
-              <button
-                type="button"
-                className={styles.linkBtn}
-                onClick={() => addMod(ctIdx)}
-              >
-                + Add modification
-              </button>
             </div>
           </div>
         ))}
@@ -547,7 +578,7 @@ export default function InvoiceEditor({
             </span>
           </div>
           <div className={styles.totalRow}>
-            <span className={styles.totalLabel}>CC fee</span>
+            <span className={styles.totalLabel}>Credit Card fee</span>
             <span className={styles.totalValue}>
               {fmtCurrency(totalsPreview.cc)}
             </span>
