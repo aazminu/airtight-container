@@ -24,6 +24,8 @@ import Audit from "./routes/Audit";
 import Releases from "./routes/Releases";
 import InvoiceTemplatePreview from "./routes/InvoiceTemplatePreview";
 import InvoiceDetail from "./routes/InvoiceDetail";
+import ShInvoices from "./routes/ShInvoices";
+import ShInvoiceDetail from "./routes/ShInvoiceDetail";
 
 const App = () => {
 	const router = createBrowserRouter(
@@ -37,6 +39,8 @@ const App = () => {
 				<Route path="/invoices" element={<Invoices />} />
 				<Route path="/invoices/create" element={<CreateInvoice />} />
 				<Route path="/invoices/:id" element={<InvoiceDetail />} />
+				<Route path="/sh-invoices" element={<ShInvoices />} />
+				<Route path="/sh-invoices/:id" element={<ShInvoiceDetail />} />
 				<Route path="/reports" element={<Reports />} />
 				<Route path="/yardview" element={<YardView />} />
 				<Route path="/dashboard" element={<Dashboard />} />

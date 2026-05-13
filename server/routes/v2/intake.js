@@ -15,17 +15,24 @@ const router = express.Router();
 // sh_inventory_pending_audit_idx from PR 1.2's additive migration).
 router.get("/pending-counts", checkEmployee, async (req, res) => {
 	try {
-		const [sales, sh] = await Promise.all([
+		const [sales, sh, shInvoices] = await Promise.all([
 			db.query(
 				"SELECT COUNT(*)::int AS n FROM inventory WHERE is_pending_audit = true",
 			),
 			db.query(
 				"SELECT COUNT(*)::int AS n FROM sh_inventory WHERE is_pending_audit = true",
 			),
+			db.query(
+				"SELECT COUNT(*)::int AS n FROM sh_invoices WHERE status = 'pending_review'",
+			),
 		]);
 		res.status(200).json({
 			status: "success",
-			data: { sales: sales.rows[0].n, sh: sh.rows[0].n },
+			data: {
+				sales: sales.rows[0].n,
+				sh: sh.rows[0].n,
+				sh_invoices: shInvoices.rows[0].n,
+			},
 		});
 	} catch (err) {
 		console.error("intake.pending-counts error:", err);
