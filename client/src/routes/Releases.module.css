@@ -1,0 +1,193 @@
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--muted, #57606a);
+}
+
+.companyGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.companyTitle {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.releaseList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.release {
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  overflow: hidden;
+}
+
+.release[data-open='true'] {
+  border-color: var(--accent, #0969da);
+  box-shadow: 0 2px 8px rgba(9, 105, 218, 0.12);
+}
+
+.releaseHead {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+.releaseHead:hover {
+  background: var(--surface-soft, #f6f8fa);
+}
+
+.releaseValue {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.releaseMeta {
+  color: var(--muted, #57606a);
+  font-size: 0.875rem;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.chev {
+  color: var(--muted, #57606a);
+  font-size: 0.875rem;
+}
+
+.releaseBody {
+  border-top: 1px solid var(--border, #d0d7de);
+  padding: 1rem;
+  background: var(--surface-soft, #f8fafc);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.containersList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.containerRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 8px;
+  font-size: 0.9375rem;
+}
+
+.usedBadge {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(9, 105, 218, 0.1);
+  color: var(--accent, #0969da);
+}
+
+.usedBadge[data-used='false'] {
+  background: var(--surface-soft, #f6f8fa);
+  color: var(--muted, #57606a);
+}
+
+.removeBtn {
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--danger, #d1242f);
+  cursor: pointer;
+  padding: 0.125rem 0.5rem;
+  border-radius: 6px;
+}
+
+.removeBtn:hover {
+  background: rgba(209, 36, 47, 0.08);
+}
+
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.addLabel {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted, #57606a);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.addTextarea {
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.9375rem;
+  min-height: 72px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.addActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.error {
+  color: var(--danger, #d1242f);
+  background: rgba(209, 36, 47, 0.08);
+  border: 1px solid rgba(209, 36, 47, 0.25);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+.empty {
+  color: var(--muted, #57606a);
+  font-size: 0.875rem;
+  padding: 0.5rem 0;
+}

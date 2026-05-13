@@ -54,6 +54,9 @@ function Navbar() {
 										<a href="/clients">Clients</a>
 									</li>
 									<li>
+										<a href="/releases">Releases</a>
+									</li>
+									<li>
 										<PendingAuditNav />
 									</li>
 								</>

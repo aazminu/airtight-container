@@ -21,6 +21,7 @@ import CreateInvoice from "./routes/CreateInvoice";
 import Clients from "./routes/Clients";
 import Intake from "./routes/Intake";
 import Audit from "./routes/Audit";
+import Releases from "./routes/Releases";
 
 const App = () => {
 	const router = createBrowserRouter(
@@ -39,6 +40,7 @@ const App = () => {
 				<Route path="/clients" element={<Clients />} />
 				<Route path="/intake" element={<Intake />} />
 				<Route path="/audit" element={<Audit />} />
+				<Route path="/releases" element={<Releases />} />
 				<Route path="/reports/form" element={<Printout />} />
 			</React.Fragment>
 		)
