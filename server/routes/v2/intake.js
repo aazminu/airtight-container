@@ -1,4 +1,5 @@
 import express from "express";
+import db from "../../db/index.js";
 import { checkEmployee } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
 import { presignSchema, ocrSchema } from "../../validation/intake.js";
@@ -6,6 +7,31 @@ import { intakePhotoKey, presignedPut } from "../../lib/s3.js";
 import { extractFromS3Key } from "../../lib/textract.js";
 
 const router = express.Router();
+
+// GET /api/v2/intake/pending-counts
+// Used by the navbar Audit dropdown to display per-domain counts of
+// boxes waiting for admin review. Cheap query — both tables have indexes
+// on the relevant column (inventory_pending_audit_idx,
+// sh_inventory_pending_audit_idx from PR 1.2's additive migration).
+router.get("/pending-counts", checkEmployee, async (req, res) => {
+	try {
+		const [sales, sh] = await Promise.all([
+			db.query(
+				"SELECT COUNT(*)::int AS n FROM inventory WHERE is_pending_audit = true",
+			),
+			db.query(
+				"SELECT COUNT(*)::int AS n FROM sh_inventory WHERE is_pending_audit = true",
+			),
+		]);
+		res.status(200).json({
+			status: "success",
+			data: { sales: sales.rows[0].n, sh: sh.rows[0].n },
+		});
+	} catch (err) {
+		console.error("intake.pending-counts error:", err);
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
 
 // POST /api/v2/intake/photo/presign
 // Mints a short-lived presigned PUT URL for a single intake photo.

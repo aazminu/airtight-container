@@ -1,6 +1,7 @@
 import React from 'react';
 import UpcomingOutbounds from '../components/lists/UpcomingOutbounds';
 import ReleaseNumbers from '../components/lists/ReleaseNumbers';
+import { ShYardSection } from '../components/yard/ShYardSection';
 import '../styles/yardview.css';
 function YardView() {
   return (
@@ -18,6 +19,7 @@ function YardView() {
           <UpcomingOutbounds type="hold" />
         </div>
       </div>
+      <ShYardSection />
     </div>
   );
 }

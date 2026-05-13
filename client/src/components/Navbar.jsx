@@ -4,6 +4,7 @@ import "../styles/navbar.css";
 import logo from "../assets/images/airtightfixed.png";
 import profile from "../assets/images/profile.png";
 import { userContext } from "../context/restaurantcontext";
+import { PendingAuditNav } from "./PendingAuditNav";
 
 function Navbar() {
 	const [showUserOps, setShowUserOps] = useState(false);
@@ -53,7 +54,7 @@ function Navbar() {
 										<a href="/clients">Clients</a>
 									</li>
 									<li>
-										<a href="/audit">Audit</a>
+										<PendingAuditNav />
 									</li>
 								</>
 							)}
