@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge, Button, Flow, FlowStep } from '../components/ui';
+import { Badge, Button, Flow, FlowStep, Stepper } from '../components/ui';
 import InvoiceTemplate from '../components/templates/invoice/InvoiceTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/invoice/format';
 import type {
@@ -8,6 +8,10 @@ import type {
   InvoiceLineContainer,
   InvoiceModification,
 } from '../components/templates/invoice/types';
+import {
+  MODIFICATION_PRESETS,
+  MODIFICATION_DATALIST_ID,
+} from '../components/forms/modificationPresets';
 import styles from './CreateInvoice.module.css';
 
 interface InventoryRow {
@@ -52,14 +56,14 @@ const TAX_PRESETS = [
   { label: 'Other', rate: '' },
 ];
 
-const blankDraft = (row: InventoryRow): ContainerDraft => ({
+const blankDraft = (row: InventoryRow, destination = ''): ContainerDraft => ({
   inventory_id: row.id,
   unit_number: row.unit_number,
   size: row.size,
   damage: row.damage,
   sale_price: '',
   trucking_rate: '',
-  destination: '',
+  destination,
   invoice_notes: '',
   outbound_date: '',
   modifications: [],
@@ -69,6 +73,29 @@ const customerLabel = (c: ClientRow | null) => {
   if (!c) return '';
   return c.business_name || c.client_name || 'Unknown';
 };
+
+// Best-effort default destination from the client record. Prefers
+// city + state; falls back to street if those are empty (lots of
+// historical records have the whole address stuffed into `street`).
+const customerCityState = (c: ClientRow | null): string => {
+  if (!c) return '';
+  const cityState = [c.city, c.state].filter(Boolean).join(', ');
+  if (cityState) return [cityState, c.zip].filter(Boolean).join(' ');
+  return c.street ?? '';
+};
+
+const todayISO = (): string => new Date().toISOString().substring(0, 10);
+
+// User-facing percent ↔ stored decimal rate. We display "3.5" but
+// persist 0.035, and similarly for tax rates so server math stays
+// consistent across editor + create flow.
+const pctToDecimal = (pct: string): string => {
+  if (pct.trim() === '') return '';
+  const n = Number(pct);
+  if (!Number.isFinite(n)) return '';
+  return (n / 100).toString();
+};
+
 
 export default function CreateInvoice() {
   const navigate = useNavigate();
@@ -83,7 +110,10 @@ export default function CreateInvoice() {
   const [invoiceTaxed, setInvoiceTaxed] = useState(false);
   const [invoiceCredit, setInvoiceCredit] = useState(false);
   const [taxRate, setTaxRate] = useState('0.06625');
-  const [ccFeeRate, setCcFeeRate] = useState('0.035');
+  // Stored as decimal (0.035), edited as percent ("3.5")
+  const [ccFeePct, setCcFeePct] = useState('3.5');
+  const ccFeeRate = pctToDecimal(ccFeePct);
+  const [invoiceDate, setInvoiceDate] = useState<string>(todayISO);
   const [submitState, setSubmitState] = useState<
     | { kind: 'idle' }
     | { kind: 'submitting' }
@@ -119,20 +149,43 @@ export default function CreateInvoice() {
 
   // Sync drafts with selectedIds so we have one ContainerDraft per
   // selected container, preserving any user edits that already exist.
+  // New drafts pre-fill destination with the customer's city/state/zip
+  // (if a customer is already picked) so the common case — delivery
+  // goes to the buyer — types itself.
   useEffect(() => {
     setDrafts((prev) => {
       const next: Record<number, ContainerDraft> = {};
+      const defaultDest = customerCityState(selectedClient);
       for (const id of selectedIds) {
         if (prev[id]) {
           next[id] = prev[id];
         } else {
           const row = available.find((r) => r.id === id);
-          if (row) next[id] = blankDraft(row);
+          if (row) next[id] = blankDraft(row, defaultDest);
         }
       }
       return next;
     });
-  }, [selectedIds, available]);
+  }, [selectedIds, available, selectedClient]);
+
+  // Backfill empty destinations when the customer changes after some
+  // drafts were already built (e.g. user goes back to step 2). Only
+  // touches still-blank destinations so existing edits stick.
+  useEffect(() => {
+    const dest = customerCityState(selectedClient);
+    if (!dest) return;
+    setDrafts((prev) => {
+      let changed = false;
+      const next: Record<number, ContainerDraft> = { ...prev };
+      for (const id of Object.keys(prev).map(Number)) {
+        if (!next[id].destination) {
+          next[id] = { ...next[id], destination: dest };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [selectedClient]);
 
   const filteredAvailable = useMemo(() => {
     if (!containerSearch.trim()) return available;
@@ -199,10 +252,12 @@ export default function CreateInvoice() {
     });
     return {
       invoice_id: 0,
-      invoice_number: 0,
+      invoice_number: 'PLACEHOLDER',
       invoice_taxed: invoiceTaxed,
       invoice_credit: invoiceCredit,
-      invoice_date: new Date().toISOString(),
+      invoice_date: invoiceDate
+        ? new Date(invoiceDate).toISOString()
+        : new Date().toISOString(),
       sent_at: null,
       pdf_s3_key: null,
       subtotal: totalsPreview.subtotal.toFixed(2),
@@ -232,6 +287,7 @@ export default function CreateInvoice() {
     invoiceCredit,
     taxRate,
     ccFeeRate,
+    invoiceDate,
     totalsPreview,
   ]);
 
@@ -412,18 +468,7 @@ export default function CreateInvoice() {
         </span>
       </header>
 
-      <div className={styles.crumbs}>
-        {STEP_NAMES.map((name, i) => (
-          <span
-            key={name}
-            className={`${styles.crumb} ${
-              i === step ? styles.active : i < step ? styles.done : ''
-            }`}
-          >
-            {i + 1}. {name}
-          </span>
-        ))}
-      </div>
+      <Stepper labels={STEP_NAMES} current={step} ariaLabel="Invoice progress" />
 
       {submitState.kind === 'error' && (
         <div className={styles.error}>{submitState.message}</div>
@@ -524,21 +569,22 @@ export default function CreateInvoice() {
               Fill in per-container prices and invoice-level charges. Totals
               update live. Sale price is required on every container.
             </p>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '0.75rem 1rem',
-                marginBottom: '1rem',
-              }}
-            >
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--muted, #6e7781)' }}>
-                  Tax rate
+            <div className={styles.invoiceMetaGrid}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>
+                  Invoice date <span className={styles.fieldHint}>(defaults to today)</span>
                 </span>
+                <input
+                  className={styles.input}
+                  type="date"
+                  value={invoiceDate}
+                  onChange={(e) => setInvoiceDate(e.target.value)}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Tax rate</span>
                 <select
-                  className={styles.search}
-                  style={{ margin: 0 }}
+                  className={styles.input}
                   value={taxOption}
                   onChange={(e) => {
                     const v = e.target.value;
@@ -554,34 +600,34 @@ export default function CreateInvoice() {
                 </select>
                 {taxOption === 'other' && (
                   <input
-                    className={styles.search}
-                    style={{ margin: 0 }}
+                    className={styles.input}
                     type="number"
                     step="0.0001"
-                    placeholder="e.g. 0.07"
+                    placeholder="e.g. 0.07 for 7%"
                     value={taxRate}
                     onChange={(e) => setTaxRate(e.target.value)}
                   />
                 )}
               </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--muted, #6e7781)' }}>
-                  CC fee rate
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>
+                  Credit Card fee <span className={styles.fieldHint}>(percent)</span>
                 </span>
-                <input
-                  className={styles.search}
-                  style={{ margin: 0 }}
-                  type="number"
-                  step="0.0001"
-                  value={ccFeeRate}
-                  onChange={(e) => setCcFeeRate(e.target.value)}
-                />
+                <div className={styles.suffixInput}>
+                  <input
+                    className={styles.input}
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={ccFeePct}
+                    onChange={(e) => setCcFeePct(e.target.value)}
+                  />
+                  <span className={styles.suffix}>%</span>
+                </div>
               </label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--muted, #6e7781)' }}>
-                  Charges
-                </span>
-                <label style={{ display: 'flex', gap: '0.5rem', fontSize: '0.875rem' }}>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Charges</span>
+                <label className={styles.checkRow}>
                   <input
                     type="checkbox"
                     checked={invoiceTaxed}
@@ -589,109 +635,110 @@ export default function CreateInvoice() {
                   />
                   Apply sales tax
                 </label>
-                <label style={{ display: 'flex', gap: '0.5rem', fontSize: '0.875rem' }}>
+                <label className={styles.checkRow}>
                   <input
                     type="checkbox"
                     checked={invoiceCredit}
                     onChange={(e) => setInvoiceCredit(e.target.checked)}
                   />
-                  Add credit-card fee
+                  Add Credit Card fee
                 </label>
               </div>
             </div>
+            <datalist id={MODIFICATION_DATALIST_ID}>
+              {MODIFICATION_PRESETS.map((d) => (
+                <option key={d} value={d} />
+              ))}
+            </datalist>
+
             {selectedIds.map((id) => {
               const d = drafts[id];
               if (!d) return null;
               return (
-                <div
-                  key={id}
-                  style={{
-                    border: '1px solid var(--border, #d0d7de)',
-                    borderRadius: 8,
-                    padding: '0.875rem',
-                    marginBottom: '0.875rem',
-                    background: 'var(--bg, #fafbfc)',
-                  }}
-                >
-                  <div style={{ marginBottom: '0.5rem' }}>
+                <div key={id} className={styles.containerCard}>
+                  <div className={styles.containerHead}>
                     <strong>{d.unit_number}</strong>{' '}
-                    <span style={{ color: 'var(--muted, #6e7781)', fontSize: '0.8125rem' }}>
+                    <span className={styles.containerSub}>
                       {d.size} · {d.damage}
                     </span>
                   </div>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                      gap: '0.5rem 0.75rem',
-                    }}
-                  >
-                    <input
-                      className={styles.search}
-                      style={{ margin: 0 }}
-                      type="number"
-                      step="0.01"
-                      placeholder="Sale price *"
-                      value={d.sale_price}
-                      onChange={(e) => updateDraft(id, { sale_price: e.target.value })}
-                    />
-                    <input
-                      className={styles.search}
-                      style={{ margin: 0 }}
-                      type="number"
-                      step="0.01"
-                      placeholder="Trucking"
-                      value={d.trucking_rate}
-                      onChange={(e) => updateDraft(id, { trucking_rate: e.target.value })}
-                    />
-                    <input
-                      className={styles.search}
-                      style={{ margin: 0 }}
-                      placeholder="Destination"
-                      value={d.destination}
-                      onChange={(e) => updateDraft(id, { destination: e.target.value })}
-                    />
-                    <input
-                      className={styles.search}
-                      style={{ margin: 0 }}
-                      placeholder="Notes"
-                      value={d.invoice_notes}
-                      onChange={(e) => updateDraft(id, { invoice_notes: e.target.value })}
-                    />
-                    <input
-                      className={styles.search}
-                      style={{ margin: 0 }}
-                      type="date"
-                      value={d.outbound_date}
-                      onChange={(e) => updateDraft(id, { outbound_date: e.target.value })}
-                    />
+                  <div className={styles.fieldGrid}>
+                    <label className={styles.field}>
+                      <span className={styles.fieldLabel}>Sale price *</span>
+                      <input
+                        className={styles.input}
+                        type="number"
+                        step="0.01"
+                        value={d.sale_price}
+                        onChange={(e) => updateDraft(id, { sale_price: e.target.value })}
+                      />
+                    </label>
+                    <label className={styles.field}>
+                      <span className={styles.fieldLabel}>Trucking</span>
+                      <input
+                        className={styles.input}
+                        type="number"
+                        step="0.01"
+                        value={d.trucking_rate}
+                        onChange={(e) => updateDraft(id, { trucking_rate: e.target.value })}
+                      />
+                    </label>
+                    <label className={styles.field}>
+                      <span className={styles.fieldLabel}>Destination</span>
+                      <input
+                        className={styles.input}
+                        value={d.destination}
+                        onChange={(e) => updateDraft(id, { destination: e.target.value })}
+                      />
+                    </label>
+                    <label className={styles.field}>
+                      <span className={styles.fieldLabel}>Notes</span>
+                      <input
+                        className={styles.input}
+                        value={d.invoice_notes}
+                        onChange={(e) => updateDraft(id, { invoice_notes: e.target.value })}
+                      />
+                    </label>
+                    <label className={styles.field}>
+                      <span className={styles.fieldLabel}>Outbound date</span>
+                      <input
+                        className={styles.input}
+                        type="date"
+                        value={d.outbound_date}
+                        onChange={(e) => updateDraft(id, { outbound_date: e.target.value })}
+                      />
+                    </label>
                   </div>
-                  <div style={{ marginTop: '0.5rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted, #6e7781)' }}>
-                      Modifications
-                    </span>
-                    {d.modifications.map((m, mIdx) => (
-                      <div
-                        key={m.id}
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 120px auto',
-                          gap: '0.5rem',
-                          marginTop: '0.375rem',
-                        }}
+
+                  <div className={styles.modsSection}>
+                    <div className={styles.modsHeader}>
+                      <span className={styles.fieldLabel}>Modifications</span>
+                      <button
+                        type="button"
+                        className={styles.linkBtn}
+                        onClick={() => addMod(id)}
                       >
+                        + Add modification
+                      </button>
+                    </div>
+                    {d.modifications.length === 0 && (
+                      <p className={styles.modsEmpty}>
+                        No modifications. Click + Add modification to add a billable item.
+                      </p>
+                    )}
+                    {d.modifications.map((m, mIdx) => (
+                      <div key={m.id} className={styles.modRow}>
                         <input
-                          className={styles.search}
-                          style={{ margin: 0 }}
-                          placeholder="Description"
+                          className={styles.input}
+                          list={MODIFICATION_DATALIST_ID}
+                          placeholder="Description (or pick a preset)"
                           value={m.description}
                           onChange={(e) =>
                             updateMod(id, mIdx, { description: e.target.value })
                           }
                         />
                         <input
-                          className={styles.search}
-                          style={{ margin: 0 }}
+                          className={styles.input}
                           type="number"
                           step="0.01"
                           placeholder="Price"
@@ -700,34 +747,14 @@ export default function CreateInvoice() {
                         />
                         <button
                           type="button"
+                          className={styles.iconBtn}
                           onClick={() => removeMod(id, mIdx)}
-                          style={{
-                            width: 32,
-                            background: 'transparent',
-                            border: '1px solid var(--border, #d0d7de)',
-                            borderRadius: 6,
-                            cursor: 'pointer',
-                          }}
+                          aria-label="Remove modification"
                         >
                           ×
                         </button>
                       </div>
                     ))}
-                    <button
-                      type="button"
-                      onClick={() => addMod(id)}
-                      style={{
-                        background: 'transparent',
-                        border: 0,
-                        padding: '0.25rem 0',
-                        color: 'var(--accent, #0969da)',
-                        cursor: 'pointer',
-                        fontSize: '0.8125rem',
-                        marginTop: '0.375rem',
-                      }}
-                    >
-                      + Add modification
-                    </button>
                   </div>
                 </div>
               );
@@ -743,7 +770,7 @@ export default function CreateInvoice() {
                 <span>{fmtCurrency(totalsPreview.tax)}</span>
               </div>
               <div className={styles.summaryRow}>
-                <span className={styles.summaryLabel}>CC fee</span>
+                <span className={styles.summaryLabel}>Credit Card fee</span>
                 <span>{fmtCurrency(totalsPreview.cc)}</span>
               </div>
               <div className={styles.summaryRow} style={{ fontWeight: 600 }}>

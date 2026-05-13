@@ -1,0 +1,128 @@
+/* Design tokens + global base styles. Loaded from main.tsx so every
+ * route has them regardless of which list/page is mounted. The legacy
+ * inventorylist.css used to own these, but only its host component
+ * imported it, so most pages got fallback colors.
+ *
+ * Light + dark mode variants. Components in CSS modules reference
+ * these via `var(--token-name)`.
+ */
+
+:root {
+  --bg-page:       #f8fafc;
+  --bg:            #ffffff;
+  --bg-surface:    #ffffff;
+  /* alias used by some Phase 3 component CSS modules */
+  --surface:       #ffffff;
+  --bg-surface-2:  #f1f5f9;
+  --bg-row-alt:    #f9fafb;
+  --bg-input:      #ffffff;
+  --border:        #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text:          #0f172a;
+  --text-primary:  #0f172a;
+  --text-secondary:#64748b;
+  --text-muted:    #64748b;
+  --muted:         #6e7781;
+  --hover:         #f3f4f6;
+  --accent:        #ac3e31;
+  --accent-hover:  #8d3127;
+  --accent-fg:     #ffffff;
+  --success:       #2da44e;
+  --success-bg:    #dafbe1;
+  --success-fg:    #0a3622;
+  --danger:        #cf222e;
+  --danger-bg:     #ffeef0;
+  --danger-fg:     #82071e;
+  --warning:       #d4a72c;
+  --warning-bg:    #fff8c5;
+  --warning-fg:    #4d2d00;
+  --info:          #0969da;
+  --tan:           #c4a882;
+  --tan-subtle:    #fdf5eb;
+  --row-hover:     #edd9b0;
+  --shadow-sm:     0 1px 3px rgb(0 0 0 / 0.07), 0 1px 2px rgb(0 0 0 / 0.05);
+  --shadow-md:     0 4px 16px rgb(0 0 0 / 0.09), 0 2px 6px rgb(0 0 0 / 0.06);
+  --radius-sm:     6px;
+  --radius-md:     10px;
+  --radius-lg:     14px;
+  --font-sans:     "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-serif:    "Instrument Serif", Georgia, serif;
+  --font-header:   "Barlow Condensed", system-ui, sans-serif;
+}
+
+[data-theme="dark"] {
+  --bg-page:       #111113;
+  --bg:            #1c1c1f;
+  --bg-surface:    #1c1c1f;
+  --surface:       #1c1c1f;
+  --bg-surface-2:  #28282c;
+  --bg-row-alt:    #1f1f23;
+  --bg-input:      #232328;
+  --border:        #36363b;
+  --border-strong: #48484f;
+  --text:          #f4f4f5;
+  --text-primary:  #f4f4f5;
+  --text-secondary:#a1a1aa;
+  --text-muted:    #a1a1aa;
+  --muted:         #a1a1aa;
+  --hover:         #28282c;
+  --accent:        #e05a4e;
+  --accent-hover:  #c44a3e;
+  --accent-fg:     #ffffff;
+  --success:       #3fb950;
+  --success-bg:    #1a3326;
+  --success-fg:    #aff5b4;
+  --danger:        #f85149;
+  --danger-bg:     #3a1717;
+  --danger-fg:     #ffa198;
+  --warning:       #d29922;
+  --warning-bg:    #3a2d05;
+  --warning-fg:    #fde68a;
+  --info:          #58a6ff;
+  --tan:           #c4a882;
+  --tan-subtle:    #1e1710;
+  --row-hover:     #3a1e1c;
+  --shadow-sm:     0 1px 3px rgb(0 0 0 / 0.35);
+  --shadow-md:     0 4px 16px rgb(0 0 0 / 0.45);
+}
+
+/* Page-level chrome: body picks up the page background + text colors
+ * so every route starts from a consistent base. The legacy
+ * inventorylist.css used to set these but was only loaded on
+ * /inventory. */
+html,
+body {
+  background: var(--bg-page);
+  color: var(--text);
+}
+
+/* Native date / time / datetime-local picker styling — browsers expose
+ * a calendar-icon button (::-webkit-calendar-picker-indicator) that we
+ * tint for dark mode + give a consistent hover. The popup itself is
+ * OS-rendered; we can't restyle it, but the trigger and inline display
+ * follow the page palette now. */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color-scheme: light dark;
+}
+
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.7;
+}
+
+/* Search inputs: browsers render the X-cancel button in a way that
+ * collides with dark backgrounds; tint it. */
+[data-theme="dark"] input[type="search"]::-webkit-search-cancel-button {
+  filter: invert(0.85);
+}

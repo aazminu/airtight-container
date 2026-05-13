@@ -41,7 +41,9 @@ export interface InvoiceLineContainer {
 
 export interface InvoiceData {
   invoice_id: number;
-  invoice_number: number;
+  // Accepts string for the create-flow preview which shows
+  // "PLACEHOLDER" until the server assigns the real number.
+  invoice_number: number | string;
   invoice_taxed: boolean;
   invoice_credit: boolean;
   invoice_date: string;

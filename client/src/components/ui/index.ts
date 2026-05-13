@@ -7,4 +7,6 @@ export type { BadgeProps } from './Badge';
 export { ToastProvider, useToast } from './Toast';
 export { Flow, FlowStep } from './Flow';
 export type { FlowProps, FlowStepProps } from './Flow';
+export { Stepper } from './Stepper';
+export type { StepperProps } from './Stepper';
 export { PhotoLightbox } from './PhotoLightbox';
