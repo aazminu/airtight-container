@@ -1,6 +1,7 @@
 import express from "express";
 import db from "../../db/index.js";
 import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
+import { renderAndStoreInvoicePdf } from "../../lib/pdf.js";
 
 const router = express.Router();
 
@@ -202,6 +203,28 @@ router.delete("/:id", checkAdmin, async (req, res) => {
 		res.status(200).json({ status: "success" });
 	} catch (err) {
 		res.status(500).json({ message: "Internal server error" });
+	}
+});
+
+// PR 3.2: render an invoice's PDF via headless Chromium, store to S3
+// at invoices/<id>.pdf, and update the invoice row's pdf_s3_key.
+// Idempotent — re-running overwrites the S3 object with the latest
+// template render.
+router.post("/:id/pdf", checkAdmin, async (req, res) => {
+	try {
+		const id = parseInt(req.params.id, 10);
+		if (!Number.isFinite(id)) {
+			return res.status(400).json({ message: "Invalid invoice id" });
+		}
+		const result = await renderAndStoreInvoicePdf(id);
+		await db.query(
+			"UPDATE invoices SET pdf_s3_key = $1 WHERE invoice_id = $2",
+			[result.s3Key, id]
+		);
+		res.status(200).json({ status: "success", ...result });
+	} catch (err) {
+		console.error("invoice.pdf error:", err);
+		res.status(500).json({ message: err.message || "Internal server error" });
 	}
 });
 

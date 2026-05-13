@@ -4,33 +4,34 @@
 
 ---
 
-## You are mid-Phase 3 (PR 3.2 next)
+## You are mid-Phase 3 (PR 3.3 next)
 
-Phase 3 PR 3.1 (new invoice template) is landed on `2.0` via `--no-ff` merge of `phase-3-invoice-template`. **Next up is PR 3.2 — server-side Puppeteer PDF pipeline + S3 upload.** Branch off `2.0` as `phase-3-puppeteer` (dashed convention, since `phase-3` would namespace-collide with `phase-3-invoice-template`).
+Phase 3 PRs 3.1 (template) and 3.2 (Puppeteer PDF pipeline) are landed on `2.0` via `--no-ff` merges. **Next up is PR 3.3 — tiled `/invoices` list + filter-by-client, replacing the legacy `InvoiceList.jsx`.** Branch off `2.0` as `phase-3-invoices-list` (dashed convention).
 
 ### Do these things before you write any code
 
-1. **Read [PLAN.md](PLAN.md) §3 (snapshot totals on invoices), §4.5 (invoice template + PDF model), §6 (security pass — output escaping on invoice HTML), and §7 Phase 3 (PR 3.2 scope + exit criteria).**
-2. **Read the canonical template** at `client/src/components/templates/invoice/InvoiceTemplate.tsx` + `InvoiceTemplate.module.css`. This is the same React component PR 3.2 will render server-side via Puppeteer to produce the PDF.
-3. **Read the data-shape helper** at `client/src/components/templates/invoice/format.ts` — `buildLineGroups` is the function that turns API response → renderable line groups (parent + N subs). Puppeteer needs the same `/api/v2/invoice/:id` payload the on-screen detail page will use.
-4. **Skim [AWS_SETUP.md](AWS_SETUP.md) §1** — `invoices/<invoice_id>.pdf` is the agreed-upon S3 key layout. No new bucket setup; same IAM user from PR 2.6. Same env vars (`AWS_REGION`, `AWS_S3_BUCKET`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) already on local + EC2.
-5. **Browser-test the template you're about to render server-side:** sign in, hit `/admin/invoice-templates` (dev-only route mounted under `import.meta.env.DEV`). Pick a long invoice from the dropdown (default is `#202604009` — 2 containers + 2 mods + 2 deliveries + tax + CC). Click "Print preview" to verify the print-CSS pagination still behaves; that's what Puppeteer will consume.
+1. **Read [PLAN.md](PLAN.md) §5 (UI rework — invoices section) and §7 Phase 3 PR 3.3.**
+2. **Read the canonical template** at `client/src/components/templates/invoice/InvoiceTemplate.tsx` + the related modules in the same dir (`format.ts`, `types.ts`). PR 3.3's tiled list will link to a future detail page (PR 3.4) which will render this template inline.
+3. **Read `server/lib/pdf.ts`** for the PDF rendering plumbing. PR 3.3's list view doesn't render PDFs itself, but the detail page in PR 3.4 will trigger them via `POST /api/v2/invoice/:id/pdf`.
+4. **Skim `client/src/components/lists/InvoiceList.jsx`** — that's what PR 3.3 replaces. Note the current table layout, search behavior, and how it links to the create flow.
+5. **Sanity-check the dev environment:** `./dev.sh`. Sign in. Hit `/admin/invoice-templates` to verify the template still renders. Optional: `cd server && npx tsx scripts/smoke-pdf.ts` writes a PDF to `/tmp/invoice-202604009.pdf` if you want to confirm the PDF pipeline is healthy before touching list code.
 
-### Open conversations before PR 3.2 work goes deep
+### Open conversations before PR 3.3 work goes deep
 
-- **Puppeteer-in-Docker plumbing.** Decided 2026-05-13: bundle Chromium into the backend image. Means `puppeteer` (not `puppeteer-core`), let it install its own bundled Chromium during the Docker build, and the backend image grows ~250 MB. Acceptable at our scale.
-- **PR 3.2 architecture sketch:** new module `server/lib/pdf.ts` boots a long-lived Puppeteer browser instance, exposes `renderInvoicePdf(invoiceId): Promise<Buffer>`. The browser loads `http://localhost:3001/api/v2/invoice/<id>/render` (a new dev-only HTML endpoint that returns a server-side-rendered version of `InvoiceTemplate` against the live invoice data), waits for fonts + images, calls `page.pdf({ format: 'Letter', margin: 0, printBackground: true })`. Then upload to S3 at `invoices/<invoice_id>.pdf` via the existing `server/lib/s3.ts` helpers and update `invoices.pdf_s3_key`. A new admin-only POST route triggers the render for a single invoice; PR 3.8 wraps this in a loop for the 238-invoice historical re-render.
-- **Server-side-render vs. fetch-from-Vite.** Three options for how Puppeteer sees the template: (a) Puppeteer loads a dev-only Vite-served URL (only works in dev); (b) we ship a separate Puppeteer-targeted HTML bundle via vite-ssr or similar; (c) we render the React tree to HTML on the server with `react-dom/server` + read the compiled CSS module file from `client/dist/assets/`. Option (c) is the only one that works in prod without a running Vite dev server. Resolve at start of PR 3.2.
-- **Tax rate dropdown defaults** — NJ 6.625% + NY 8.875% + "Other (type a rate)" decided 2026-05-13. Wires in during PR 3.4 (invoice create form), not PR 3.2.
-- **S&H month-end cron job** — where it runs. Still open. Resolve before PR 3.6.
-- **Historical re-render of 238 invoices** — opt-in batch script, lands in PR 3.8.
+- **Tile layout spec** — PLAN §5 says "tiled grid" but doesn't pin dimensions. Confirm at PR 3.3 kickoff: how many tiles per row (3? 4? responsive?), what each tile shows (number + customer + date + total + status pill?), and whether tiles link to the detail page only or also have an inline preview.
+- **Filter-by-client UX** — sidebar dropdown vs header search vs both? PLAN §5 says "filter-by-client". Resolve at kickoff.
+- **Pagination vs infinite scroll** — 238 invoices, growing ~10/month. A simple paginated list (20-50 per page) is probably right; flag if the user wants infinite scroll or virtualized rendering instead.
+- **Status pill values** — what "status" actually means on a sales invoice (sent? paid? draft?). The schema has `sent_at` (nullable) which gives us "sent vs unsent". No "paid" status yet. Confirm whether to show this column at all in PR 3.3.
+- **Tax rate dropdown defaults** — NJ 6.625% + NY 8.875% + "Other (type a rate)" decided 2026-05-13. Wires in during PR 3.4 (invoice create form), not PR 3.3.
+- **S&H month-end cron job** — where it runs. Resolve before PR 3.6.
+- **Historical re-render of 238 invoices** — opt-in batch script, PR 3.8. The PDF pipeline (PR 3.2) is ready for it.
 
 ### Recommended PR breakdown for the rest of Phase 3
 
 1. ~~**PR 3.1** — New invoice template~~ ✅ landed
-2. **PR 3.2 — Puppeteer PDF pipeline.** Server renders `InvoiceTemplate` → PDF → S3. `pdf_s3_key` populated on save. Backwards-compatible regen command for historicals.
+2. ~~**PR 3.2** — Puppeteer PDF pipeline~~ ✅ landed
 3. **PR 3.3 — Tiled `/invoices` list + filter-by-client.** Replaces legacy `InvoiceList.jsx`. Search moved into table header per PLAN §5.
-4. **PR 3.4 — `/invoices/:id` detail page.** Read-only by default; admin-only edit / regenerate / email / delete. **Per-modification line items land here** — schema for `sold_modifications` or similar, plus the create-form UI to add multiple mod entries per container. Template rendering already handles N sub-rows per container.
+4. **PR 3.4 — `/invoices/:id` detail page.** Read-only by default; admin-only edit / regenerate / email / delete. **Per-modification line items land here** — schema for `sold_modifications` or similar, plus the create-form UI. Template rendering already handles N sub-rows per container.
 5. **PR 3.5 — Server-side invoice number sequencing.** `pg_advisory_xact_lock` around the `YYYYMM<seq>` insert.
 6. **PR 3.6 — S&H month-end pipeline.** Cron → `sh_invoices` (pending_review) + `sh_invoice_lines`.
 7. **PR 3.7 — S&H invoice detail page.** Read-only with Send button. Navbar dropdown surfaces pending S&H invoice counts.
@@ -52,12 +53,14 @@ Phase 3 PR 3.1 (new invoice template) is landed on `2.0` via `--no-ff` merge of 
 | Commit on `2.0` | PR | Contents |
 |---|---|---|
 | `(merge)` | 3.1 | Invoice template — A wins. Canonical at `client/src/components/templates/invoice/InvoiceTemplate.tsx`. Dev-only preview route at `/admin/invoice-templates`. Format helpers + types in same dir. |
+| `(merge)` | 3.2 | Server-side PDF pipeline. Vite library build of `InvoiceTemplate.tsx` → `server/template-dist/`. `server/lib/pdf.ts` SSR-renders + Puppeteer-snapshots. `POST /api/v2/invoice/:id/pdf` (admin-only) renders + uploads to `invoices/<id>.pdf` + updates `pdf_s3_key`. `server/scripts/smoke-pdf.ts` writes a sample PDF to `/tmp/`. Dockerfile.backend now multi-stage with Alpine Chromium. |
 
-`2.0` head is the PR 3.1 merge commit.
+`2.0` head is the PR 3.2 merge commit.
 
-**What's new in the user-facing app (PR 3.1):**
-- `/admin/invoice-templates` — dev-only preview route (mounted under `import.meta.env.DEV`). Picks an invoice from the local DB, renders it through the canonical template. Has a "Print preview" button that exercises the `@media print` pagination rules.
-- No production user-facing change yet — the new template doesn't render in any production-visible flow until PR 3.3 (tiled `/invoices` list) and PR 3.4 (detail page).
+**What's new in the user-facing app (after PRs 3.1 + 3.2):**
+- `/admin/invoice-templates` — dev-only preview route. Picks an invoice from the local DB, renders it through the canonical template. "Print preview" button exercises the `@media print` pagination rules.
+- `POST /api/v2/invoice/:id/pdf` — admin-only. Server-side renders the template via Puppeteer + uploads to S3.
+- No customer-visible change yet — the new template + PDF pipeline don't surface to customers until PR 3.4 (detail page) wires the "Email" button.
 
 **Template design decisions worth remembering:**
 - **Winning variant: A.** Modern B2B classic. Slim header (logo left, "INVOICE" right in Archivo Black + Number/Date). FROM/TO addresses with a centered Archivo Black "TO" connector. Deliver-to banner. Items table 8.5pt with line numbers in IBM Plex Mono, sub-rows indented + tight (line-height 1.15, padding 0/0). Summary block has terms paragraph on the left, totals stack on the right. "TOTAL DUE" in Archivo Black uppercase, $ value in IBM Plex Sans 700 tabular.
@@ -137,6 +140,12 @@ None block PR 3.2.
 - **Puppeteer-in-Docker:** bundle Chromium into backend image (decided 2026-05-13). `puppeteer` (not `puppeteer-core`).
 - **Tax rate dropdown defaults:** NJ 6.625% + NY 8.875% + "Other (type a rate)" (decided 2026-05-13).
 - **Invoice template:** canonical at `client/src/components/templates/invoice/InvoiceTemplate.tsx`. Drives both on-screen detail page (PR 3.4) and PDF generation (PR 3.2). Fonts from Google Fonts via `@import` in the CSS module.
+- **PDF pipeline gotchas (learned in PR 3.2):**
+  - Vite library bundle outputs to **`server/template-dist/`** (not inside `client/`) so its `import "react"` resolves to `server/node_modules/react`. Putting it under `client/` causes two React instances → `$$typeof` Symbol mismatch → `renderToString` throws "Objects are not valid as a React child".
+  - In `@media print`, do **not** override `.sheet { min-height: 0 }`. The footer's `margin-top: auto` needs the sheet to be at least one page tall — otherwise short invoices collapse the footer up under the totals.
+  - Container numbers (`TCKU287291-3`) contain hyphens that browsers treat as wrap points. `format.ts:protectUnitNumber` swaps them for U+2011 NON-BREAKING HYPHEN. `.colDesc` also has `text-wrap: pretty; hyphens: none`.
+  - Puppeteer 24's `page.setContent({ waitUntil })` excludes `'networkidle0'`. To wait for Google Fonts, call `page.evaluate(() => document.fonts.ready)` after setContent.
+  - Smoke script ends with `process.exit(0)` because Puppeteer occasionally leaves a Chromium handle alive that blocks Node from exiting cleanly.
 - **Phase 4 notes in user's auto-memory** refer to the *Better Auth migration's* Phase 4, NOT the PLAN.md phases.
 
 ---

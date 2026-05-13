@@ -28,3 +28,8 @@ server/tests/fixtures/*.png
 
 # Planning scratch — stays local, not version-controlled
 docs/agent_questions.md
+
+# Phase 3 PR 3.2: server-template Vite library build artifact
+# (Emitted into server/ so its `import "react"` resolves to server's
+# node_modules at runtime — see comment in server/lib/pdf.ts.)
+server/template-dist/

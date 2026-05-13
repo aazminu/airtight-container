@@ -72,3 +72,21 @@ export async function deleteObject(key: string): Promise<void> {
     new DeleteObjectCommand({ Bucket: getBucket(), Key: key }),
   );
 }
+
+// PR 3.2: direct PUT for server-rendered PDFs. Photos go through
+// presigned-PUT (iPad uploads directly), but PDFs are generated inside
+// the backend container so a direct PutObject is the right shape.
+export async function putObject(
+  key: string,
+  body: Buffer,
+  contentType: string,
+): Promise<void> {
+  await getClient().send(
+    new PutObjectCommand({
+      Bucket: getBucket(),
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    }),
+  );
+}
