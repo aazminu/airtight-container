@@ -3,6 +3,7 @@ import {
   extractFromBlocks,
   iso6346CheckDigit,
   isValidIso6346,
+  parseTypeCode,
 } from '../../lib/textract.js';
 import type { Block } from '@aws-sdk/client-textract';
 
@@ -44,6 +45,36 @@ describe('isValidIso6346', () => {
   });
 });
 
+describe('parseTypeCode', () => {
+  it('maps 22G1 to 20ft', () => {
+    expect(parseTypeCode('22G1')).toBe('20ft');
+  });
+  it('maps 25G1 to 20HC', () => {
+    expect(parseTypeCode('25G1')).toBe('20HC');
+  });
+  it('maps 42G1 to 40ft', () => {
+    expect(parseTypeCode('42G1')).toBe('40ft');
+  });
+  it('maps 45G1 to 40HC', () => {
+    expect(parseTypeCode('45G1')).toBe('40HC');
+  });
+  it('maps L5G1 (45ft container) to 45HC', () => {
+    expect(parseTypeCode('L5G1')).toBe('45HC');
+  });
+  it('maps 22R1 (20ft reefer) to 20ft', () => {
+    expect(parseTypeCode('22R1')).toBe('20ft');
+  });
+  it('rejects random 4-char tokens', () => {
+    expect(parseTypeCode('TRHU')).toBeNull();
+    expect(parseTypeCode('1234')).toBeNull(); // 4 digits, no category letter
+    expect(parseTypeCode('2A1B')).toBeNull(); // not a real type code shape
+  });
+  it('rejects non-4-char tokens', () => {
+    expect(parseTypeCode('22G')).toBeNull();
+    expect(parseTypeCode('22G12')).toBeNull();
+  });
+});
+
 describe('extractFromBlocks', () => {
   it('returns null when nothing matches', () => {
     const r = extractFromBlocks([line('hello world'), line('not a container')]);
@@ -75,6 +106,7 @@ describe('extractFromBlocks', () => {
       line('8'),
     ]);
     expect(r.unit_number).toBe('TRHU2174232');
+    expect(r.size).toBe('20ft');
   });
 
   it('handles the 11-char concatenated form on a single token', () => {

@@ -14,31 +14,34 @@ export interface IntakePhoto {
   error?: string;
 }
 
+export type PhotoStepMode = 'doors' | 'other';
+
 interface Props {
   kind: IntakeKind;
+  mode: PhotoStepMode;
   photos: IntakePhoto[];
   onChange: (photos: IntakePhoto[]) => void;
-  /** Called with the OCR result for the first (OCR-target) photo only. */
-  onOcr?: (result: { unit_number: string | null; lines: string[] }) => void;
+  /** Called with the OCR result for the doors photo only. Ignored when
+   *  `mode === 'other'` since we don't OCR those. */
+  onOcr?: (result: { unit_number: string | null; size: string | null; lines: string[] }) => void;
 }
 
-// Photo capture step. Staff taps the big capture button, the iPad camera
-// opens via the standard <input capture="environment">, the resulting
-// blob is uploaded to S3 via a presigned PUT, and Textract is invoked
-// against the first photo (the OCR target). Additional photos go up
-// without OCR. PR 2.6.
-export function PhotoStep({ kind, photos, onChange, onOcr }: Props) {
+// Two-mode photo capture step (PR 2.8.1):
+//   - 'doors':  Up to one photo. Optional / skippable. OCR runs on it.
+//   - 'other':  Any number of photos. No OCR. Optional documentation.
+//
+// The doors photo is the canonical OCR target. The Confirm step still
+// handles the "no image provided" fall-back (manual unit-number input).
+export function PhotoStep({ kind, mode, photos, onChange, onOcr }: Props) {
   const [topLevelError, setTopLevelError] = useState<string | null>(null);
+
+  const isDoors = mode === 'doors';
+  const reachedMax = isDoors && photos.length >= 1;
 
   const addPhoto = async (file: File) => {
     setTopLevelError(null);
     const previewUrl = URL.createObjectURL(file);
-    const isFirst = photos.length === 0;
-    const placeholder: IntakePhoto = {
-      key: '',
-      previewUrl,
-      uploading: true,
-    };
+    const placeholder: IntakePhoto = { key: '', previewUrl, uploading: true };
     const optimistic = [...photos, placeholder];
     onChange(optimistic);
 
@@ -46,20 +49,16 @@ export function PhotoStep({ kind, photos, onChange, onOcr }: Props) {
       const { url, key } = await presignIntakePhoto(kind, file.type);
       await uploadToS3(url, file, file.type);
       const completed: IntakePhoto = { key, previewUrl, uploading: false };
-      // Replace the trailing placeholder we just added. Doing it by index
-      // (vs identity) so a fast "remove" before we land doesn't desync.
       onChange([...photos, completed]);
 
-      if (isFirst && onOcr) {
+      if (isDoors && onOcr) {
         try {
           const ocr = await ocrIntakePhoto(key);
           onOcr(ocr);
         } catch (e) {
-          // OCR failure is non-fatal — staff can type the unit_number by
-          // hand on the Confirm step. Surface a soft warning, don't roll
-          // back the upload.
+          // Non-fatal: staff types the unit number by hand on the next step.
           setTopLevelError(
-            'OCR failed — type the unit number by hand on the next step.',
+            "We couldn't read the unit number from this photo. Type it by hand on the next step.",
           );
           console.error(e);
         }
@@ -77,7 +76,7 @@ export function PhotoStep({ kind, photos, onChange, onOcr }: Props) {
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    e.target.value = ''; // allow re-selecting the same file
+    e.target.value = '';
     void addPhoto(file);
   };
 
@@ -87,20 +86,30 @@ export function PhotoStep({ kind, photos, onChange, onOcr }: Props) {
     onChange(photos.filter((_, i) => i !== idx));
   };
 
-  const hasPrimary = photos.some((p) => !p.error && !p.uploading);
-  const captureLabel =
-    photos.length === 0
-      ? 'Take a photo of the doors'
-      : '+ Add another photo (optional)';
+  const title = isDoors ? 'Photo of the doors' : 'Other photos';
+  const intro = isDoors ? (
+    <>
+      Take a clear photo of <strong>the doors</strong>. Make sure the painted
+      unit numbers and the white sticker are right-side up and easy to read.
+      You can skip this if the camera isn't handy.
+    </>
+  ) : (
+    <>
+      Optional. Snap any damage, the inside, or other angles you want on file.
+      You can add as many as you want, or just tap Next to keep going.
+    </>
+  );
+  const captureLabel = (() => {
+    if (isDoors) {
+      return photos.length === 0 ? 'Take the door photo' : 'Retake door photo';
+    }
+    return photos.length === 0 ? 'Take a photo' : '+ Add another photo';
+  })();
 
   return (
     <div className={styles.wrap}>
-      <h2>Photos</h2>
-      <p className={styles.intro}>
-        Photograph the <strong>container doors</strong> — both painted unit
-        numbers should be visible and right-side up. Optional extras for damage
-        or paperwork can be added after the first photo.
-      </p>
+      <h2 className={styles.h2}>{title}</h2>
+      <p className={styles.intro}>{intro}</p>
 
       <div className={styles.captureRow}>
         <label className={styles.captureBtn}>
@@ -110,6 +119,7 @@ export function PhotoStep({ kind, photos, onChange, onOcr }: Props) {
             accept="image/*"
             capture="environment"
             onChange={handleInput}
+            disabled={reachedMax}
           />
         </label>
       </div>
@@ -120,15 +130,14 @@ export function PhotoStep({ kind, photos, onChange, onOcr }: Props) {
             <div
               key={`${p.key || 'pending'}-${i}`}
               className={styles.tile}
-              data-role={i === 0 ? 'primary' : 'extra'}
+              data-role={isDoors ? 'primary' : 'extra'}
             >
-              {i === 0 && hasPrimary && <span className={styles.tileRole}>OCR target</span>}
               {p.uploading ? (
                 <div className={styles.uploading}>Uploading…</div>
               ) : p.error ? (
                 <div className={styles.uploading}>Failed</div>
               ) : (
-                <img src={p.previewUrl} alt={`Intake photo ${i + 1}`} />
+                <img src={p.previewUrl} alt={`Photo ${i + 1}`} />
               )}
               <button
                 type="button"

@@ -22,12 +22,12 @@ export const createShInventorySchema = z.object({
     size: z.string().trim().min(1).max(40),
     damage: z.string().max(255).nullable().optional(),
     notes: z.string().max(2000).nullable().optional(),
-    // Rate snapshots — pre-filled from client.default_* by the client app
-    // and confirmed/overridden by the user during intake. Server doesn't
-    // re-derive; we trust what's posted (admin audit covers mistakes).
-    in_fee: positiveDecimal,
-    out_fee: positiveDecimal,
-    daily_rate: positiveDecimal,
+    // PR 2.8.1: yard staff no longer touches rates during intake — admin
+    // confirms / overrides on the audit screen. Server pre-fills from
+    // clients.default_* on insert when these are omitted.
+    in_fee: positiveDecimal.optional(),
+    out_fee: positiveDecimal.optional(),
+    daily_rate: positiveDecimal.optional(),
     // Optional admin override for intake_date — yard staff usually leaves
     // unset so the DB default of now() applies. Audit screen can override.
     intake_date: z.string().datetime().nullable().optional(),
@@ -40,14 +40,18 @@ export const createShInventorySchema = z.object({
 
 export type CreateShInventoryInput = z.infer<typeof createShInventorySchema>;
 
-// Audit screen: admin confirms / overrides rates + intake_date and clears
-// the pending_audit flag.
+// Audit screen: admin confirms / overrides rates + intake_date + every
+// intake field. Anything omitted is left untouched (COALESCE in the
+// UPDATE statement).
 export const auditShInventorySchema = z.object({
   in_fee: positiveDecimal.optional(),
   out_fee: positiveDecimal.optional(),
   daily_rate: positiveDecimal.optional(),
   intake_date: z.string().datetime().nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
+  unit_number: z.string().trim().min(1).max(40).optional(),
+  size: z.string().trim().min(1).max(40).optional(),
+  damage: z.string().trim().max(255).nullable().optional(),
 });
 
 export type AuditShInventoryInput = z.infer<typeof auditShInventorySchema>;

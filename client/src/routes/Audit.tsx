@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Badge, Button } from '../components/ui';
+import { Badge, Button, PhotoLightbox } from '../components/ui';
 import styles from './Audit.module.css';
 
 interface PendingSalesBox {
@@ -31,12 +31,19 @@ interface PendingShBox {
 }
 
 interface SalesEdit {
+  unit_number: string;
+  size: string;
+  damage: string;
+  trucking_company: string;
   acquisition_price: string;
   date: string;
   notes: string;
 }
 
 interface ShEdit {
+  unit_number: string;
+  size: string;
+  damage: string;
   in_fee: string;
   out_fee: string;
   daily_rate: string;
@@ -44,7 +51,6 @@ interface ShEdit {
   notes: string;
 }
 
-// Trim an ISO timestamp to the format <input type="datetime-local"> expects.
 const isoToLocalInput = (iso: string | null | undefined): string => {
   if (!iso) return '';
   const d = new Date(iso);
@@ -60,16 +66,16 @@ const localInputToIso = (v: string): string | null => {
   return d.toISOString();
 };
 
-// Admin pending-audit screen (PR 2.5). One screen, two sections.
-// Sales rows audit acquisition_price + date + notes; S&H rows audit
-// in_fee / out_fee / daily_rate + intake_date + notes. Confirming a row
-// hits the matching audit endpoint and drops it from the list.
+// Admin pending-audit screen. Every intake field is editable here
+// (PR 2.8.1); yard staff no longer collects rates / acquisition price
+// during intake. Clicking a photo opens a fullscreen lightbox.
 export default function Audit() {
   const [sales, setSales] = useState<PendingSalesBox[]>([]);
   const [sh, setSh] = useState<PendingShBox[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -80,7 +86,7 @@ export default function Audit() {
         fetch('/api/v2/sh-inventory?state=pending', { credentials: 'include' }),
       ]);
       if (!salesRes.ok) throw new Error(`Sales HTTP ${salesRes.status}`);
-      if (!shRes.ok) throw new Error(`S&H HTTP ${shRes.status}`);
+      if (!shRes.ok) throw new Error(`Storage HTTP ${shRes.status}`);
       const salesBody = (await salesRes.json()) as {
         data: { inventory: PendingSalesBox[] };
       };
@@ -108,7 +114,7 @@ export default function Audit() {
           {loading
             ? 'Loading…'
             : total === 0
-              ? 'All caught up — nothing to audit right now.'
+              ? "All caught up — nothing waiting on you."
               : `${total} box${total === 1 ? '' : 'es'} waiting for review.`}
         </p>
       </header>
@@ -123,6 +129,7 @@ export default function Audit() {
           setSales((s) => s.filter((b) => b.id !== id));
           setOpenKey(null);
         }}
+        onPhotoClick={(url) => setLightboxSrc(url)}
       />
 
       <ShSection
@@ -133,6 +140,13 @@ export default function Audit() {
           setSh((s) => s.filter((b) => b.id !== id));
           setOpenKey(null);
         }}
+        onPhotoClick={(url) => setLightboxSrc(url)}
+      />
+
+      <PhotoLightbox
+        src={lightboxSrc}
+        alt="Intake photo"
+        onClose={() => setLightboxSrc(null)}
       />
     </div>
   );
@@ -143,21 +157,23 @@ function SalesSection({
   openKey,
   setOpenKey,
   onConfirmed,
+  onPhotoClick,
 }: {
   boxes: PendingSalesBox[];
   openKey: string | null;
   setOpenKey: (k: string | null) => void;
   onConfirmed: (id: number) => void;
+  onPhotoClick: (url: string) => void;
 }) {
   return (
     <section className={styles.section}>
       <div className={styles.sectionHead}>
         <h2 className={styles.sectionTitle}>Sales</h2>
         <span className={styles.sectionCount}>{boxes.length}</span>
-        <Badge tone="info">Acquisition price + date</Badge>
+        <Badge tone="info">Confirm price + details</Badge>
       </div>
       {boxes.length === 0 ? (
-        <div className={styles.empty}>No Sales boxes pending audit.</div>
+        <div className={styles.empty}>No Sales boxes pending.</div>
       ) : (
         <div className={styles.list}>
           {boxes.map((b) => (
@@ -169,6 +185,7 @@ function SalesSection({
                 setOpenKey(openKey === `sales-${b.id}` ? null : `sales-${b.id}`)
               }
               onConfirmed={() => onConfirmed(b.id)}
+              onPhotoClick={onPhotoClick}
             />
           ))}
         </div>
@@ -182,21 +199,23 @@ function ShSection({
   openKey,
   setOpenKey,
   onConfirmed,
+  onPhotoClick,
 }: {
   boxes: PendingShBox[];
   openKey: string | null;
   setOpenKey: (k: string | null) => void;
   onConfirmed: (id: number) => void;
+  onPhotoClick: (url: string) => void;
 }) {
   return (
     <section className={styles.section}>
       <div className={styles.sectionHead}>
         <h2 className={styles.sectionTitle}>Storage</h2>
         <span className={styles.sectionCount}>{boxes.length}</span>
-        <Badge tone="info">Rates + intake date</Badge>
+        <Badge tone="info">Confirm rates + intake date</Badge>
       </div>
       {boxes.length === 0 ? (
-        <div className={styles.empty}>No Storage boxes pending audit.</div>
+        <div className={styles.empty}>No Storage boxes pending.</div>
       ) : (
         <div className={styles.list}>
           {boxes.map((b) => (
@@ -208,6 +227,7 @@ function ShSection({
                 setOpenKey(openKey === `sh-${b.id}` ? null : `sh-${b.id}`)
               }
               onConfirmed={() => onConfirmed(b.id)}
+              onPhotoClick={onPhotoClick}
             />
           ))}
         </div>
@@ -221,13 +241,19 @@ function SalesRow({
   open,
   onToggle,
   onConfirmed,
+  onPhotoClick,
 }: {
   box: PendingSalesBox;
   open: boolean;
   onToggle: () => void;
   onConfirmed: () => void;
+  onPhotoClick: (url: string) => void;
 }) {
   const [edit, setEdit] = useState<SalesEdit>({
+    unit_number: box.unit_number ?? '',
+    size: box.size ?? '',
+    damage: box.damage ?? '',
+    trucking_company: box.trucking_company ?? '',
     acquisition_price: box.acquisition_price ?? '',
     date: isoToLocalInput(box.date),
     notes: box.notes ?? '',
@@ -244,6 +270,10 @@ function SalesRow({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
+          unit_number: edit.unit_number.trim() || undefined,
+          size: edit.size.trim() || undefined,
+          damage: edit.damage.trim() || undefined,
+          trucking_company: edit.trucking_company.trim() || null,
           acquisition_price: edit.acquisition_price || null,
           date: localInputToIso(edit.date),
           notes: edit.notes || null,
@@ -262,7 +292,7 @@ function SalesRow({
     <div className={styles.row} data-open={open}>
       <button type="button" className={styles.rowHead} onClick={onToggle}>
         <div className={styles.rowSummary}>
-          <span className={styles.rowTitle}>{box.unit_number}</span>
+          <span className={styles.rowTitle}>{box.unit_number || '(no unit number)'}</span>
           <span className={styles.rowMeta}>
             <span>{box.size}</span>
             <span>{box.damage}</span>
@@ -270,12 +300,53 @@ function SalesRow({
             <span>Arrived {new Date(box.date).toLocaleDateString()}</span>
           </span>
         </div>
-        <span className={styles.rowChev}>{open ? 'Close' : 'Audit ›'}</span>
+        <span className={styles.rowChev}>{open ? 'Close' : 'Review ›'}</span>
       </button>
       {open && (
         <div className={styles.rowBody}>
-          <PhotoStrip urls={box.photo_urls} />
+          <PhotoStrip urls={box.photo_urls} onPhotoClick={onPhotoClick} />
           <div className={styles.formRow}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Unit number</span>
+              <input
+                type="text"
+                value={edit.unit_number}
+                onChange={(e) =>
+                  setEdit((s) => ({ ...s, unit_number: e.target.value.toUpperCase() }))
+                }
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Size</span>
+              <input
+                type="text"
+                value={edit.size}
+                onChange={(e) => setEdit((s) => ({ ...s, size: e.target.value }))}
+              />
+            </label>
+          </div>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Damage / condition</span>
+            <input
+              type="text"
+              value={edit.damage}
+              onChange={(e) => setEdit((s) => ({ ...s, damage: e.target.value }))}
+            />
+          </label>
+          <div className={styles.formRow}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Trucking company</span>
+              <input
+                type="text"
+                value={edit.trucking_company}
+                onChange={(e) =>
+                  setEdit((s) => ({ ...s, trucking_company: e.target.value }))
+                }
+              />
+            </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Acquisition price ($)</span>
               <input
@@ -293,9 +364,7 @@ function SalesRow({
               <input
                 type="datetime-local"
                 value={edit.date}
-                onChange={(e) =>
-                  setEdit((s) => ({ ...s, date: e.target.value }))
-                }
+                onChange={(e) => setEdit((s) => ({ ...s, date: e.target.value }))}
               />
             </label>
           </div>
@@ -313,7 +382,7 @@ function SalesRow({
               Cancel
             </Button>
             <Button variant="primary" onClick={submit} disabled={submitting}>
-              {submitting ? 'Confirming…' : 'Confirm audit'}
+              {submitting ? 'Saving…' : 'Save & approve'}
             </Button>
           </div>
         </div>
@@ -327,13 +396,18 @@ function ShRow({
   open,
   onToggle,
   onConfirmed,
+  onPhotoClick,
 }: {
   box: PendingShBox;
   open: boolean;
   onToggle: () => void;
   onConfirmed: () => void;
+  onPhotoClick: (url: string) => void;
 }) {
   const [edit, setEdit] = useState<ShEdit>({
+    unit_number: box.unit_number ?? '',
+    size: box.size ?? '',
+    damage: box.damage ?? '',
     in_fee: box.in_fee,
     out_fee: box.out_fee,
     daily_rate: box.daily_rate,
@@ -352,6 +426,9 @@ function ShRow({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
+          unit_number: edit.unit_number.trim() || undefined,
+          size: edit.size.trim() || undefined,
+          damage: edit.damage.trim() || null,
           in_fee: edit.in_fee,
           out_fee: edit.out_fee,
           daily_rate: edit.daily_rate,
@@ -377,7 +454,7 @@ function ShRow({
     <div className={styles.row} data-open={open}>
       <button type="button" className={styles.rowHead} onClick={onToggle}>
         <div className={styles.rowSummary}>
-          <span className={styles.rowTitle}>{box.unit_number}</span>
+          <span className={styles.rowTitle}>{box.unit_number || '(no unit number)'}</span>
           <span className={styles.rowMeta}>
             <span>{clientLabel}</span>
             <span>{box.size}</span>
@@ -387,11 +464,42 @@ function ShRow({
             <span>Arrived {new Date(box.intake_date).toLocaleDateString()}</span>
           </span>
         </div>
-        <span className={styles.rowChev}>{open ? 'Close' : 'Audit ›'}</span>
+        <span className={styles.rowChev}>{open ? 'Close' : 'Review ›'}</span>
       </button>
       {open && (
         <div className={styles.rowBody}>
-          <PhotoStrip urls={box.photo_urls} />
+          <PhotoStrip urls={box.photo_urls} onPhotoClick={onPhotoClick} />
+          <div className={styles.formRow}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Unit number</span>
+              <input
+                type="text"
+                value={edit.unit_number}
+                onChange={(e) =>
+                  setEdit((s) => ({ ...s, unit_number: e.target.value.toUpperCase() }))
+                }
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Size</span>
+              <input
+                type="text"
+                value={edit.size}
+                onChange={(e) => setEdit((s) => ({ ...s, size: e.target.value }))}
+              />
+            </label>
+          </div>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Damage / condition</span>
+            <input
+              type="text"
+              value={edit.damage}
+              onChange={(e) => setEdit((s) => ({ ...s, damage: e.target.value }))}
+            />
+          </label>
           <div className={styles.formRow}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>In fee ($)</span>
@@ -454,7 +562,7 @@ function ShRow({
               Cancel
             </Button>
             <Button variant="primary" onClick={submit} disabled={submitting}>
-              {submitting ? 'Confirming…' : 'Confirm audit'}
+              {submitting ? 'Saving…' : 'Save & approve'}
             </Button>
           </div>
         </div>
@@ -463,23 +571,34 @@ function ShRow({
   );
 }
 
-// Thumbnail strip rendered above the audit form. URLs are presigned by
-// the server when the list endpoint runs with a pending filter; if AWS
-// is misconfigured the server returns null and we render nothing rather
-// than blocking the audit.
-function PhotoStrip({ urls }: { urls: string[] | null }) {
+// Thumbnail strip above the audit form. URLs are presigned by the server
+// on the pending-list response. Clicking opens the photo in a lightbox
+// instead of navigating away.
+function PhotoStrip({
+  urls,
+  onPhotoClick,
+}: {
+  urls: string[] | null;
+  onPhotoClick: (url: string) => void;
+}) {
   if (!urls || urls.length === 0) return null;
   return (
     <div className={styles.photoStrip}>
       {urls.map((url, i) => (
-        <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+        <button
+          key={url}
+          type="button"
+          className={styles.photoThumbBtn}
+          onClick={() => onPhotoClick(url)}
+          aria-label={`Open photo ${i + 1}`}
+        >
           <img
             src={url}
             alt={`Intake photo ${i + 1}`}
             className={styles.photoThumb}
             data-role={i === 0 ? 'primary' : 'extra'}
           />
-        </a>
+        </button>
       ))}
     </div>
   );

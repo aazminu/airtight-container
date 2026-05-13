@@ -9,7 +9,7 @@ interface PresignResponse {
 }
 
 interface OcrResponse {
-  data: { unit_number: string | null; lines: string[] };
+  data: { unit_number: string | null; size: string | null; lines: string[] };
 }
 
 export async function presignIntakePhoto(
@@ -47,7 +47,7 @@ export async function uploadToS3(
 
 export async function ocrIntakePhoto(
   key: string,
-): Promise<{ unit_number: string | null; lines: string[] }> {
+): Promise<{ unit_number: string | null; size: string | null; lines: string[] }> {
   const res = await fetch('/api/v2/intake/ocr', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

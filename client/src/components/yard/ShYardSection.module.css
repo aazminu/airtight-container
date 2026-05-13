@@ -18,16 +18,16 @@
 }
 
 .count {
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
   font-size: 0.9375rem;
 }
 
 .empty {
   padding: 0.75rem 1rem;
-  background: var(--surface-soft, #f6f8fa);
-  border: 1px dashed var(--border, #d0d7de);
+  background: var(--bg-surface-2);
+  border: 1px dashed var(--border);
   border-radius: 8px;
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
 }
 
 .list {
@@ -42,9 +42,9 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  border: 1px solid var(--border, #d0d7de);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--surface, #fff);
+  background: var(--bg-surface);
 }
 
 .who {
@@ -60,7 +60,7 @@
 }
 
 .meta {
-  color: var(--muted, #57606a);
+  color: var(--text-secondary);
   font-size: 0.875rem;
   display: flex;
   gap: 0.5rem;
@@ -72,8 +72,8 @@
   align-items: center;
   padding: 0.25rem 0.625rem;
   border-radius: 999px;
-  background: var(--surface-soft, #f6f8fa);
-  color: var(--muted, #57606a);
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
   font-size: 0.8125rem;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -81,8 +81,8 @@
 }
 
 .daysBadge[data-long='true'] {
-  background: rgba(9, 105, 218, 0.1);
-  color: var(--accent, #0969da);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
 }
 
 .checkoutInline {
@@ -94,7 +94,7 @@
 
 .dateInput {
   padding: 0.5rem 0.625rem;
-  border: 1px solid var(--border, #d0d7de);
+  border: 1px solid var(--border);
   border-radius: 8px;
   font: inherit;
   font-size: 0.875rem;

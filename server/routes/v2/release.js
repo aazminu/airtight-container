@@ -61,6 +61,57 @@ router.get("/", checkEmployee, async (req, res) => {
 	}
 });
 
+// GET /api/v2/release/by-container?number=XXX
+// PR 2.8.1: intake calls this after the Confirm step. If the typed /
+// OCR'd unit number is pre-loaded under an active release, the picker
+// on the Container details step auto-selects + locks to that release.
+router.get("/by-container", checkEmployee, async (req, res) => {
+	try {
+		const number = String(req.query.number ?? "")
+			.trim()
+			.toUpperCase();
+		if (!number) {
+			return res.status(400).json({ message: "Missing number" });
+		}
+		const result = await db.query(
+			`SELECT rnc.release_number_id,
+			        rn.release_number_value,
+			        rn.release_number_count,
+			        sc.sale_company_id,
+			        sc.sale_company_name
+			 FROM release_number_containers rnc
+			 JOIN release_numbers rn
+			   ON rn.release_number_id = rnc.release_number_id
+			 JOIN sale_companies sc
+			   ON sc.sale_company_id = rn.sale_company_id
+			 WHERE rnc.container_number = $1
+			   AND rn.is_complete = false
+			 LIMIT 1`,
+			[number],
+		);
+		if (result.rows.length === 0) {
+			return res
+				.status(200)
+				.json({ status: "success", data: { match: null } });
+		}
+		const row = result.rows[0];
+		res.status(200).json({
+			status: "success",
+			data: {
+				match: {
+					release_number_id: row.release_number_id,
+					release_number_value: row.release_number_value,
+					release_number_count: row.release_number_count,
+					sale_company_id: row.sale_company_id,
+					sale_company_name: row.sale_company_name,
+				},
+			},
+		});
+	} catch (err) {
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
+
 router.get("/numbers", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(

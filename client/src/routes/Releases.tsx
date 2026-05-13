@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Button } from '../components/ui';
+import { useEffect, useMemo, useState } from 'react';
+import { Button, Modal } from '../components/ui';
 import styles from './Releases.module.css';
 
 interface ReleaseNumber {
@@ -27,15 +27,20 @@ interface ContainersApi {
   data: { containers: Container[] };
 }
 
-// Admin page for enumerating containers under a release (PR 2.8).
-// Releases are grouped by sale company; click a release to expand and
-// see / edit the pre-loaded container numbers. Intake auto-associates
-// on insert — server-side — so there's no separate "mark used" UI here.
+// Admin page for enumerating containers under a release (PR 2.8 / 2.8.1).
+// Companies collapse by default with a count badge; type into the search
+// bar to filter by release number — matching companies auto-expand.
+// "+ New release" creates a release under an existing or brand-new company.
 export default function Releases() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [openId, setOpenId] = useState<number | null>(null);
+  const [openReleaseId, setOpenReleaseId] = useState<number | null>(null);
+  const [expandedCompanies, setExpandedCompanies] = useState<Set<number>>(
+    new Set(),
+  );
+  const [search, setSearch] = useState('');
+  const [creating, setCreating] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -44,7 +49,7 @@ export default function Releases() {
       const res = await fetch('/api/v2/release', { credentials: 'include' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = (await res.json()) as ReleasesApi;
-      setCompanies(body.data.releases.filter((c) => c.numbers.length > 0));
+      setCompanies(body.data.releases);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -56,38 +61,147 @@ export default function Releases() {
     load();
   }, []);
 
+  const searchLower = search.trim().toLowerCase();
+  const filtered = useMemo<Company[]>(() => {
+    if (!searchLower) {
+      return companies.filter((c) => c.numbers.length > 0);
+    }
+    return companies
+      .map((c) => ({
+        ...c,
+        numbers: c.numbers.filter((r) =>
+          r.release_number.toLowerCase().includes(searchLower),
+        ),
+      }))
+      .filter((c) => c.numbers.length > 0);
+  }, [companies, searchLower]);
+
+  // Auto-open companies that have matching releases under search.
+  const effectivelyExpanded = (id: number): boolean => {
+    if (searchLower) return true;
+    return expandedCompanies.has(id);
+  };
+
+  const toggleCompany = (id: number) => {
+    setExpandedCompanies((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1 className={styles.title}>Releases</h1>
-        <p className={styles.subtitle}>
-          Pre-load specific container numbers under each active release so
-          intake can auto-match incoming boxes.
-        </p>
+        <div className={styles.headerRow}>
+          <div>
+            <h1 className={styles.title}>Releases</h1>
+            <p className={styles.subtitle}>
+              Pre-load container numbers under each release so intake auto-matches.
+            </p>
+          </div>
+          <Button onClick={() => setCreating(true)}>+ New release</Button>
+        </div>
+        <input
+          type="search"
+          className={styles.search}
+          placeholder="Search release numbers…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </header>
 
       {error && <div className={styles.error}>{error}</div>}
       {loading && <p>Loading…</p>}
 
+      {!loading && filtered.length === 0 && (
+        <div className={styles.empty}>
+          {searchLower
+            ? 'No releases match that search.'
+            : 'No active releases yet. Click + New release to add one.'}
+        </div>
+      )}
+
       {!loading &&
-        companies.map((c) => (
-          <section key={c.id} className={styles.companyGroup}>
-            <h2 className={styles.companyTitle}>{c.company}</h2>
-            <div className={styles.releaseList}>
-              {c.numbers.map((r) => (
-                <ReleaseRow
-                  key={r.release_id}
-                  release={r}
-                  open={openId === r.release_id}
-                  onToggle={() =>
-                    setOpenId(openId === r.release_id ? null : r.release_id)
-                  }
-                />
-              ))}
-            </div>
-          </section>
+        filtered.map((c) => (
+          <CompanyBlock
+            key={c.id}
+            company={c}
+            expanded={effectivelyExpanded(c.id)}
+            forceExpanded={searchLower.length > 0}
+            onToggleCompany={() => toggleCompany(c.id)}
+            openReleaseId={openReleaseId}
+            setOpenReleaseId={setOpenReleaseId}
+          />
         ))}
+
+      <Modal
+        open={creating}
+        onClose={() => setCreating(false)}
+        title="New release"
+      >
+        <NewReleaseForm
+          companies={companies}
+          onCancel={() => setCreating(false)}
+          onCreated={async () => {
+            setCreating(false);
+            await load();
+          }}
+        />
+      </Modal>
     </div>
+  );
+}
+
+function CompanyBlock({
+  company,
+  expanded,
+  forceExpanded,
+  onToggleCompany,
+  openReleaseId,
+  setOpenReleaseId,
+}: {
+  company: Company;
+  expanded: boolean;
+  forceExpanded: boolean;
+  onToggleCompany: () => void;
+  openReleaseId: number | null;
+  setOpenReleaseId: (n: number | null) => void;
+}) {
+  return (
+    <section className={styles.companyGroup} data-expanded={expanded}>
+      <button
+        type="button"
+        className={styles.companyHead}
+        onClick={onToggleCompany}
+        disabled={forceExpanded}
+        aria-expanded={expanded}
+      >
+        <span className={styles.companyTitle}>{company.company}</span>
+        <span className={styles.companyCount}>
+          {company.numbers.length} release
+          {company.numbers.length === 1 ? '' : 's'}
+        </span>
+        <span className={styles.companyChev} aria-hidden="true">
+          {expanded ? '▾' : '▸'}
+        </span>
+      </button>
+      {expanded && (
+        <div className={styles.releaseList}>
+          {company.numbers.map((r) => (
+            <ReleaseRow
+              key={r.release_id}
+              release={r}
+              open={openReleaseId === r.release_id}
+              onToggle={() =>
+                setOpenReleaseId(openReleaseId === r.release_id ? null : r.release_id)
+              }
+            />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -122,8 +236,7 @@ function ReleaseRow({
           setLoaded(true);
         }
       } catch (e) {
-        if (!cancelled)
-          setError(e instanceof Error ? e.message : 'Failed to load');
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load');
       }
     })();
     return () => {
@@ -151,7 +264,6 @@ function ReleaseRow({
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setAddText('');
-      // Re-fetch — merge handles ON CONFLICT silently dropped duplicates.
       const re = await fetch(
         `/api/v2/release/${release.release_id}/containers`,
         { credentials: 'include' },
@@ -199,18 +311,15 @@ function ReleaseRow({
 
           <div className={styles.containersList}>
             {containers.length === 0 ? (
-              <div className={styles.empty}>
+              <div className={styles.emptySoft}>
                 No container numbers loaded yet. Add them below.
               </div>
             ) : (
               containers.map((c) => (
                 <div key={c.container_number} className={styles.containerRow}>
                   <span>{c.container_number}</span>
-                  <span
-                    className={styles.usedBadge}
-                    data-used={c.is_used}
-                  >
-                    {c.is_used ? 'arrived' : 'pending'}
+                  <span className={styles.usedBadge} data-used={c.is_used}>
+                    {c.is_used ? 'arrived' : 'waiting'}
                   </span>
                   <button
                     type="button"
@@ -247,6 +356,154 @@ function ReleaseRow({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function NewReleaseForm({
+  companies,
+  onCancel,
+  onCreated,
+}: {
+  companies: Company[];
+  onCancel: () => void;
+  onCreated: () => void;
+}) {
+  const [companyId, setCompanyId] = useState<number | 'new' | ''>('');
+  const [newCompany, setNewCompany] = useState('');
+  const [releaseNumber, setReleaseNumber] = useState('');
+  const [count, setCount] = useState('1');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setError(null);
+    if (!releaseNumber.trim()) {
+      setError('Release number is required.');
+      return;
+    }
+    const numericCount = Number(count);
+    if (!Number.isInteger(numericCount) || numericCount < 1) {
+      setError('Count must be a whole number ≥ 1.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      let resolvedCompanyId: number;
+      if (companyId === 'new') {
+        if (!newCompany.trim()) {
+          setError('New company name is required.');
+          setSubmitting(false);
+          return;
+        }
+        const compRes = await fetch('/api/v2/release/company', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ name: newCompany.trim() }),
+        });
+        if (!compRes.ok) throw new Error('Could not create the company');
+        // The existing POST /company route doesn't return the new id,
+        // so re-fetch the releases list and look it up by name. Cheap.
+        const listRes = await fetch('/api/v2/release', { credentials: 'include' });
+        const list = (await listRes.json()) as ReleasesApi;
+        const created = list.data.releases.find(
+          (c) => c.company.toLowerCase() === newCompany.trim().toLowerCase(),
+        );
+        if (!created) throw new Error('Created the company but lost track of it');
+        resolvedCompanyId = created.id;
+      } else if (typeof companyId === 'number') {
+        resolvedCompanyId = companyId;
+      } else {
+        setError('Pick a company.');
+        setSubmitting(false);
+        return;
+      }
+      const res = await fetch('/api/v2/release', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          company_id: resolvedCompanyId,
+          number: releaseNumber.trim().toUpperCase(),
+          box_count: numericCount,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onCreated();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Create failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className={styles.addForm}>
+      <label className={styles.addLabel}>Company</label>
+      <select
+        className={styles.formInput}
+        value={companyId}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === 'new') setCompanyId('new');
+          else if (v === '') setCompanyId('');
+          else setCompanyId(Number(v));
+        }}
+      >
+        <option value="" disabled>
+          Pick a company
+        </option>
+        {companies.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.company}
+          </option>
+        ))}
+        <option value="new">+ Add new company…</option>
+      </select>
+
+      {companyId === 'new' && (
+        <>
+          <label className={styles.addLabel}>New company name</label>
+          <input
+            type="text"
+            className={styles.formInput}
+            value={newCompany}
+            onChange={(e) => setNewCompany(e.target.value)}
+            placeholder="e.g. SeaCube"
+          />
+        </>
+      )}
+
+      <label className={styles.addLabel}>Release number</label>
+      <input
+        type="text"
+        className={styles.formInput}
+        value={releaseNumber}
+        onChange={(e) => setReleaseNumber(e.target.value.toUpperCase())}
+        placeholder="e.g. ABC1234"
+        autoCapitalize="characters"
+      />
+
+      <label className={styles.addLabel}>How many containers does it cover?</label>
+      <input
+        type="number"
+        className={styles.formInput}
+        min="1"
+        value={count}
+        onChange={(e) => setCount(e.target.value)}
+      />
+
+      {error && <div className={styles.error}>{error}</div>}
+
+      <div className={styles.modalActions}>
+        <Button variant="ghost" onClick={onCancel} disabled={submitting}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={submit} disabled={submitting}>
+          {submitting ? 'Creating…' : 'Create release'}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -181,14 +181,22 @@ router.put(
 					acquisition_price = COALESCE($1, acquisition_price),
 					date = COALESCE($2::timestamptz, date),
 					notes = COALESCE($3, notes),
+					unit_number = COALESCE($4, unit_number),
+					size = COALESCE($5, size),
+					damage = COALESCE($6, damage),
+					trucking_company = COALESCE($7, trucking_company),
 					is_pending_audit = false,
 					state = CASE WHEN state = 'pending' THEN 'available'::inventory_state ELSE state END
-				 WHERE id = $4 AND is_pending_audit = true
+				 WHERE id = $8 AND is_pending_audit = true
 				 RETURNING id, state, is_pending_audit`,
 				[
 					b.acquisition_price ?? null,
 					b.date ?? null,
 					b.notes ?? null,
+					b.unit_number ?? null,
+					b.size ?? null,
+					b.damage ?? null,
+					b.trucking_company ?? null,
 					req.params.id,
 				]
 			);
