@@ -6,13 +6,15 @@
 
 ## Phase 3 complete — Phase 4 next
 
-All eight Phase 3 PRs (3.1–3.8) are merged into `2.0` locally. **Next up is Phase 4 — Inventory + Yard refresh.** Pick the kickoff conversation from [PLAN.md §7 Phase 4](PLAN.md#phase-4--inventory--yard-refresh).
+All eleven Phase 3 PRs (3.1–3.11) are merged into `2.0` locally. **Next up is Phase 4 — Inventory + Yard refresh.** Pick the kickoff conversation from [PLAN.md §7 Phase 4](PLAN.md#phase-4--inventory--yard-refresh).
 
 ### Do these things before you write any code
 
 1. **Read [PLAN.md](PLAN.md) §5 (UI rework — Inventory section) and §7 Phase 4.**
-2. **Read `client/src/components/lists/InventoryList.jsx`** — pagination bug at line 53 (`+= 1`) is the canonical reference for the "broken pagination" mentioned in PLAN. This component is what Phase 4 replaces.
+2. **Read `client/src/components/lists/InventoryList.jsx`** — pagination bug at line 53 (`+= 1`) is the canonical reference for the "broken pagination" mentioned in PLAN. This component is what Phase 4 replaces. **Heads up**: it currently imports `client/src/styles/inventorylist.css`, which still defines tokens that overlap with the new global `client/src/styles/tokens.css`. When Phase 4 deletes this jsx file, drop `inventorylist.css` too — tokens are already in `tokens.css`.
 3. **Skim `client/src/components/lists/InvoicesGrid.tsx`** (PR 3.3) and `client/src/routes/InvoiceDetail.tsx` (PR 3.4) — Phase 4 follows the same shape (tiled/table list + popup edit modal vertical) so the patterns there are a good cookbook.
+4. **Reuse `<Stepper>`** (`client/src/components/ui/Stepper.tsx`) for any multi-step flows Phase 4 needs. CreateInvoice uses it; Intake will lazy-migrate later.
+5. **Reuse `modificationPresets.ts` + `<datalist>` pattern** for any list-of-suggested-options inputs — typeahead with free text fallback. Set up so future presets can move to a DB table without breaking the input shape (see PLAN §8 admin-editable mod-preset follow-up).
 
 ### Open conversations before Phase 4 work goes deep
 
@@ -27,6 +29,9 @@ All eight Phase 3 PRs (3.1–3.8) are merged into `2.0` locally. **Next up is Ph
 - **S&H invoice email send** — the PR 3.7 detail page Send button currently just flips `status -> sent` and stamps `sent_at`. It doesn't actually email the customer. Mirror the sales-invoice `POST /api/v2/invoice/:id/email` Resend-with-PDF-attachment path when the user is ready (probably wrap into Phase 5). Needs an S&H invoice PDF template first — currently the detail page renders an HTML sheet, not a Puppeteer-PDF artifact.
 - **Historical re-render bulk run** — `server/scripts/rerender-all-invoices.ts` is written and dry-runnable. Recommended cutover dance per the PR 3.8 commit: `--dry-run`, then `--limit 5` + manual S3 sample review, then full run. Has not been bulk-executed against the local DB or prod yet.
 - **`InvoicesGrid` / `InvoiceEditor` UI tests** — PR 3.10 covered the server-side CRUD ops and the `format.ts` template helper but not the React components themselves. Snapshot or RTL tests for the editor (mod reorder, container picker invariants) + grid (search-narrows-sidebar, snap-back) would round out the suite. Not blocking Phase 4.
+- **Admin-editable modification presets** — currently hard-coded in `client/src/components/forms/modificationPresets.ts` (4 entries). Promote to a `mod_presets` table with admin CRUD; natural fit for Phase 5 dashboard work. Note added to PLAN §8.
+- **Submit-flow round-trip not browser-tested end to end** — the new create flow's submit pipeline (POST → /sold → PUT) has tests covering each piece individually via PR 3.10, but no test exercises the three calls together. The legacy /sold call in particular has no PR 3.10 coverage. Worth a single happy-path Playwright test before prod cutover.
+- **InvoiceTemplate `@media (prefers-color-scheme)` audit** — the printable invoice is intentionally paper-cream regardless of UI theme, but the sub-row hover state inside the template renders as an inverted dark band against the cream sheet when the rest of the app is in dark mode. Cosmetic, not blocking.
 
 ### Don't
 
@@ -53,8 +58,9 @@ All eight Phase 3 PRs (3.1–3.8) are merged into `2.0` locally. **Next up is Ph
 | 3.8 | `server/scripts/rerender-all-invoices.ts` — one-shot script with `--limit / --skip-existing / --ids / --dry-run` flags. Not yet bulk-executed; recommended dance is `--dry-run` → `--limit 5` + sample check → full run. |
 | 3.9 | `/invoices/create` rewritten as a five-step Flow (Containers → Customer → Details → Preview → Done) per PLAN §5. New `routes/CreateInvoice.tsx` + `.module.css` replace the legacy jsx file. Live `InvoiceTemplate` preview on step 4. Submit pipeline: POST `/api/v2/invoice` (server-assigned number) → `/api/v1/inventory/sold` per container → PUT `/api/v2/invoice/:id` so mods/tax/cc/outbound persist via the same reconciliation path as the editor. Deleted: legacy `CreateInvoice.jsx`, `SelectContainers.jsx`, `SelectCustomer.jsx`, `ContainerInvoice.jsx`, `InvoiceForm.jsx` (giant template literal), `invoicecreator.css`. |
 | 3.10 | Invoice ops extracted to `server/lib/invoice-ops.ts` (createInvoice, updateInvoiceFull, deleteInvoiceCascade, recomputeTotals, getNextInvoiceNumber, monthPrefix). Route handlers shrink to transaction wrapping. 18 DB-backed integration tests for invoice ops + 5 for S&H month-end (per-test BEGIN/ROLLBACK), 8 client-side tests for `buildLineGroups`. Server suite 75→98, client 23→31. Behavioral fix uncovered by tests: `updateInvoiceFull` now sets `inventory.state='sold'` for every incoming container (not just new-to-invoice ones) so the create flow round-trip lands cleanly. |
+| 3.11 | Polish pass. New `client/src/styles/tokens.css` (loaded from `main.tsx`) centralizes design tokens + light/dark variants — was previously trapped inside `inventorylist.css` which only loaded on `/inventory`. `html`/`body` now bg + text themed; native date / search inputs themed via `color-scheme` + dark-mode tints on the calendar/clear indicators. New shared `<Stepper>` primitive (`components/ui/Stepper.tsx`) extracts Intake's numbered-dot progress bar; CreateInvoice uses it. CC fee → "Credit Card fee" everywhere and switched to a percent-input field in both CreateInvoice + InvoiceEditor (user types 3.5, stored as 0.035). Invoice date field added to Details step (defaults to today, label says so). Preview shows `invoice_number` as the literal "PLACEHOLDER" (type widened to `number \| string`). Default destination on each container card pre-fills from the customer's city/state (falls back to street for legacy records); only fills blanks. Modification description input switched to `<input list>` + shared `<datalist>` of presets (`Installation of Rollup Door`, `Paint Job`, `Installation of Man Door`, `Installation of Window`) via `components/forms/modificationPresets.ts`; editable + custom values still allowed. "+ Add modification" moved into the mods subhead to fix the collision. PLAN §8 notes admin-editable mod-preset table as a Phase 5 dashboard follow-up. |
 
-`2.0` head is the PR 3.10 merge. All feature branches merged via `--no-ff` to preserve phase boundaries.
+`2.0` head is the PR 3.11 merge. All feature branches merged via `--no-ff` to preserve phase boundaries.
 
 **Template design decisions worth remembering:**
 - **Winning variant: A.** Modern B2B classic. Slim header (logo left, "INVOICE" right in Archivo Black + Number/Date). FROM/TO addresses with a centered Archivo Black "TO" connector. Deliver-to banner. Items table 8.5pt with line numbers in IBM Plex Mono, sub-rows indented + tight (line-height 1.15, padding 0/0). Summary block has terms paragraph on the left, totals stack on the right. "TOTAL DUE" in Archivo Black uppercase, $ value in IBM Plex Sans 700 tabular.
@@ -93,7 +99,7 @@ Phase 2 complete on `2.0` (local-only). Eight feature PRs + four follow-ups:
 
 None block Phase 4.
 
-- **Pre-existing global dark-mode bug** — `client/src/styles/inventorylist.css` owns `:root` and `[data-theme=dark]` tokens but is only imported by `InventoryList.jsx` (the file Phase 4 will replace). Resolve naturally as part of Phase 4.
+- **Legacy `inventorylist.css` still defines its own `:root` token block** — PR 3.11 moved the canonical tokens to `client/src/styles/tokens.css` (loaded globally), but `inventorylist.css` retains the old definitions for backwards compat with the not-yet-rewritten Inventory page. When Phase 4 deletes `InventoryList.jsx`, delete `inventorylist.css` too — tokens are no longer needed there.
 - **40 orphan invoices with no `invoice_containers`** — flagged in PR 1.3 backfill. User to decide before prod cutover.
 - **A80 thermal printer** spec — needed before Phase 7.
 - **QuickBooks Online vs Desktop** — resolve before Phase 8.
@@ -142,6 +148,9 @@ None block Phase 4.
 - **Phase 3 PRs land via `--no-ff` merges** so each PR's diff stays a coherent unit even after later PRs touch the same files. Continue the pattern in Phase 4+.
 - **node-cron schedule** for S&H month-end is `"0 1 1 * *"` (01:00 on the 1st of each month). Toggle off in non-prod via `SH_MONTH_END_CRON=off`. Admins can manually trigger via `POST /api/v2/sh-invoice/run-month-end` (defaults to prior month, or pass `{year, monthIndex}`).
 - **`pg_advisory_xact_lock` keys**: sales invoice sequence uses `0x4149_5253_4551_4e23` (hex of "AIRSEQ#"), S&H sequence uses `0x5054_4853_4551_4e23`. Different keys so the two domains don't block each other.
+- **Rate fields are stored as decimals, displayed as percents.** `invoices.tax_rate` and `invoices.cc_fee_rate` are `numeric` decimals (e.g. `0.06625`). The Phase 3 editor + create flow always present them as percents (`6.625`, `3.5`) and convert at the UI boundary via `pctToDecimal` / inline math. Server math is decimal-only; if you add a new rate-bearing field, follow the same convention.
+- **Design tokens live in `client/src/styles/tokens.css`**, loaded from `main.tsx`. Defines `--bg`, `--bg-surface`, `--surface` (alias), `--bg-page`, `--text`, `--muted`, `--hover`, `--border`, `--accent`, `--accent-fg`, `--success`/`--danger`/`--warning`/`--info` + corresponding `-bg` / `-fg` pairs, plus radius / shadow / font tokens. Every Phase 3 component CSS module references these as `var(--…)`. Page chrome (`html`/`body`) themed there too. Native date / search inputs picked up `color-scheme: light dark` + dark-mode tints on the OS-rendered indicators.
+- **Modification description input is `<input list="modification-presets">`** wherever per-mod line items exist (CreateInvoice Details step, InvoiceEditor). The shared datalist is in `client/src/components/forms/modificationPresets.ts`. Free text still accepted; presets are just typeahead suggestions. Promote to a `mod_presets` table when Phase 5 adds admin CRUD.
 
 ---
 
