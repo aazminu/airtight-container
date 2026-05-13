@@ -15,6 +15,7 @@ import releaseRoute_2 from "./routes/v2/release.js";
 import invoiceRoute from "./routes/v2/invoice.js";
 import dashboardRoute from "./routes/v2/dashboard.js";
 import clientRoute from "./routes/v2/client.js";
+import shInventoryRoute from "./routes/v2/sh_inventory.js";
 
 const app = express();
 const port = process.env.PORT;
@@ -43,6 +44,7 @@ app.use("/api/v2/release", releaseRoute_2);
 app.use("/api/v2/dashboard", dashboardRoute);
 app.use("/api/v2/invoice", invoiceRoute);
 app.use("/api/v2/clients", clientRoute);
+app.use("/api/v2/sh-inventory", shInventoryRoute);
 
 app.post("/api/v1/send", emailLimiter, checkAuth, async (req, res) => {
 	const resend = new Resend(process.env.RESEND);
