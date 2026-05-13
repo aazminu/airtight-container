@@ -4,36 +4,28 @@
 
 ---
 
-## You are mid-Phase 3 (PR 3.4 next)
+## Phase 3 complete — Phase 4 next
 
-Phase 3 PRs 3.1 (template), 3.2 (Puppeteer PDF pipeline), and 3.3 (tiled `/invoices`) are done. PR 3.3 sits **unmerged** on branch `phase-3-invoices-list`; ask before merging into `2.0`. **Next up is PR 3.4 — `/invoices/:id` read-only detail page (admin-only edit / regen / email / delete) + per-modification line items schema.** Branch off `2.0` as `phase-3-invoice-detail` (or `phase-3-invoices-detail` for consistency with 3.3's slug).
+All eight Phase 3 PRs (3.1–3.8) are merged into `2.0` locally. **Next up is Phase 4 — Inventory + Yard refresh.** Pick the kickoff conversation from [PLAN.md §7 Phase 4](PLAN.md#phase-4--inventory--yard-refresh).
 
 ### Do these things before you write any code
 
-1. **Read [PLAN.md](PLAN.md) §5 (UI rework — invoices section) and §7 Phase 3 PR 3.4.**
-2. **Read `client/src/components/templates/invoice/InvoiceTemplate.tsx`** — the detail page renders it inline. Tiles in PR 3.3 already do (scaled-down preview); detail page will use it at full size.
-3. **Read `server/routes/v2/invoice.js`** for current endpoints + the `INVOICE_SELECT_COLS` shape. The grouped output now includes `sent_at` and `pdf_s3_key` (added in PR 3.3) — used by the status pill and presumably by the "View PDF" button on the detail page.
-4. **Per-modification line items spec** — owner confirmed schema change lands in PR 3.4 (see "Decisions worth remembering" below). Probably a new `sold_modifications` table; the InvoiceTemplate already renders N sub-rows per container, so the template doesn't change — just the create-form UI and a backfill of `sold.modification_price` into the new table.
+1. **Read [PLAN.md](PLAN.md) §5 (UI rework — Inventory section) and §7 Phase 4.**
+2. **Read `client/src/components/lists/InventoryList.jsx`** — pagination bug at line 53 (`+= 1`) is the canonical reference for the "broken pagination" mentioned in PLAN. This component is what Phase 4 replaces.
+3. **Skim `client/src/components/lists/InvoicesGrid.tsx`** (PR 3.3) and `client/src/routes/InvoiceDetail.tsx` (PR 3.4) — Phase 4 follows the same shape (tiled/table list + popup edit modal vertical) so the patterns there are a good cookbook.
 
-### Open conversations before PR 3.4 work goes deep
+### Open conversations before Phase 4 work goes deep
 
-- **Tax rate dropdown defaults** — NJ 6.625% + NY 8.875% + "Other (type a rate)" decided 2026-05-13. Wires in during PR 3.4 (invoice create form).
-- **Per-modification line items schema** — `sold_modifications`? Columns: `id`, `sold_id` (FK), `description text`, `price numeric(10,2)`, `position smallint`? Confirm at PR 3.4 kickoff. Legacy `sold.modification_price` stays as-is (not backfilled, per "Decisions worth remembering").
-- **Detail-page edit affordances** — which fields editable? Customer pickable from clients dropdown? Containers add/remove? Confirm scope at kickoff.
-- **PR 3.3 merge-or-iterate decision** — branch is local, awaiting user verification at `http://localhost:3000/invoices`. Owner may want tweaks to tile content (currently mini-preview thumbnail + caption with #, customer, date, total, container count, sent/unsent pill) or sidebar UX (currently left rail with all clients alphabetical + counts) — fall-back options live in [docs/session-notes/](session-notes/) if needed.
-- **S&H month-end cron job** — where it runs. Resolve before PR 3.6.
-- **Historical re-render of 238 invoices** — opt-in batch script, PR 3.8. The PDF pipeline (PR 3.2) is ready for it.
+- **Three state-segmented inventory tables** — `available` / `sold` / `outbound`? Or `available` / `pending` / `sold`? Confirm at kickoff.
+- **Popup edit modal vertical layout** — which fields, validation rules?
+- **Search-in-header pattern** — mirror invoices grid (header free-text + sidebar by sale_company maybe) or pure table?
+- **"Mark Outbound" button removal** — confirm the outbound flow that replaces it (probably part of the invoice send/email path? Or a yard checkout action?).
+- **Yard view facelift scope** — same data, just polish, or new groupings?
 
-### Recommended PR breakdown for the rest of Phase 3
+### Two follow-up items that didn't fit cleanly into Phase 3
 
-1. ~~**PR 3.1** — New invoice template~~ ✅ landed
-2. ~~**PR 3.2** — Puppeteer PDF pipeline~~ ✅ landed
-3. ~~**PR 3.3** — Tiled `/invoices` list + filter-by-client~~ ✅ branch ready, awaiting user merge
-4. **PR 3.4 — `/invoices/:id` detail page.** Read-only by default; admin-only edit / regenerate / email / delete. **Per-modification line items land here** — schema for `sold_modifications` or similar, plus the create-form UI. Template rendering already handles N sub-rows per container.
-5. **PR 3.5 — Server-side invoice number sequencing.** `pg_advisory_xact_lock` around the `YYYYMM<seq>` insert.
-6. **PR 3.6 — S&H month-end pipeline.** Cron → `sh_invoices` (pending_review) + `sh_invoice_lines`.
-7. **PR 3.7 — S&H invoice detail page.** Read-only with Send button. Navbar dropdown surfaces pending S&H invoice counts.
-8. **PR 3.8 — Historical re-render.** One-shot script re-PDFs all 238 invoices through the new template, populates `pdf_s3_key`, manual sample verification before commit.
+- **S&H invoice email send** — the PR 3.7 detail page Send button currently just flips `status -> sent` and stamps `sent_at`. It doesn't actually email the customer. Mirror the sales-invoice `POST /api/v2/invoice/:id/email` Resend-with-PDF-attachment path when the user is ready (probably wrap into Phase 5 or as a standalone PR 3.9). Needs an S&H invoice PDF template first — currently the detail page renders an HTML sheet, not a Puppeteer-PDF artifact.
+- **Historical re-render bulk run** — `server/scripts/rerender-all-invoices.ts` is written and dry-runnable. Recommended cutover dance per the PR 3.8 commit: `--dry-run`, then `--limit 5` + manual S3 sample review, then full run. Has not been bulk-executed against the local DB or prod yet.
 
 ### Don't
 
@@ -48,18 +40,18 @@ Phase 3 PRs 3.1 (template), 3.2 (Puppeteer PDF pipeline), and 3.3 (tiled `/invoi
 
 ## Phase 3 status
 
-| Commit on `2.0` | PR | Contents |
-|---|---|---|
-| `(merge)` | 3.1 | Invoice template — A wins. Canonical at `client/src/components/templates/invoice/InvoiceTemplate.tsx`. Dev-only preview route at `/admin/invoice-templates`. Format helpers + types in same dir. |
-| `(merge)` | 3.2 | Server-side PDF pipeline. Vite library build of `InvoiceTemplate.tsx` → `server/template-dist/`. `server/lib/pdf.ts` SSR-renders + Puppeteer-snapshots. `POST /api/v2/invoice/:id/pdf` (admin-only) renders + uploads to `invoices/<id>.pdf` + updates `pdf_s3_key`. `server/scripts/smoke-pdf.ts` writes a sample PDF to `/tmp/`. Dockerfile.backend now multi-stage with Alpine Chromium. |
-| `(unmerged)` | 3.3 | Tiled `/invoices` UI on branch `phase-3-invoices-list`. `client/src/components/lists/InvoicesGrid.tsx` + `.module.css`. Replaces `InvoiceList.jsx` and `routes/Invoices.jsx`; both removed along with orphaned `InvoiceRow.jsx`, `InvoiceDetails.jsx`, `EmailPrompt.jsx`, `SoldList.jsx`, `SoldRow.jsx`, `styles/invoicelist.css`. Layout: left sidebar with alphabetical client list + counts; 240px tiles in `repeat(auto-fill, 240px)` grid; mini-preview thumbnail (full `InvoiceTemplate` scaled 0.294×) + caption (#, customer, date, total, container count, sent/unsent `Badge`); 24-per-page classic pagination; header free-text search across invoice #, customer, container unit_number. Tiles link `/invoices/:id` (404 until PR 3.4 lands). Server change: `groupInvoices` in `routes/v2/invoice.js` now passes through `sent_at` + `pdf_s3_key`; `types.ts` updated to match. |
+| PR | Contents |
+|---|---|
+| 3.1 | Invoice template — A wins. Canonical at `client/src/components/templates/invoice/InvoiceTemplate.tsx`. Dev-only preview route at `/admin/invoice-templates`. |
+| 3.2 | Server-side PDF pipeline. `server/lib/pdf.ts` SSR + Puppeteer. `POST /api/v2/invoice/:id/pdf` renders + uploads to S3 + sets `pdf_s3_key`. Dockerfile.backend multi-stage w/ Alpine Chromium. |
+| 3.3 | Tiled `/invoices` UI in `client/src/components/lists/InvoicesGrid.tsx`. Decorative invoice-header strip + caption (#, customer, date, total, sent/unsent, container count); 240px tiles `repeat(auto-fill, 240px)`; sidebar sorted by invoice count (top 20 + "Show all (N)" expand); search narrows tiles AND sidebar with active-client snap-back; 24-per-page pagination. `routes/Invoices.tsx` replaces `Invoices.jsx`. Legacy `InvoiceList.jsx`, `InvoiceRow.jsx`, `InvoiceDetails.jsx`, `EmailPrompt.jsx`, `SoldList.jsx`, `SoldRow.jsx`, `invoicelist.css` deleted. |
+| 3.4 | `/invoices/:id` route + `routes/InvoiceDetail.tsx`. Read-only InvoiceTemplate full-size + admin Edit/Regenerate PDF/Email/Delete actions. New `components/forms/InvoiceEditor.tsx` for full edit mode (customer picker, date, tax preset, CC fee, per-container fields, container add/remove, per-modification line items with reorder, live totals preview). Server: `sold_modifications` table (migration 0004), GET surfaces `modifications` per container, `PUT /:id` reconciles full tree in transaction + re-snapshots totals, `POST /:id/email` attaches PDF via Resend + sets `sent_at`, `DELETE /:id` cascades sold + frees inventory state. `lib/s3.ts:getObjectBytes` added. `format.ts:buildLineGroups` consumes per-mod first, falls back to legacy `sold.modification_price` scalar. Dropped unused `PUT /tax`, `PUT /credit`, `DELETE /container/:id`. |
+| 3.5 | Server-side `YYYYMM<seq>` generation in `POST /api/v2/invoice` inside `pg_advisory_xact_lock`. Body's `invoice_number` ignored; response includes the assigned number. `CreateInvoice.jsx` dropped its `calculateInvoiceNumber` helper; uses server response for downstream `markContainerSold`. Verified race-safe via 5-way concurrent POST. `GET /api/v2/invoice/latest` removed. |
+| 3.6 | S&H month-end pipeline. `server/lib/sh-month-end.ts:generateShMonthEnd(year, monthIndex)` builds one `sh_invoices` row per client with month activity + its `sh_invoice_lines` (in_fee / out_fee / storage_days). Idempotent via `(client_id, billing_month)` unique index. `node-cron@^3` fires `"0 1 1 * *"` from `server/server.js`; gate-off via `SH_MONTH_END_CRON=off`. `routes/v2/sh_invoice.js`: GET list (status filter), GET `/:id`, `POST /run-month-end` (admin), `PUT /:id/send`. |
+| 3.7 | `/sh-invoices` tabbed list + `/sh-invoices/:id` read-only detail page with admin Send button. `/api/v2/intake/pending-counts` adds `sh_invoices` count. `PendingAuditNav` rolls it into the navbar bell with a new "S&H invoices" dropdown row. |
+| 3.8 | `server/scripts/rerender-all-invoices.ts` — one-shot script with `--limit / --skip-existing / --ids / --dry-run` flags. Not yet bulk-executed; recommended dance is `--dry-run` → `--limit 5` + sample check → full run. |
 
-`2.0` head is the PR 3.2 merge commit. PR 3.3 lives only on the feature branch.
-
-**What's new in the user-facing app (after PRs 3.1 + 3.2):**
-- `/admin/invoice-templates` — dev-only preview route. Picks an invoice from the local DB, renders it through the canonical template. "Print preview" button exercises the `@media print` pagination rules.
-- `POST /api/v2/invoice/:id/pdf` — admin-only. Server-side renders the template via Puppeteer + uploads to S3.
-- No customer-visible change yet — the new template + PDF pipeline don't surface to customers until PR 3.4 (detail page) wires the "Email" button.
+`2.0` head is the PR 3.8 merge. All feature branches merged via `--no-ff` to preserve phase boundaries.
 
 **Template design decisions worth remembering:**
 - **Winning variant: A.** Modern B2B classic. Slim header (logo left, "INVOICE" right in Archivo Black + Number/Date). FROM/TO addresses with a centered Archivo Black "TO" connector. Deliver-to banner. Items table 8.5pt with line numbers in IBM Plex Mono, sub-rows indented + tight (line-height 1.15, padding 0/0). Summary block has terms paragraph on the left, totals stack on the right. "TOTAL DUE" in Archivo Black uppercase, $ value in IBM Plex Sans 700 tabular.
@@ -96,21 +88,19 @@ Phase 2 complete on `2.0` (local-only). Eight feature PRs + four follow-ups:
 
 ## Open threads / blockers
 
-None block PR 3.4.
+None block Phase 4.
 
-- **Pre-existing global dark-mode bug** — `client/src/styles/inventorylist.css` owns `:root` and `[data-theme=dark]` tokens but is only imported by `InventoryList.jsx`. Fix in Phase 6 polish.
+- **Pre-existing global dark-mode bug** — `client/src/styles/inventorylist.css` owns `:root` and `[data-theme=dark]` tokens but is only imported by `InventoryList.jsx` (the file Phase 4 will replace). Resolve naturally as part of Phase 4.
 - **40 orphan invoices with no `invoice_containers`** — flagged in PR 1.3 backfill. User to decide before prod cutover.
 - **A80 thermal printer** spec — needed before Phase 7.
 - **QuickBooks Online vs Desktop** — resolve before Phase 8.
 - **Hardware swap** (iPad → rugged Android handheld) — raise inside printer convo.
-- **Per-modification line items** — schema + create-flow change in PR 3.4. Template already supports N sub-rows.
-- **Server-side-render approach for Puppeteer** (option a/b/c above) — resolve at PR 3.2 kickoff.
-- **S&H month-end cron job location** — Phase 3 PR 3.6 prep.
+- **S&H invoice email send** — see "follow-up items" above. Lacks a Puppeteer S&H template; the detail page is HTML-only right now.
+- **Historical re-render bulk run** — script is ready (PR 3.8). User to schedule.
 - **Spanish translation source** — Phase 6 prep.
 - **Help page content** — author vs draft. Phase 6 prep.
 - **Staging environment** — none today. Probably worth standing up before `2.0` → `main` cutover.
 - **Vite 8 / vitest 4 bumps** — dev-tooling-only esbuild advisories (GHSA-67mh-4wv8-2f99).
-- **`docs/PLAN.md` stash** from PR 1.1 prep may or may not still exist locally.
 
 ---
 
@@ -146,6 +136,9 @@ None block PR 3.4.
   - Puppeteer 24's `page.setContent({ waitUntil })` excludes `'networkidle0'`. To wait for Google Fonts, call `page.evaluate(() => document.fonts.ready)` after setContent.
   - Smoke script ends with `process.exit(0)` because Puppeteer occasionally leaves a Chromium handle alive that blocks Node from exiting cleanly.
 - **Phase 4 notes in user's auto-memory** refer to the *Better Auth migration's* Phase 4, NOT the PLAN.md phases.
+- **Phase 3 PRs land via `--no-ff` merges** so each PR's diff stays a coherent unit even after later PRs touch the same files. Continue the pattern in Phase 4+.
+- **node-cron schedule** for S&H month-end is `"0 1 1 * *"` (01:00 on the 1st of each month). Toggle off in non-prod via `SH_MONTH_END_CRON=off`. Admins can manually trigger via `POST /api/v2/sh-invoice/run-month-end` (defaults to prior month, or pass `{year, monthIndex}`).
+- **`pg_advisory_xact_lock` keys**: sales invoice sequence uses `0x4149_5253_4551_4e23` (hex of "AIRSEQ#"), S&H sequence uses `0x5054_4853_4551_4e23`. Different keys so the two domains don't block each other.
 
 ---
 
