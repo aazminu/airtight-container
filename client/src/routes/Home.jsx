@@ -1,6 +1,5 @@
 import React from 'react';
-import Header from '../components/Header';
-import InventoryList from '../components/lists/InventoryList';
+import Inventory from './Inventory';
 import { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { userContext } from '../context/restaurantcontext';
@@ -10,13 +9,7 @@ const Home = () => {
 
   if (permissions === 'unauthorized') navigate('/auth');
 
-  return (
-    <div>
-      {permissions}
-      <Header />
-      <InventoryList />
-    </div>
-  );
+  return <Inventory />;
 };
 
 export default Home;

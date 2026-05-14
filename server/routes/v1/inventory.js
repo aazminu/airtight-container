@@ -2,7 +2,14 @@ import express from "express";
 import { desc, eq } from "drizzle-orm";
 import db from "../../db/index.js";
 import { db as drizzleDb } from "../../db/drizzle.js";
-import { inventory } from "../../db/schema.js";
+import {
+	inventory,
+	sale_companies,
+	release_numbers,
+	sold,
+	invoice_containers,
+	invoices,
+} from "../../db/schema.js";
 import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
 import { auditInventorySchema } from "../../validation/inventory.js";
@@ -36,12 +43,52 @@ async function attachPhotoUrls(rows) {
 // PR 2.6: when pending_audit is set, also attach presigned GET URLs for
 // each stored photo key so the audit screen can render thumbnails
 // without a per-row round-trip.
+// PR 4.1: list now LEFT JOINs sale_companies + release_numbers, plus
+// sold + invoice_containers + invoices so the tabbed inventory page can
+// render Sale Co. / Release# columns and the sold tab can surface
+// outbound_date + invoice_number without a per-row round-trip. Joins
+// stay LEFT so non-sold inventory rows still come back.
 router.get("/", checkEmployee, async (req, res) => {
 	try {
 		const wantsPending = req.query.pending_audit === "true";
 		const rows = await drizzleDb
-			.select()
+			.select({
+				id: inventory.id,
+				date: inventory.date,
+				unit_number: inventory.unit_number,
+				size: inventory.size,
+				damage: inventory.damage,
+				trucking_company: inventory.trucking_company,
+				release_number_id: inventory.release_number_id,
+				sale_company_id: inventory.sale_company_id,
+				notes: inventory.notes,
+				acquisition_price: inventory.acquisition_price,
+				state: inventory.state,
+				is_pending_audit: inventory.is_pending_audit,
+				photos: inventory.photos,
+				sale_company_name: sale_companies.sale_company_name,
+				release_number_value: release_numbers.release_number_value,
+				outbound_date: sold.outbound_date,
+				invoice_number: invoices.invoice_number,
+			})
 			.from(inventory)
+			.leftJoin(
+				sale_companies,
+				eq(inventory.sale_company_id, sale_companies.sale_company_id),
+			)
+			.leftJoin(
+				release_numbers,
+				eq(inventory.release_number_id, release_numbers.release_number_id),
+			)
+			.leftJoin(sold, eq(sold.inventory_id, inventory.id))
+			.leftJoin(
+				invoice_containers,
+				eq(invoice_containers.container_id, inventory.id),
+			)
+			.leftJoin(
+				invoices,
+				eq(invoices.invoice_id, invoice_containers.invoice_id),
+			)
 			.where(wantsPending ? eq(inventory.is_pending_audit, true) : undefined)
 			.orderBy(desc(inventory.date));
 		const enriched = wantsPending ? await attachPhotoUrls(rows) : rows;
@@ -51,6 +98,7 @@ router.get("/", checkEmployee, async (req, res) => {
 			data: { inventory: enriched },
 		});
 	} catch (err) {
+		console.error("inventory.list error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });

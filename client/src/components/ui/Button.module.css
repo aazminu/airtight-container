@@ -43,7 +43,7 @@
 }
 
 /* Variants — wired to the project theme tokens (--accent, --bg-surface, etc).
-   Tokens defined in client/src/styles/inventorylist.css :root + [data-theme=dark]. */
+   Tokens defined in client/src/styles/tokens.css :root + [data-theme=dark]. */
 .primary {
   background: var(--accent);
   color: var(--accent-fg, #ffffff);

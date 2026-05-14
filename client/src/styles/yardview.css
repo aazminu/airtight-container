@@ -5,7 +5,43 @@
 	margin: 0 auto;
 }
 
-/* ── Page title — inherits .invHeader from inventorylist.css ── */
+/* Page title — left-aligned with red accent bar.
+   Lived in inventorylist.css before that file was retired in PR 4.1. */
+.invHeader {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	font-family: var(--font-header);
+	font-size: 2.2rem;
+	font-weight: 800;
+	color: var(--text-primary);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	margin: 0;
+	padding: 24px 32px 20px;
+	border-bottom: 1px solid var(--border);
+	text-align: left;
+}
+
+.invHeader::before {
+	content: '';
+	flex-shrink: 0;
+	width: 4px;
+	height: 1em;
+	background-color: var(--accent);
+	border-radius: 2px;
+}
+
+/* Row hover for yardview's tables. !important on the td overrides the
+   alternating-row backgrounds defined below. Lived as a global rule in
+   inventorylist.css before that file was retired in PR 4.1. */
+.yardContainer tbody tr:hover td {
+	background-color: var(--row-hover) !important;
+}
+
+.yardContainer tbody tr:hover {
+	box-shadow: inset 3px 0 0 var(--accent);
+}
 
 /* ── Release numbers section ────────────────────────────── */
 .yardReleasesSection {
@@ -94,7 +130,7 @@
 	background-color: var(--bg-row-alt);
 }
 
-/* row hover from global rule in inventorylist.css */
+/* row hover handled by the .yardContainer tbody tr:hover rule above */
 
 /* ── Three-panel unit grid ──────────────────────────────── */
 .yardUnitSection {
@@ -202,7 +238,7 @@
 	background-color: var(--bg-row-alt);
 }
 
-/* row hover from global rule */
+/* row hover handled by the .yardContainer tbody tr:hover rule above */
 
 /* ── Per-card pagination bar ────────────────────────────── */
 .yardPagination {
