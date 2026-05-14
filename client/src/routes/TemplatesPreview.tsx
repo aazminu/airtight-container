@@ -190,7 +190,6 @@ function buildDeliveryFixture(inv: InvoiceData | null): DeliveryData | null {
     door_orientation: 'Doors facing road',
     payment_details: 'Cash on delivery',
     receipt_note: 'Standard delivery — call 30 minutes out.',
-    modifications: c.modifications ?? [],
     notes: null,
   };
 }

@@ -64,9 +64,6 @@ export interface DeliveryData {
    *  RECEIPT:" line on the legacy doc. */
   receipt_note: string | null;
 
-  /** Optional list of mods to call out on the sheet. */
-  modifications: { description: string; price: number | string | null }[];
-
   /** Extra free-text notes section below the form fields. */
   notes: string | null;
 }

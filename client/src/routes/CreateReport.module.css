@@ -330,7 +330,54 @@
   cursor: not-allowed;
 }
 
-/* ── delivery flow: customer auto-pull display ────────────── */
+/* ── delivery flow: container picker tags ─────────────────── */
+
+.tagSales,
+.tagSh {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.05rem 0.4rem;
+  margin-right: 0.4rem;
+  border-radius: 4px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  vertical-align: 0.06em;
+}
+
+.tagSales {
+  background: rgba(9, 105, 218, 0.12);
+  color: var(--accent);
+}
+
+.tagSh {
+  background: rgba(30, 110, 58, 0.14);
+  color: #1e6e3a;
+}
+
+[data-theme='dark'] .tagSales {
+  background: rgba(224, 90, 78, 0.18);
+  color: #f0a097;
+}
+
+[data-theme='dark'] .tagSh {
+  background: rgba(120, 200, 140, 0.18);
+  color: #b5e2c2;
+}
+
+/* ── delivery flow: customer auto-pull + warning blocks ──── */
+
+.warningBlock {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(229, 154, 30, 0.12);
+  border-left: 3px solid #b07215;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: var(--text);
+  line-height: 1.5;
+}
 
 .metaCard {
   margin-bottom: 1.125rem;
@@ -374,6 +421,29 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── delivery flow: address override card ─────────────────── */
+
+.addressCard {
+  margin: 0 0 1rem;
+  padding: 1rem 1.125rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.addressCardHead {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.addressCardHint {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 /* ── delivery flow: preview wrap ─────────────────────────── */

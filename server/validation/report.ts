@@ -38,39 +38,52 @@ const deliveryAddress = z.object({
   locality: z.string().trim().max(200).nullable().optional(),
 });
 
-const deliverySheetParams = z.object({
-  // Required: which container is being delivered.
-  container_id: z.number().int().positive(),
+const deliverySheetParams = z
+  .object({
+    // The source row this sheet is for. Exactly one of these must be
+    // set — sales containers live in inventory, S&H boxes in
+    // sh_inventory, and the resolver branches on which is provided.
+    container_id: z.number().int().positive().optional(),
+    sh_box_id: z.number().int().positive().optional(),
 
-  // Fallback when the container has no invoice yet (scheduled pickup
-  // before sale-close). When omitted, the resolver derives the
-  // customer from invoice_containers → invoices → clients.
-  client_id: z.number().int().positive().optional(),
+    // Fallback when a sales container has no invoice yet (scheduled
+    // pickup before sale-close). When omitted, the resolver derives
+    // the customer from invoice_containers → invoices → clients. Not
+    // relevant for sh_box_id rows — the client is already linked.
+    client_id: z.number().int().positive().optional(),
 
-  // Day + time of delivery; falls back to sold.outbound_date.
-  delivery_date: isoDate.optional(),
+    // Day + time of delivery; falls back to sold.outbound_date (sales)
+    // or sh_inventory.checkout_date (S&H).
+    delivery_date: isoDate.optional(),
 
-  // Operator-entered at form time. Not persisted on any inventory or
-  // sold row — lives only in reports.parameters.
-  delivery_company: z.string().trim().max(120).nullable().optional(),
-  onsite_contact: z.string().trim().max(200).nullable().optional(),
-  door_orientation: z.string().trim().max(120).nullable().optional(),
-  payment_details: z.string().trim().max(200).nullable().optional(),
+    // Operator-entered at form time. Not persisted on any inventory or
+    // sold row — lives only in reports.parameters.
+    delivery_company: z.string().trim().max(120).nullable().optional(),
+    onsite_contact: z.string().trim().max(200).nullable().optional(),
+    door_orientation: z.string().trim().max(120).nullable().optional(),
+    payment_details: z.string().trim().max(200).nullable().optional(),
 
-  // Optional overrides on DB-sourced defaults. When omitted the
-  // resolver uses sold.invoice_notes (receipt_note) and a derived
-  // "1 {size} Weather Tight Container" (receipt_summary).
-  receipt_note: z.string().trim().max(500).nullable().optional(),
-  receipt_summary: z.string().trim().max(120).nullable().optional(),
+    // Optional overrides on DB-sourced defaults. When omitted the
+    // resolver uses sold.invoice_notes (receipt_note) and a derived
+    // "1 {size} Weather Tight Container" (receipt_summary).
+    receipt_note: z.string().trim().max(500).nullable().optional(),
+    receipt_summary: z.string().trim().max(120).nullable().optional(),
 
-  // Override the delivery address (the customer's billing address
-  // may not be where the box is going). Each subfield is optional;
-  // the resolver fills missing pieces from the clients row.
-  delivery_address: deliveryAddress.optional(),
+    // Override the delivery address (the customer's billing address
+    // may not be where the box is going). Each subfield is optional;
+    // the resolver fills missing pieces from the clients row.
+    delivery_address: deliveryAddress.optional(),
 
-  // Free-text notes block rendered below the form fields.
-  notes: z.string().trim().max(1000).nullable().optional(),
-});
+    // Free-text notes block rendered below the form fields.
+    notes: z.string().trim().max(1000).nullable().optional(),
+  })
+  .refine(
+    (v) => (v.container_id != null) !== (v.sh_box_id != null),
+    {
+      message: 'Provide exactly one of container_id or sh_box_id',
+      path: ['container_id'],
+    },
+  );
 
 const ioReportParams = z.object({
   start_date: isoDate,

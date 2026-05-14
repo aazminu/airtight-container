@@ -12,16 +12,6 @@ import {
 import type { DeliveryData } from './types';
 import styles from './DeliveryTemplate.module.css';
 
-const fmtCurrency = (v: number | string | null | undefined): string => {
-  if (v == null || v === '') return '—';
-  const n = typeof v === 'string' ? Number(v) : v;
-  if (!Number.isFinite(n)) return '—';
-  return `$${n.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-};
-
 const fmtDate = (iso: string | null): string => {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-US', {
@@ -46,12 +36,13 @@ const fmtDateTime = (iso: string | null): string => {
   })}`;
 };
 
+// Letter-only one-page delivery sheet. Modifications were intentionally
+// removed — they belong on the invoice. Layout is tuned to fit on a
+// single page after typical operator-entered fields are filled in.
+
 export default function DeliveryTemplate({ data }: { data: DeliveryData }) {
   const { customer, container, delivery_address: addr } = data;
 
-  // The TO party is the recipient at the delivery site. We prefer the
-  // delivery-address overrides over the customer of record, since the
-  // legacy doc warned these may differ.
   const toParty: Party = {
     primary:
       addr.name ||
@@ -106,13 +97,6 @@ export default function DeliveryTemplate({ data }: { data: DeliveryData }) {
         </div>
       </div>
 
-      <div className={styles.receiptSummary}>
-        <span className={styles.receiptSummaryLabel}>Delivery receipt</span>
-        <span className={styles.receiptSummaryValue}>
-          {container.receipt_summary}
-        </span>
-      </div>
-
       <SectionTitle>Delivery</SectionTitle>
 
       <dl className={styles.detailGrid}>
@@ -125,42 +109,15 @@ export default function DeliveryTemplate({ data }: { data: DeliveryData }) {
         <DetailLine
           label="Payment pickup"
           value={data.payment_details}
-          wide
         />
       </dl>
 
       <div className={styles.pickupRow}>
-        <div className={styles.pickupBlock}>
-          <span className={styles.pickupLabel}>Pickup location</span>
-          <span className={styles.pickupValue}>
-            Airtight Storage · 41 Wilson Avenue · Manalapan, NJ 07726
-          </span>
-        </div>
+        <span className={styles.pickupLabel}>Pickup location</span>
+        <span className={styles.pickupValue}>
+          Airtight Storage · 41 Wilson Avenue · Manalapan, NJ 07726
+        </span>
       </div>
-
-      {data.modifications.length > 0 && (
-        <>
-          <SectionTitle>Modifications</SectionTitle>
-          <table className={styles.modList}>
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th style={{ textAlign: 'right' }}>Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.modifications.map((m, i) => (
-                <tr key={i}>
-                  <td>{m.description}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    {fmtCurrency(m.price)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
 
       {data.notes && (
         <div className={styles.notesBlock}>
@@ -200,16 +157,12 @@ export default function DeliveryTemplate({ data }: { data: DeliveryData }) {
 function DetailLine({
   label,
   value,
-  wide = false,
 }: {
   label: string;
   value: string | null;
-  wide?: boolean;
 }) {
   return (
-    <div
-      className={`${styles.detailLine} ${wide ? styles.detailLineWide : ''}`}
-    >
+    <div className={styles.detailLine}>
       <dt className={styles.detailLineLabel}>{label}</dt>
       <dd className={styles.detailLineValue}>{value ?? '—'}</dd>
     </div>

@@ -124,7 +124,22 @@ async function submitReport(
 // Delivery sheet flow (Stepper-based, mirrors CreateInvoice)
 // ──────────────────────────────────────────────────────────────────────
 
-interface InventoryRow {
+// Two source types: sales containers (inventory.id) and S&H boxes
+// (sh_inventory.id). Picker tags each entry; on pick, the form sets
+// either container_id or sh_box_id (never both).
+type PickerSource = 'sales' | 'sh';
+
+interface PickerOption {
+  source: PickerSource;
+  id: number;
+  unit_number: string;
+  size: string;
+  damage: string | null;
+  state_label: string;
+  client_label: string | null; // populated for S&H boxes
+}
+
+interface SalesInventoryRow {
   id: number;
   unit_number: string;
   size: string;
@@ -132,10 +147,22 @@ interface InventoryRow {
   state: string;
 }
 
+interface ShBoxRow {
+  id: number;
+  unit_number: string;
+  size: string;
+  damage: string | null;
+  state: string;
+  client_name: string;
+  business_name: string | null;
+}
+
 interface DeliveryParamState {
   container_id: number | null;
+  sh_box_id: number | null;
   client_id: string;            // string so empty stays empty
-  delivery_date: string;
+  delivery_date_date: string;   // YYYY-MM-DD (date picker)
+  delivery_date_time: string;   // HH:MM (time picker)
   delivery_company: string;
   onsite_contact: string;
   door_orientation: string;
@@ -150,8 +177,10 @@ interface DeliveryParamState {
 
 const EMPTY_DELIVERY: DeliveryParamState = {
   container_id: null,
+  sh_box_id: null,
   client_id: '',
-  delivery_date: '',
+  delivery_date_date: '',
+  delivery_date_time: '',
   delivery_company: '',
   onsite_contact: '',
   door_orientation: '',
@@ -167,10 +196,24 @@ const EMPTY_DELIVERY: DeliveryParamState = {
 const STEP_NAMES = ['Container', 'Customer', 'Details', 'Preview', 'Done'] as const;
 
 function buildDeliveryParams(s: DeliveryParamState): Record<string, unknown> {
-  const params: Record<string, unknown> = { container_id: s.container_id };
+  const params: Record<string, unknown> = {};
+  if (s.sh_box_id != null) params.sh_box_id = s.sh_box_id;
+  else if (s.container_id != null) params.container_id = s.container_id;
+
   if (s.client_id.trim()) params.client_id = parseInt(s.client_id, 10);
-  if (s.delivery_date)
-    params.delivery_date = new Date(s.delivery_date).toISOString();
+
+  // Combine date + time into a single ISO string. If only date is set,
+  // treat as midnight local; if only time is set, ignore (no reference
+  // day). Empty leaves the resolver default (sold.outbound_date /
+  // sh_inventory.checkout_date) in place.
+  if (s.delivery_date_date) {
+    const time = s.delivery_date_time || '00:00';
+    const local = new Date(`${s.delivery_date_date}T${time}`);
+    if (!Number.isNaN(local.getTime())) {
+      params.delivery_date = local.toISOString();
+    }
+  }
+
   if (s.delivery_company.trim()) params.delivery_company = s.delivery_company.trim();
   if (s.onsite_contact.trim()) params.onsite_contact = s.onsite_contact.trim();
   if (s.door_orientation.trim()) params.door_orientation = s.door_orientation.trim();
@@ -186,15 +229,19 @@ function buildDeliveryParams(s: DeliveryParamState): Record<string, unknown> {
   return params;
 }
 
+// The preview endpoint surfaces this exact substring when the sales
+// path can't find an invoice. Hide the client_id fallback unless we
+// see it.
+const NO_INVOICE_MARKER = 'has no invoice and no client_id';
+
 function DeliveryFlow() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
-  const [inventory, setInventory] = useState<InventoryRow[]>([]);
+  const [options, setOptions] = useState<PickerOption[]>([]);
+  const [optionsLoading, setOptionsLoading] = useState(true);
   const [containerSearch, setContainerSearch] = useState('');
   const [params, setParams] = useState<DeliveryParamState>(EMPTY_DELIVERY);
 
-  // Auto-resolved data for the customer step + preview. Refreshed when
-  // the container changes or the operator clicks "Refresh preview".
   const [preview, setPreview] = useState<DeliveryData | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -206,20 +253,57 @@ function DeliveryFlow() {
     | { kind: 'done'; id: number }
   >({ kind: 'idle' });
 
-  // Load inventory once. The picker filters to sold/outbound/available
-  // boxes — delivery sheets are typically generated for sold containers
-  // about to leave the yard.
+  // Load both sales inventory (sold/outbound) and S&H boxes (in_storage).
+  // Delivery sheets only make sense for boxes that are about to leave
+  // the yard — available containers aren't bound to a customer yet.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/v1/inventory', { credentials: 'include' });
-        if (!res.ok) return;
-        const body = await res.json();
+        const [salesRes, shRes] = await Promise.all([
+          fetch('/api/v1/inventory', { credentials: 'include' }),
+          fetch('/api/v2/sh-inventory', { credentials: 'include' }),
+        ]);
+        const salesBody = salesRes.ok ? await salesRes.json() : null;
+        const shBody = shRes.ok ? await shRes.json() : null;
         if (cancelled) return;
-        setInventory(body?.data?.inventory ?? []);
+
+        const sales: PickerOption[] = (
+          salesBody?.data?.inventory ?? ([] as SalesInventoryRow[])
+        )
+          .filter(
+            (r: SalesInventoryRow) =>
+              r.state === 'sold' || r.state === 'outbound',
+          )
+          .map((r: SalesInventoryRow) => ({
+            source: 'sales' as const,
+            id: r.id,
+            unit_number: r.unit_number,
+            size: r.size,
+            damage: r.damage,
+            state_label: r.state,
+            client_label: null,
+          }));
+
+        const sh: PickerOption[] = (
+          shBody?.data?.boxes ?? ([] as ShBoxRow[])
+        )
+          .filter((r: ShBoxRow) => r.state === 'in_storage' || r.state === 'checked_out')
+          .map((r: ShBoxRow) => ({
+            source: 'sh' as const,
+            id: r.id,
+            unit_number: r.unit_number,
+            size: r.size,
+            damage: r.damage,
+            state_label: r.state,
+            client_label: r.business_name || r.client_name,
+          }));
+
+        setOptions([...sales, ...sh]);
       } catch {
-        // Non-fatal: empty picker + hint.
+        // Non-fatal: empty picker.
+      } finally {
+        if (!cancelled) setOptionsLoading(false);
       }
     })();
     return () => {
@@ -227,33 +311,47 @@ function DeliveryFlow() {
     };
   }, []);
 
-  const filteredInventory = useMemo(() => {
+  const filteredOptions = useMemo(() => {
     const q = containerSearch.trim().toLowerCase();
-    return inventory
-      .filter(
-        (r) =>
-          r.state === 'sold' ||
-          r.state === 'outbound' ||
-          r.state === 'available',
-      )
-      .filter(
-        (r) =>
-          !q ||
-          r.unit_number?.toLowerCase().includes(q) ||
-          r.size?.toLowerCase().includes(q) ||
-          r.damage?.toLowerCase().includes(q),
+    if (!q) return options;
+    return options.filter(
+      (r) =>
+        r.unit_number?.toLowerCase().includes(q) ||
+        r.size?.toLowerCase().includes(q) ||
+        r.damage?.toLowerCase().includes(q) ||
+        r.client_label?.toLowerCase().includes(q),
+    );
+  }, [options, containerSearch]);
+
+  const selected = useMemo(() => {
+    if (params.container_id != null)
+      return options.find(
+        (r) => r.source === 'sales' && r.id === params.container_id,
       );
-  }, [inventory, containerSearch]);
+    if (params.sh_box_id != null)
+      return options.find(
+        (r) => r.source === 'sh' && r.id === params.sh_box_id,
+      );
+    return null;
+  }, [options, params.container_id, params.sh_box_id]);
 
-  const selected = useMemo(
-    () => inventory.find((r) => r.id === params.container_id) ?? null,
-    [inventory, params.container_id],
-  );
+  const isShPath = params.sh_box_id != null;
 
-  // Helper used by the Customer step + Preview step. Returns the
-  // resolved DeliveryData for the *current* form state.
+  // No-invoice fallback is only relevant on the sales path AND when the
+  // preview-resolve actually surfaced it. S&H boxes always have a
+  // linked client, so we never show the fallback for them.
+  const showInvoiceFallback =
+    !isShPath &&
+    previewError != null &&
+    previewError.includes(NO_INVOICE_MARKER);
+
+  const pickSales = (id: number) =>
+    setParams((p) => ({ ...p, container_id: id, sh_box_id: null }));
+  const pickSh = (id: number) =>
+    setParams((p) => ({ ...p, sh_box_id: id, container_id: null }));
+
   const fetchPreview = async () => {
-    if (!params.container_id) return;
+    if (params.container_id == null && params.sh_box_id == null) return;
     setPreviewLoading(true);
     setPreviewError(null);
     try {
@@ -269,6 +367,7 @@ function DeliveryFlow() {
       const body = await res.json();
       if (!res.ok) {
         setPreviewError(body?.message ?? `HTTP ${res.status}`);
+        setPreview(null);
         return;
       }
       setPreview(body?.data?.resolved_data as DeliveryData);
@@ -287,14 +386,17 @@ function DeliveryFlow() {
   };
 
   const canAdvance = () => {
-    if (step === 0) return params.container_id != null;
-    if (step === 1) return previewError == null; // require a clean preview-resolve
+    if (step === 0)
+      return params.container_id != null || params.sh_box_id != null;
+    if (step === 1) {
+      // Require a clean resolver — either we got the customer or the
+      // operator filled the fallback (and a refresh has cleared the
+      // error).
+      return preview != null && previewError == null;
+    }
     return true;
   };
 
-  // When entering the Customer step, kick off a preview-resolve so the
-  // user sees the auto-pulled customer + container metadata. Same on
-  // entering the Preview step so any param changes are reflected.
   const goNext = async () => {
     const next = Math.min(STEP_NAMES.length - 1, step + 1);
     if (next === 1 || next === 3) {
@@ -304,7 +406,7 @@ function DeliveryFlow() {
   };
 
   const submit = async () => {
-    if (!params.container_id) return;
+    if (params.container_id == null && params.sh_box_id == null) return;
     setSubmitState({ kind: 'submitting' });
     const result = await submitReport(
       'delivery_sheet',
@@ -338,35 +440,52 @@ function DeliveryFlow() {
           {/* Step 0 — Container */}
           <FlowStep>
             <p className={styles.hint}>
-              Pick the container this delivery sheet is for. Available, sold, and
-              outbound boxes are eligible.
+              Pick the container this delivery sheet is for. Sold/outbound
+              sales boxes and stored S&H boxes are eligible.
             </p>
             <input
               type="search"
               className={styles.search}
-              placeholder="Search unit #, size, condition…"
+              placeholder="Search unit #, size, client…"
               value={containerSearch}
               onChange={(e) => setContainerSearch(e.target.value)}
             />
             <div className={styles.list}>
-              {filteredInventory.length === 0 && (
+              {optionsLoading && (
+                <div className={styles.empty}>Loading containers…</div>
+              )}
+              {!optionsLoading && filteredOptions.length === 0 && (
                 <div className={styles.empty}>No containers match the search.</div>
               )}
-              {filteredInventory.map((row) => {
-                const checked = params.container_id === row.id;
+              {filteredOptions.map((row) => {
+                const checked =
+                  row.source === 'sales'
+                    ? params.container_id === row.id
+                    : params.sh_box_id === row.id;
                 return (
                   <button
-                    key={row.id}
+                    key={`${row.source}-${row.id}`}
                     type="button"
                     className={`${styles.optionRow} ${checked ? styles.checked : ''}`}
-                    onClick={() => updateField('container_id', row.id)}
+                    onClick={() =>
+                      row.source === 'sales' ? pickSales(row.id) : pickSh(row.id)
+                    }
                   >
                     <input type="radio" checked={checked} readOnly tabIndex={-1} />
                     <span className={styles.optionRowName}>
+                      <span
+                        className={
+                          row.source === 'sales' ? styles.tagSales : styles.tagSh
+                        }
+                      >
+                        {row.source === 'sales' ? 'Sales' : 'S&H'}
+                      </span>{' '}
                       {row.unit_number.trim()}
                     </span>
                     <span className={styles.optionRowMeta}>
-                      {row.size} · {row.damage || '—'} · {row.state}
+                      {row.size} · {row.damage || '—'}
+                      {row.client_label ? ` · ${row.client_label}` : ''} ·{' '}
+                      {row.state_label}
                     </span>
                   </button>
                 );
@@ -380,8 +499,9 @@ function DeliveryFlow() {
               {selected ? (
                 <>
                   Selected: <strong>{selected.unit_number.trim()}</strong> (
-                  {selected.size}). Customer + delivery address auto-pulled from
-                  the invoice — override below if needed.
+                  {selected.size}
+                  {selected.source === 'sh' ? ', S&H box' : ''}). Customer +
+                  delivery address auto-pulled — override below if needed.
                 </>
               ) : (
                 'Pick a container first.'
@@ -389,13 +509,14 @@ function DeliveryFlow() {
             </p>
 
             {previewLoading && <div className={styles.hint}>Resolving customer…</div>}
-            {previewError && (
-              <div className={styles.error}>
-                Could not resolve customer:{' '}
-                {previewError.includes('no invoice')
-                  ? previewError +
-                    ' — supply a client_id below to use the no-invoice fallback.'
-                  : previewError}
+            {previewError && !showInvoiceFallback && (
+              <div className={styles.error}>{previewError}</div>
+            )}
+            {previewError && showInvoiceFallback && (
+              <div className={styles.warningBlock}>
+                This container hasn't been invoiced yet. Enter the buying
+                client's ID below to use the no-invoice fallback, then click
+                "Refresh resolved customer".
               </div>
             )}
 
@@ -413,53 +534,68 @@ function DeliveryFlow() {
               </div>
             )}
 
-            <div className={styles.fieldGrid}>
-              <Field label="Client ID (fallback)" hint="Only needed if the container has no invoice yet">
-                <input
-                  type="number"
-                  className={styles.input}
-                  value={params.client_id}
-                  onChange={(e) => updateField('client_id', e.target.value)}
-                  placeholder="e.g. 7"
-                />
-              </Field>
-            </div>
+            {showInvoiceFallback && (
+              <div className={styles.fieldGrid}>
+                <Field
+                  label="Client ID (no-invoice fallback)"
+                  hint="Used because the container has no invoice yet"
+                >
+                  <input
+                    type="number"
+                    className={styles.input}
+                    value={params.client_id}
+                    onChange={(e) => updateField('client_id', e.target.value)}
+                    placeholder="e.g. 7"
+                  />
+                </Field>
+              </div>
+            )}
 
-            <div className={styles.sectionTitle}>Delivery address override</div>
-            <p className={styles.fieldHint}>
-              The customer's billing address is auto-filled; override here when the
-              container is going somewhere different.
-            </p>
-            <div className={styles.fieldGrid}>
-              <Field label="Recipient name on site">
-                <input
-                  className={styles.input}
-                  value={params.addr_name}
-                  onChange={(e) => updateField('addr_name', e.target.value)}
-                />
-              </Field>
-              <Field label="Street">
-                <input
-                  className={styles.input}
-                  value={params.addr_street}
-                  onChange={(e) => updateField('addr_street', e.target.value)}
-                />
-              </Field>
-              <Field label="City, State Zip" wide>
-                <input
-                  className={styles.input}
-                  value={params.addr_locality}
-                  onChange={(e) => updateField('addr_locality', e.target.value)}
-                  placeholder="Toms River, NJ 08753"
-                />
-              </Field>
+            <div className={styles.addressCard}>
+              <div className={styles.addressCardHead}>
+                Delivery address override
+              </div>
+              <p className={styles.addressCardHint}>
+                The customer's billing address is auto-filled at preview time
+                from the resolver. Fill these in only when the container is
+                going somewhere different.
+              </p>
+              <div className={styles.fieldGrid}>
+                <Field label="Recipient name on site">
+                  <input
+                    className={styles.input}
+                    value={params.addr_name}
+                    onChange={(e) => updateField('addr_name', e.target.value)}
+                    placeholder="John Doe"
+                  />
+                </Field>
+                <Field label="Street">
+                  <input
+                    className={styles.input}
+                    value={params.addr_street}
+                    onChange={(e) => updateField('addr_street', e.target.value)}
+                    placeholder="418 Shoreline Dr"
+                  />
+                </Field>
+                <Field label="City, State Zip" wide>
+                  <input
+                    className={styles.input}
+                    value={params.addr_locality}
+                    onChange={(e) => updateField('addr_locality', e.target.value)}
+                    placeholder="Toms River, NJ 08753"
+                  />
+                </Field>
+              </div>
             </div>
 
             <button
               type="button"
               className={styles.linkBtn}
               onClick={fetchPreview}
-              disabled={previewLoading || !params.container_id}
+              disabled={
+                previewLoading ||
+                (params.container_id == null && params.sh_box_id == null)
+              }
             >
               Refresh resolved customer
             </button>
@@ -472,12 +608,24 @@ function DeliveryFlow() {
               anything left blank just won't appear on the sheet.
             </p>
             <div className={styles.fieldGrid}>
-              <Field label="Delivery date / time">
+              <Field label="Delivery date">
                 <input
-                  type="datetime-local"
+                  type="date"
                   className={styles.input}
-                  value={params.delivery_date}
-                  onChange={(e) => updateField('delivery_date', e.target.value)}
+                  value={params.delivery_date_date}
+                  onChange={(e) =>
+                    updateField('delivery_date_date', e.target.value)
+                  }
+                />
+              </Field>
+              <Field label="Delivery time">
+                <input
+                  type="time"
+                  className={styles.input}
+                  value={params.delivery_date_time}
+                  onChange={(e) =>
+                    updateField('delivery_date_time', e.target.value)
+                  }
                 />
               </Field>
               <Field label="Delivery company">

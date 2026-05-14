@@ -19,10 +19,26 @@ describe('createReportSchema', () => {
     expect(r.success).toBe(true);
   });
 
-  it('rejects a delivery_sheet payload missing container_id', () => {
+  it('rejects a delivery_sheet payload missing both container_id and sh_box_id', () => {
     const r = createReportSchema.safeParse({
       report_type: 'delivery_sheet',
       parameters: {},
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('accepts a delivery_sheet for an S&H box (sh_box_id branch)', () => {
+    const r = createReportSchema.safeParse({
+      report_type: 'delivery_sheet',
+      parameters: { sh_box_id: 12 },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects a delivery_sheet with both container_id and sh_box_id set', () => {
+    const r = createReportSchema.safeParse({
+      report_type: 'delivery_sheet',
+      parameters: { container_id: 1, sh_box_id: 2 },
     });
     expect(r.success).toBe(false);
   });

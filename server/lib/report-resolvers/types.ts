@@ -38,7 +38,6 @@ export interface DeliveryData {
   door_orientation: string | null;
   payment_details: string | null;
   receipt_note: string | null;
-  modifications: { description: string; price: number | string | null }[];
   notes: string | null;
 }
 
