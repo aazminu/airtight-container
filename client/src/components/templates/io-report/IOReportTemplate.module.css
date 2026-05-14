@@ -1,0 +1,86 @@
+/*
+ * I/O report styles. Brand atoms live in templates/shared/.
+ */
+
+.section {
+  margin-bottom: 0.4in;
+}
+
+.countBanner {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px;
+  margin: 0 0 12px;
+  background: #f4f1e6;
+  border-left: 3px solid #0a0e1a;
+}
+
+.countLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-size: 8pt;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5a6478;
+}
+
+.countValue {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11pt;
+  font-weight: 500;
+  color: #0a0e1a;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+
+.table thead th {
+  text-align: left;
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  color: #5a6478;
+  padding: 7px 6px;
+  border-bottom: 1px solid #2a3142;
+}
+
+.table tbody td {
+  padding: 6px;
+  border-top: 1px solid #e3e2dc;
+  vertical-align: top;
+}
+
+.table tbody tr:first-child td {
+  border-top: 0;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 1px solid #2a3142;
+}
+
+.colUnit {
+  width: 22%;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8.5pt;
+}
+
+.colSize { width: 12%; }
+.colDate { width: 18%; }
+.colParty { width: 38%; }
+.colRelease {
+  width: 10%;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8pt;
+  color: #5a6478;
+}
+
+.emptyRow {
+  padding: 12px 6px;
+  font-size: 9pt;
+  color: #5a6478;
+  font-style: italic;
+}

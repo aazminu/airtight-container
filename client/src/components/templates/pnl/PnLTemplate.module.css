@@ -1,0 +1,114 @@
+/*
+ * P&L report styles. Brand atoms live in templates/shared/.
+ */
+
+.summaryCards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 0.4in;
+}
+
+.card {
+  padding: 18px 20px;
+  background: #f4f1e6;
+  border: 1px solid #2a3142;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cardLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 8.5pt;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #5a6478;
+}
+
+.cardValue {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 700;
+  font-size: 18pt;
+  letter-spacing: -0.005em;
+  font-variant-numeric: tabular-nums;
+  color: #0a0e1a;
+}
+
+.cardSubtle {
+  font-size: 8.5pt;
+  color: #5a6478;
+  font-variant-numeric: tabular-nums;
+}
+
+.section {
+  margin-bottom: 0.35in;
+}
+
+.lineTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5pt;
+}
+
+.lineTable td {
+  padding: 6px 8px;
+  border-top: 1px solid #e3e2dc;
+}
+
+.lineTable tbody tr:first-child td {
+  border-top: 0;
+}
+
+.lineTable tbody tr:last-child td {
+  border-bottom: 1px solid #2a3142;
+}
+
+.lineLabel {
+  width: 65%;
+  color: #5a6478;
+}
+
+.lineValue {
+  width: 35%;
+  text-align: right;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #0a0e1a;
+}
+
+.subtleRow .lineLabel,
+.subtleRow .lineValue {
+  font-size: 8.5pt;
+  color: #5a6478;
+}
+
+.grandRow td {
+  border-top: 1px solid #2a3142 !important;
+  padding-top: 12px !important;
+}
+
+.grandRow .lineLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  text-transform: uppercase;
+  font-size: 11pt;
+  color: #0a0e1a;
+}
+
+.grandRow .lineValue {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 700;
+  font-size: 14pt;
+  color: #0a0e1a;
+}
+
+.profit {
+  color: #1e6e3a !important;
+}
+
+.loss {
+  color: #a32a2a !important;
+}

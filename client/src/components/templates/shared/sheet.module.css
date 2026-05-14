@@ -1,0 +1,264 @@
+/*
+ * Brand atoms for every printable Airtight template (invoice + the
+ * four report types). Single source of truth: any change here propagates
+ * to every template. Hardcoded colors are intentional — these are the
+ * paper-cream + navy print palette and do not respond to the UI theme.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+/* ── Sheet ─────────────────────────────────────────────────── */
+.sheet {
+  width: 8.5in;
+  min-height: 11in;
+  padding: 0.75in 0.85in 0.65in;
+  background: #fdfcf8;
+  color: #0a0e1a;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 10pt;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header strip ──────────────────────────────────────────── */
+.header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.6in;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+}
+
+.logo {
+  width: 180px;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.docMeta {
+  text-align: right;
+}
+
+.docTitle {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 32pt;
+  line-height: 1;
+  color: #0a0e1a;
+  margin-bottom: 0.14in;
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+}
+
+.docTitleSm {
+  font-size: 26pt;
+}
+
+.metaList {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 14px;
+  row-gap: 4px;
+  justify-content: end;
+  margin: 0;
+}
+
+.metaRow {
+  display: contents;
+}
+
+.metaRow dt {
+  color: #5a6478;
+  font-size: 8.25pt;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 500;
+  align-self: center;
+}
+
+.metaRow dd {
+  margin: 0;
+  font-weight: 500;
+  text-align: right;
+  font-size: 10pt;
+  font-variant-numeric: tabular-nums;
+}
+
+.divider {
+  margin: 0.3in 0 0.3in;
+  border: 0;
+  border-top: 1px solid #2a3142;
+}
+
+/* ── Parties block ─────────────────────────────────────────── */
+.parties {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5in;
+  margin-bottom: 0.3in;
+}
+
+.partyBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.partyName {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 700;
+  font-size: 11pt;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+
+.partyLine {
+  font-size: 9.75pt;
+  line-height: 1.45;
+}
+
+.partyLineMuted {
+  font-size: 9.75pt;
+  line-height: 1.45;
+  color: #5a6478;
+}
+
+.connector {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 16pt;
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+  color: #0a0e1a;
+}
+
+/* ── Inline "Deliver to" / similar accent banner ───────────── */
+.banner {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 0;
+  margin-bottom: 0.3in;
+}
+
+.bannerLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 10pt;
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+  color: #0a0e1a;
+}
+
+.bannerValue {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  font-size: 11pt;
+  color: #0a0e1a;
+  letter-spacing: -0.005em;
+}
+
+/* ── Footer ────────────────────────────────────────────────── */
+.footer {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 8.5pt;
+  color: #5a6478;
+  border-top: 1px solid #d8d6cd;
+  padding-top: 12px;
+}
+
+.footerAddr {
+  font-size: 8.5pt;
+}
+
+/* ── Section heading for body sections inside the template ─── */
+.sectionTitle {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 11pt;
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+  color: #0a0e1a;
+  margin: 0 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2a3142;
+}
+
+/* ── Generic table base shared by every report's body table ─ */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+
+.table thead th {
+  text-align: left;
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  color: #5a6478;
+  padding: 7px 6px;
+  border-bottom: 1px solid #2a3142;
+}
+
+.table tbody td {
+  padding: 7px 6px;
+  vertical-align: top;
+  border-top: 1px solid #e3e2dc;
+}
+
+.table tbody tr:first-child td {
+  border-top: 0;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 1px solid #2a3142;
+}
+
+.tableNum {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tableMono {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8pt;
+}
+
+.tableMuted {
+  color: #5a6478;
+}
+
+/* ── Print rules for the shared structure ─────────────────── */
+@page {
+  size: letter;
+  margin: 0;
+}
+
+@media print {
+  .table thead {
+    display: table-header-group;
+  }
+  .table tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .footer {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
