@@ -19,6 +19,7 @@ import {
 	renderAndStoreReportPdf,
 	getReportPdfBytes,
 } from "../../lib/report-pdf.js";
+import { deleteObject } from "../../lib/s3.js";
 
 const router = express.Router();
 
@@ -425,6 +426,14 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 	}
 });
 
+// Hard delete: drops the row AND the S3 PDF. Unlike invoices (which
+// keep PDFs on delete for the financial audit trail), reports are
+// operational artifacts — once the row is gone there's no FK pointing
+// at the PDF, so leaving it in S3 is just orphan junk.
+//
+// S3 cleanup is best-effort: if the SDK call fails we still report
+// success on the row delete. The DB is the source of truth; the
+// orphan is recoverable manually.
 router.delete("/:id", checkAdmin, async (req, res) => {
 	try {
 		const id = Number(req.params.id);
@@ -434,9 +443,20 @@ router.delete("/:id", checkAdmin, async (req, res) => {
 		const deleted = await drizzleDb
 			.delete(reports)
 			.where(eq(reports.id, id))
-			.returning({ id: reports.id });
+			.returning({ id: reports.id, pdf_s3_key: reports.pdf_s3_key });
 		if (deleted.length === 0) {
 			return res.status(404).json({ message: "Report not found" });
+		}
+		const pdfKey = deleted[0].pdf_s3_key;
+		if (pdfKey) {
+			try {
+				await deleteObject(pdfKey);
+			} catch (s3Err) {
+				console.error(
+					`reports.delete: row ${deleted[0].id} dropped but S3 cleanup failed for ${pdfKey}:`,
+					s3Err,
+				);
+			}
 		}
 		res.status(200).json({ status: "success", data: { id: deleted[0].id } });
 	} catch (err) {
