@@ -145,7 +145,6 @@ router.post("/add", checkEmployee, async (req, res) => {
 	try {
 		const { container, release } = req.body;
 		const releaseId = release[0].release_number_id;
-		const newCount = release[0].release_number_count - 1;
 
 		// release_number_id comes from the picker; sale_company_id is inherited
 		// from the release since every container's sale_company should match its
@@ -183,19 +182,22 @@ router.post("/add", checkEmployee, async (req, res) => {
 			]
 		);
 
-		// Decrement release count; mark complete when it hits 0
-		// (replaces the legacy DELETE-when-empty pattern per PLAN §4.3).
-		if (newCount <= 0) {
-			await db.query(
-				"UPDATE release_numbers SET release_number_count = 0, is_complete = true, completed_at = now() WHERE release_number_id = $1",
-				[releaseId]
-			);
-		} else {
-			await db.query(
-				"UPDATE release_numbers SET release_number_count = $1 WHERE release_number_id = $2",
-				[newCount, releaseId]
-			);
-		}
+		// release_number_count is the quota set at release creation and never
+		// decremented. When actual intake overshoots the quota (e.g. an 11th
+		// box logged against a 10-box release), bump the quota to match so the
+		// release summary report can't report a nonsense filled/quota ratio.
+		await db.query(
+			`UPDATE release_numbers
+			 SET release_number_count = filled.cnt
+			 FROM (
+			   SELECT COUNT(*)::int AS cnt
+			   FROM inventory
+			   WHERE release_number_id = $1
+			 ) filled
+			 WHERE release_number_id = $1
+			   AND release_number_count < filled.cnt`,
+			[releaseId]
+		);
 
 		// PR 2.8 auto-association: if this release has pre-loaded container
 		// numbers and one matches the new box's unit_number, mark it used.
@@ -209,10 +211,7 @@ router.post("/add", checkEmployee, async (req, res) => {
 			);
 		}
 
-		res.status(200).json({
-			status: "success",
-			data: { completed: newCount <= 0 },
-		});
+		res.status(200).json({ status: "success" });
 	} catch (err) {
 		console.error("inventory.add error:", err);
 		res.status(500).json({ message: "Internal server error" });
