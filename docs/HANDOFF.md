@@ -21,6 +21,7 @@ PRs 5.1 (schema + API) and 5.2 (brand-consistent templates) are merged into `2.0
 - **Dashboard P&L panel**: aggregate cards (sales revenue / cost / profit + S&H revenue) with month/quarter/year toggle + "Generate PDF" button. PDF generation runs through the same Puppeteer pipeline as invoices (`server/lib/pdf.ts`, PR 3.2).
 - **Reports list view**: tile grid mirroring `InvoicesGrid.tsx` (PR 3.3), with sidebar facet by `report_type`. Saved-report rows live in `reports` (PLAN §3.3).
 - **Mod-presets admin** lands in PR 5.5 as a Dashboard tab. The InvoiceEditor `<datalist>` switches from the hard-coded array (`client/src/components/forms/modificationPresets.ts`) to a fetch against `/api/v2/mod-presets`. Seed migration already inserted the four legacy entries with stable positions 0-3.
+- **Delivery template is letter-only.** The Phase 5 DeliveryTemplate is the 8.5x11 customer-facing artifact (signed at handover, kept by customer). The A80 thermal printer (Phase 7) gets a *separate* small-format slip — to be designed when the A80 spec sheet conversation happens. Don't try to make the letter template responsive-collapse to 80mm; it sacrifices the brand fidelity that's the whole point of this phase. PLAN §7 Phase 7 already specs the driver-receipt slip as a separate doc; that's the home for thermal.
 
 ### Phase 4 design decisions (locked 2026-05-14)
 
