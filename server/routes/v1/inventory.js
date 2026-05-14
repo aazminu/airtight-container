@@ -103,18 +103,23 @@ router.get("/", checkEmployee, async (req, res) => {
 	}
 });
 
+// PR 4.2: detail GET attaches presigned photo URLs so the editor can
+// render a lightbox strip on demand without precomputing URLs for every
+// row in the list response.
 router.get("/:id", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
 			"select * from inventory where id = $1",
 			[req.params.id]
 		);
+		const enriched = await attachPhotoUrls(results.rows);
 		res.status(200).json({
 			status: "success",
-			results: results.rows.length,
-			data: { inventory: results.rows },
+			results: enriched.length,
+			data: { inventory: enriched },
 		});
 	} catch (err) {
+		console.error("inventory.detail error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });

@@ -14,6 +14,9 @@ export interface ModalProps {
   closeOnEscape?: boolean;
   /** ARIA label when no visible title is rendered. */
   ariaLabel?: string;
+  /** 'md' (default, max-width 520px) or 'lg' (max-width 920px) for
+   *  two-pane editors. */
+  size?: 'md' | 'lg';
 }
 
 export function Modal({
@@ -24,6 +27,7 @@ export function Modal({
   closeOnBackdropClick = true,
   closeOnEscape = true,
   ariaLabel,
+  size = 'md',
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -51,7 +55,7 @@ export function Modal({
     >
       <div
         ref={dialogRef}
-        className={styles.dialog}
+        className={`${styles.dialog} ${size === 'lg' ? styles.lg : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={title ? undefined : ariaLabel}
