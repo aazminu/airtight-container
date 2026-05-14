@@ -297,12 +297,42 @@ export const sh_invoice_lines = pgTable('sh_invoice_lines', {
 
 // ---- reports ---------------------------------------------------------
 
-export const reports = pgTable('reports', {
-  id: serial('id').primaryKey(),
-  report_type: text('report_type').notNull(),
-  generated_by: text('generated_by').references(() => user.id),
-  generated_at: timestamp('generated_at', { withTimezone: true }).defaultNow(),
-  parameters: jsonb('parameters'),
-  pdf_s3_key: text('pdf_s3_key'),
-  emailed_to: text('emailed_to').array(),
-});
+export const reports = pgTable(
+  'reports',
+  {
+    id: serial('id').primaryKey(),
+    report_type: text('report_type').notNull(),
+    generated_by: text('generated_by').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    generated_at: timestamp('generated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    parameters: jsonb('parameters'),
+    pdf_s3_key: text('pdf_s3_key'),
+    emailed_to: text('emailed_to').array(),
+  },
+  (table) => ({
+    typeIdx: index('reports_type_idx').on(table.report_type),
+    generatedAtIdx: index('reports_generated_at_idx').on(table.generated_at),
+  }),
+);
+
+// Admin-editable modification description presets. Surfaced in the
+// invoice editor's <datalist> so the description input still accepts
+// free text but suggests the common billing items first. Replaces the
+// hard-coded array in client/src/components/forms/modificationPresets.ts.
+export const mod_presets = pgTable(
+  'mod_presets',
+  {
+    id: serial('id').primaryKey(),
+    label: text('label').notNull().unique(),
+    position: integer('position').notNull().default(0),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    positionIdx: index('mod_presets_position_idx').on(table.position),
+  }),
+);
