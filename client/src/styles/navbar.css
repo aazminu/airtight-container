@@ -188,6 +188,47 @@
   border-color: var(--danger);
 }
 
+/* ── Language toggle (EN / ES segmented control) ────────── */
+.langToggle {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 13px;
+  overflow: hidden;
+  background-color: var(--bg-surface-2);
+  height: 26px;
+}
+
+.langOption {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.langOption:hover {
+  color: var(--text-primary);
+}
+
+.langOption + .langOption {
+  border-left: 1px solid var(--border-strong);
+}
+
+.langOptionActive {
+  background-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+.langOptionActive:hover {
+  color: var(--accent-fg);
+}
+
 /* ── Pill theme toggle ──────────────────────────────────── */
 .themeToggle {
   position: relative;

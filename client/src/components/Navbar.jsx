@@ -1,15 +1,19 @@
 import React from "react";
 import { useContext, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import "../styles/navbar.css";
 import logo from "../assets/images/airtightfixed.png";
 import { userContext } from "../context/restaurantcontext";
 import { PendingAuditNav } from "./PendingAuditNav";
 import UserAvatar from "./UserAvatar";
+import { setLanguage } from "../i18n";
 
 function Navbar() {
 	const [showUserOps, setShowUserOps] = useState(false);
 	const { user, setUser, setPopup, theme, toggleTheme } = useContext(userContext);
 	const profileRef = useRef(null);
+	const { i18n } = useTranslation();
+	const currentLang = i18n.resolvedLanguage === "es" ? "es" : "en";
 
 	useEffect(() => {
 		if (!showUserOps) return;
@@ -88,6 +92,28 @@ function Navbar() {
 					)}
 				</nav>
 				<div className="navbarRight">
+					<div
+						className="langToggle"
+						role="group"
+						aria-label="Language"
+					>
+						<button
+							type="button"
+							className={`langOption${currentLang === "en" ? " langOptionActive" : ""}`}
+							onClick={() => setLanguage("en")}
+							aria-pressed={currentLang === "en"}
+						>
+							EN
+						</button>
+						<button
+							type="button"
+							className={`langOption${currentLang === "es" ? " langOptionActive" : ""}`}
+							onClick={() => setLanguage("es")}
+							aria-pressed={currentLang === "es"}
+						>
+							ES
+						</button>
+					</div>
 					<button
 						className="themeToggle"
 						onClick={toggleTheme}
