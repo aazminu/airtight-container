@@ -46,6 +46,51 @@ function pad2(n: number): string {
   return n.toString().padStart(2, '0');
 }
 
+// Step (granularity, period) backwards by N units. Used by the
+// dashboard timeseries endpoint to build the period array.
+export function previousPeriod(
+  granularity: PnlParams['granularity'],
+  period: string,
+  steps = 1,
+): string {
+  if (granularity === 'month') {
+    const m = /^(\d{4})-(\d{2})$/.exec(period);
+    if (!m) throw new Error(`Invalid month period: ${period}`);
+    let year = parseInt(m[1], 10);
+    let month = parseInt(m[2], 10) - steps;
+    while (month < 1) {
+      month += 12;
+      year -= 1;
+    }
+    while (month > 12) {
+      month -= 12;
+      year += 1;
+    }
+    return `${year}-${pad2(month)}`;
+  }
+  if (granularity === 'quarter') {
+    const m = /^(\d{4})-Q([1-4])$/.exec(period);
+    if (!m) throw new Error(`Invalid quarter period: ${period}`);
+    let year = parseInt(m[1], 10);
+    let q = parseInt(m[2], 10) - steps;
+    while (q < 1) {
+      q += 4;
+      year -= 1;
+    }
+    while (q > 4) {
+      q -= 4;
+      year += 1;
+    }
+    return `${year}-Q${q}`;
+  }
+  if (granularity === 'year') {
+    const m = /^(\d{4})$/.exec(period);
+    if (!m) throw new Error(`Invalid year period: ${period}`);
+    return `${parseInt(m[1], 10) - steps}`;
+  }
+  throw new Error(`Unsupported granularity: ${granularity}`);
+}
+
 export function resolvePeriod(
   granularity: PnlParams['granularity'],
   period: string,

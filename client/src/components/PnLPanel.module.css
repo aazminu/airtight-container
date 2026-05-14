@@ -1,7 +1,7 @@
 .panel {
-  max-width: 1100px;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 1rem 0.5rem 2rem;
+  padding: 0.5rem 0.5rem 2rem;
   color: var(--text);
 }
 
@@ -104,10 +104,11 @@
   border-radius: 8px;
 }
 
-.cards {
+.cards,
+.kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.875rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
   margin-bottom: 1.25rem;
 }
 
@@ -218,4 +219,169 @@
   color: var(--muted);
   line-height: 1.5;
   font-style: italic;
+}
+
+/* ── chart cards ─────────────────────────────────────────────── */
+.chartCard {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.875rem 1rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.chartHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 0.625rem;
+}
+
+.chartTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.chartHint {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.chartEmpty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.duo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .duo {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── yard snapshot inner layout ──────────────────────────────── */
+.yardGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 600px) {
+  .yardGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.subTitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.legendList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.legendList li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legendValue {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.sizeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sizeRow {
+  display: grid;
+  grid-template-columns: 70px 1fr 48px;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+.sizeLabel {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.sizeBar {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--bg-surface-2);
+  overflow: hidden;
+}
+
+.sizeFill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.18s ease;
+}
+
+.sizeValue {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.yardFootRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.yardFootRow strong {
+  color: var(--text-primary);
+  font-weight: 700;
+  margin-right: 4px;
 }
