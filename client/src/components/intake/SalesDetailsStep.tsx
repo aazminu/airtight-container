@@ -70,6 +70,7 @@ export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }
           value={value.size}
           onChange={(e) => onChange({ size: e.target.value })}
           placeholder="20ft / 40ft / 40HC"
+          inputMode="text"
           required
         />
       </label>
@@ -81,6 +82,7 @@ export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }
           value={value.damage}
           onChange={(e) => onChange({ damage: e.target.value })}
           placeholder="As-is / minor dent rear door / etc."
+          inputMode="text"
           required
         />
       </label>
@@ -127,6 +129,7 @@ export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }
           value={value.trucking_company}
           onChange={(e) => onChange({ trucking_company: e.target.value })}
           placeholder="Who hauled it in (optional)"
+          autoComplete="organization"
         />
       </label>
 

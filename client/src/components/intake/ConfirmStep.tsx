@@ -53,6 +53,7 @@ export function ConfirmStep({ ocr, unitNumber, onChange, releaseMatch }: Props) 
           value={unitNumber}
           onChange={(e) => onChange(e.target.value.toUpperCase())}
           placeholder="e.g. TRHU2174232"
+          inputMode="text"
           autoCapitalize="characters"
           autoCorrect="off"
           spellCheck={false}

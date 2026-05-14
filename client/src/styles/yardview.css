@@ -196,6 +196,7 @@
 .yardScrollWrap {
 	overflow-x: auto;
 	flex: 1;
+	box-shadow: inset -20px 0 16px -16px rgba(0, 0, 0, 0.18);
 }
 
 /* The table inside each card fills the card */
@@ -292,7 +293,13 @@
 	font-size: 11px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
+	.inventoryInfo {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+@media (max-width: 768px) {
 	.yardReleasesSection,
 	.yardUnitSection {
 		padding: 16px 16px 0;
@@ -304,5 +311,10 @@
 
 	.inventoryInfo {
 		grid-template-columns: 1fr;
+	}
+
+	.releaseTableCard {
+		flex: 1 1 100%;
+		min-width: 0;
 	}
 }

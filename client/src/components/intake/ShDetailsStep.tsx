@@ -86,6 +86,7 @@ export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
             value={value.size}
             onChange={(e) => onChange({ size: e.target.value })}
             placeholder="20ft / 40ft / 40HC"
+            inputMode="text"
             required
           />
         </label>
@@ -96,6 +97,7 @@ export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
             value={value.damage}
             onChange={(e) => onChange({ damage: e.target.value })}
             placeholder="As-is / minor dent / etc."
+            inputMode="text"
           />
         </label>
       </div>
