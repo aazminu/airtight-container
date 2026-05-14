@@ -29,6 +29,11 @@ export const auditInventorySchema = z.object({
   size: z.string().trim().min(1).max(40).optional(),
   damage: z.string().trim().max(255).optional(),
   trucking_company: z.string().trim().max(120).nullable().optional(),
+  // Two-step confirm when changing unit_number touches release
+  // enumeration. First submit without this flag returns 409 with a
+  // conflict payload; admin reviews + retries with confirm_unit_rename
+  // set to true.
+  confirm_unit_rename: z.boolean().optional(),
 });
 
 export type AuditInventoryInput = z.infer<typeof auditInventorySchema>;

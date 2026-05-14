@@ -258,6 +258,71 @@ router.put(
 			const oldUnit = before.rows[0].unit_number;
 			const releaseId = before.rows[0].release_number_id;
 
+			// Audit-time safety: if the admin is renaming the unit number AND
+			// the rename will mutate release enumeration data (either the old
+			// unit was a real enumerated number in this release, or the new
+			// unit is enumerated under any release), surface the conflict and
+			// require explicit confirmation. Without this gate the cascade
+			// silently rewrites the wrong enumeration row when a misread box
+			// is being corrected to a different real container.
+			const proposedNorm = (b.unit_number ?? "").trim().toUpperCase();
+			const oldNormForCheck = (oldUnit ?? "").trim().toUpperCase();
+			if (
+				proposedNorm &&
+				proposedNorm !== oldNormForCheck &&
+				!b.confirm_unit_rename
+			) {
+				const oldLinked = releaseId
+					? await client.query(
+							`SELECT 1 FROM release_number_containers
+							 WHERE release_number_id = $1 AND container_number = $2`,
+							[releaseId, oldNormForCheck],
+						)
+					: { rows: [] };
+				const newLinked = await client.query(
+					`SELECT rnc.release_number_id, rn.release_number_value,
+					        sc.sale_company_name
+					 FROM release_number_containers rnc
+					 LEFT JOIN release_numbers rn ON rn.release_number_id = rnc.release_number_id
+					 LEFT JOIN sale_companies sc ON sc.sale_company_id = rn.sale_company_id
+					 WHERE rnc.container_number = $1`,
+					[proposedNorm],
+				);
+				if (oldLinked.rows.length > 0 || newLinked.rows.length > 0) {
+					const currentRelease = releaseId
+						? await client.query(
+								`SELECT rn.release_number_value, sc.sale_company_name
+								 FROM release_numbers rn
+								 LEFT JOIN sale_companies sc ON sc.sale_company_id = rn.sale_company_id
+								 WHERE rn.release_number_id = $1`,
+								[releaseId],
+							)
+						: { rows: [] };
+					await client.query("ROLLBACK");
+					return res.status(409).json({
+						status: "conflict",
+						code: "unit_rename_confirm_required",
+						message:
+							"Unit number change touches release enumeration. Confirm to proceed.",
+						details: {
+							old_unit: oldNormForCheck,
+							new_unit: proposedNorm,
+							old_unit_in_current_release: oldLinked.rows.length > 0,
+							current_release: currentRelease.rows[0] ?? null,
+							new_unit_linked_release: newLinked.rows[0]
+								? {
+										release_number_value:
+											newLinked.rows[0].release_number_value,
+										sale_company_name: newLinked.rows[0].sale_company_name,
+										is_other_release:
+											newLinked.rows[0].release_number_id !== releaseId,
+									}
+								: null,
+						},
+					});
+				}
+			}
+
 			const result = await client.query(
 				`UPDATE inventory SET
 					acquisition_price = COALESCE($1, acquisition_price),

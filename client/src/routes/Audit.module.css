@@ -178,6 +178,43 @@
   justify-content: flex-end;
 }
 
+.renameModalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.renameLead {
+  margin: 0;
+}
+
+.renameLead code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  background: var(--bg-surface-2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.renameImplications {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--text);
+}
+
+.renameImplications code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  background: var(--bg-surface-2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
 .error {
   color: var(--danger, #d1242f);
   background: rgba(209, 36, 47, 0.08);

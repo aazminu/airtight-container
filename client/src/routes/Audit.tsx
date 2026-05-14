@@ -1,6 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Badge, Button, PhotoLightbox } from '../components/ui';
+import { Badge, Button, Modal, PhotoLightbox } from '../components/ui';
 import styles from './Audit.module.css';
+
+interface UnitRenameConflict {
+  old_unit: string;
+  new_unit: string;
+  old_unit_in_current_release: boolean;
+  current_release: {
+    release_number_value: string;
+    sale_company_name: string | null;
+  } | null;
+  new_unit_linked_release: {
+    release_number_value: string;
+    sale_company_name: string | null;
+    is_other_release: boolean;
+  } | null;
+}
 
 interface PendingSalesBox {
   id: number;
@@ -260,8 +275,9 @@ function SalesRow({
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [renameConflict, setRenameConflict] = useState<UnitRenameConflict | null>(null);
 
-  const submit = async () => {
+  const submit = async (confirmUnitRename = false) => {
     setSubmitting(true);
     setError(null);
     try {
@@ -277,9 +293,21 @@ function SalesRow({
           acquisition_price: edit.acquisition_price || null,
           date: localInputToIso(edit.date),
           notes: edit.notes || null,
+          confirm_unit_rename: confirmUnitRename || undefined,
         }),
       });
+      if (res.status === 409) {
+        const body = (await res.json()) as {
+          code?: string;
+          details?: UnitRenameConflict;
+        };
+        if (body.code === 'unit_rename_confirm_required' && body.details) {
+          setRenameConflict(body.details);
+          return;
+        }
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setRenameConflict(null);
       onConfirmed();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
@@ -381,13 +409,93 @@ function SalesRow({
             <Button variant="ghost" onClick={onToggle} disabled={submitting}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={submit} disabled={submitting}>
+            <Button
+              variant="primary"
+              onClick={() => submit(false)}
+              disabled={submitting}
+            >
               {submitting ? 'Saving…' : 'Save & approve'}
             </Button>
           </div>
         </div>
       )}
+      <UnitRenameModal
+        conflict={renameConflict}
+        onCancel={() => setRenameConflict(null)}
+        onConfirm={() => {
+          setRenameConflict(null);
+          submit(true);
+        }}
+        busy={submitting}
+      />
     </div>
+  );
+}
+
+function UnitRenameModal({
+  conflict,
+  onCancel,
+  onConfirm,
+  busy,
+}: {
+  conflict: UnitRenameConflict | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+  busy: boolean;
+}) {
+  if (!conflict) return null;
+  const cur = conflict.current_release;
+  const newRel = conflict.new_unit_linked_release;
+  return (
+    <Modal
+      open={true}
+      onClose={onCancel}
+      title="Heads up — this rename touches release data"
+      closeOnBackdropClick={!busy}
+      closeOnEscape={!busy}
+    >
+      <div className={styles.renameModalBody}>
+        <p className={styles.renameLead}>
+          You’re changing the unit number from{' '}
+          <code>{conflict.old_unit}</code> to <code>{conflict.new_unit}</code>.
+          Saving will also update the release that this container is
+          recorded against. Read the implications before continuing.
+        </p>
+        <ul className={styles.renameImplications}>
+          {conflict.old_unit_in_current_release && cur && (
+            <li>
+              Release <strong>{cur.release_number_value}</strong>
+              {cur.sale_company_name ? ` (${cur.sale_company_name})` : ''}{' '}
+              currently has <code>{conflict.old_unit}</code> on its
+              container list. Saving renames that entry to{' '}
+              <code>{conflict.new_unit}</code>, so the release will no
+              longer remember <code>{conflict.old_unit}</code> as one of
+              its expected boxes.
+            </li>
+          )}
+          {newRel && (
+            <li>
+              <code>{conflict.new_unit}</code> is already listed under
+              release <strong>{newRel.release_number_value}</strong>
+              {newRel.sale_company_name
+                ? ` (${newRel.sale_company_name})`
+                : ''}
+              {newRel.is_other_release
+                ? '. This container is currently assigned to a different release — saving will not reassign it. If the box actually arrived under that other release, cancel and re-intake it under the correct release.'
+                : '.'}
+            </li>
+          )}
+        </ul>
+        <div className={styles.actions}>
+          <Button variant="ghost" onClick={onCancel} disabled={busy}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={onConfirm} disabled={busy}>
+            {busy ? 'Saving…' : 'Rename anyway'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
