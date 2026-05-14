@@ -94,6 +94,7 @@ html,
 body {
   background: var(--bg-page);
   color: var(--text);
+  font-family: var(--font-sans), system-ui, sans-serif;
 }
 
 /* Native date / time / datetime-local picker styling — browsers expose

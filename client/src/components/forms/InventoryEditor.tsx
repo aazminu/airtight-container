@@ -82,11 +82,17 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
   const [photoSrc, setPhotoSrc] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Passive read-only hint banner. Set when the user clicks a
+  // non-editable field (sale_co, release#, intake date, state,
+  // sold-row block); dismissed by the X. Doesn't steal focus or
+  // block the form — just explains where to make that change.
+  const [readOnlyHint, setReadOnlyHint] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(row);
     setConfirming(false);
     setPhotoUrls(null);
+    setReadOnlyHint(null);
   }, [row]);
 
   // Fetch photo URLs on open. The list endpoint omits presigned URLs;
@@ -188,6 +194,23 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
       closeOnBackdropClick={!saving}
       closeOnEscape={!saving}
     >
+      {readOnlyHint && (
+        <div className={styles.hintBanner} role="status">
+          <span className={styles.hintBannerIcon} aria-hidden="true">
+            ⚠
+          </span>
+          <span className={styles.hintBannerText}>{readOnlyHint}</span>
+          <button
+            type="button"
+            className={styles.hintBannerClose}
+            onClick={() => setReadOnlyHint(null)}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div className={styles.layout}>
         {/* ── Left: edit form ─────────────────────────────────── */}
         <section className={styles.pane}>
@@ -220,7 +243,9 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
                   <label className={styles.label}>{FIELD_LABELS[key]}</label>
                   <input
                     className={`${styles.input} ${changed ? styles.changed : ''}`}
-                    value={normalize(draft[key])}
+                    value={
+                      draft[key] == null ? '' : String(draft[key])
+                    }
                     onChange={set(key)}
                     type={key === 'acquisition_price' ? 'number' : 'text'}
                     step={key === 'acquisition_price' ? '0.01' : undefined}
@@ -230,27 +255,71 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
               );
             })}
 
-            {/* read-only display fields */}
-            <ReadOnlyField label="Sale Co." value={row.sale_company_name} hint="Driven by release #" wide={false} />
+            {/* read-only display fields. Clicking surfaces a passive
+                hint banner at the top explaining where to make the
+                change instead. */}
+            <ReadOnlyField
+              label="Sale Co."
+              value={row.sale_company_name}
+              hint="Driven by release #"
+              onAttemptEdit={() =>
+                setReadOnlyHint(
+                  'Sale company is derived from the container’s release number. Reassign the release on the Releases page to change it.',
+                )
+              }
+            />
             <ReadOnlyField
               label="Release #"
               value={row.release_number_value}
               hint="Reassign via Releases page"
-              wide={false}
+              onAttemptEdit={() =>
+                setReadOnlyHint(
+                  'Release numbers are managed on the Releases page. Reassign the container there to change this.',
+                )
+              }
             />
             <ReadOnlyField
               label="Intake date"
               value={row.date?.slice(0, 10) ?? null}
-              wide={false}
+              onAttemptEdit={() =>
+                setReadOnlyHint(
+                  'Intake date is set when the container arrives. Admin can override it from the Audit page while the container is pending audit.',
+                )
+              }
             />
             <ReadOnlyField
               label="State"
               value={row.state}
-              wide={false}
+              onAttemptEdit={() =>
+                setReadOnlyHint(
+                  'Container state advances via lifecycle actions: invoice creation marks the container sold; the driver receipt (Phase 7) will mark it outbound.',
+                )
+              }
             />
 
             {isSold && (
-              <div className={`${styles.readonlyField} ${styles.fieldWide}`}>
+              <div
+                role="button"
+                tabIndex={0}
+                className={`${styles.readonlyField} ${styles.readonlyClickable} ${styles.fieldWide}`}
+                onClick={() =>
+                  setReadOnlyHint(
+                    hasInvoice
+                      ? `Sale price, modification, destination, and outbound date live on invoice #${row.invoice_number}. Open the invoice detail page to change them.`
+                      : 'Sold-row fields are managed alongside the invoice. Open the matching invoice to change them.',
+                  )
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setReadOnlyHint(
+                      hasInvoice
+                        ? `Sale price, modification, destination, and outbound date live on invoice #${row.invoice_number}. Open the invoice detail page to change them.`
+                        : 'Sold-row fields are managed alongside the invoice. Open the matching invoice to change them.',
+                    );
+                  }
+                }}
+              >
                 <span className={styles.readonlyHint}>Sold-row fields</span>
                 <span className={styles.readonlyValue}>
                   Outbound: {row.outbound_date?.slice(0, 10) ?? '—'} ·{' '}
@@ -260,6 +329,7 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
                   <a
                     href={`/invoices/${row.invoice_number}`}
                     className={styles.readonlyLink}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     Edit on invoice page →
                   </a>
@@ -373,12 +443,35 @@ interface ReadOnlyFieldProps {
   value: string | number | null | undefined;
   hint?: string;
   wide?: boolean;
+  onAttemptEdit?: () => void;
 }
 
-function ReadOnlyField({ label, value, hint, wide }: ReadOnlyFieldProps) {
+function ReadOnlyField({
+  label,
+  value,
+  hint,
+  wide,
+  onAttemptEdit,
+}: ReadOnlyFieldProps) {
+  const interactive = !!onAttemptEdit;
   return (
     <div
-      className={`${styles.readonlyField} ${wide ? styles.fieldWide : ''}`}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      className={`${styles.readonlyField} ${
+        interactive ? styles.readonlyClickable : ''
+      } ${wide ? styles.fieldWide : ''}`}
+      onClick={onAttemptEdit}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onAttemptEdit!();
+              }
+            }
+          : undefined
+      }
     >
       <span className={styles.readonlyHint}>{label}</span>
       <span className={styles.readonlyValue}>
