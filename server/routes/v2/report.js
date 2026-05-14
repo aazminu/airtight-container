@@ -94,6 +94,38 @@ router.get("/:id", checkEmployee, async (req, res) => {
 	}
 });
 
+// Preview a report's resolved data without persisting a row. Used by
+// the multi-step generator forms (delivery sheet, etc.) to render the
+// in-progress template on the Preview step. Same validation as create,
+// same resolver, just no insert + delete dance.
+router.post(
+	"/preview",
+	checkEmployee,
+	validateBody(createReportSchema),
+	async (req, res) => {
+		try {
+			const resolved = await resolveReport(
+				req.body.report_type,
+				req.body.parameters,
+				0,
+			);
+			res.status(200).json({
+				status: "success",
+				data: {
+					report_type: resolved.report_type,
+					resolved_data: resolved.data,
+				},
+			});
+		} catch (err) {
+			console.error("reports.preview error:", err);
+			res.status(400).json({
+				message:
+					err instanceof Error ? err.message : "Could not resolve preview",
+			});
+		}
+	},
+);
+
 router.post(
 	"/",
 	checkAdmin,
