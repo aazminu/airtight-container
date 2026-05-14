@@ -1,15 +1,17 @@
-# --- Stage 1: build the InvoiceTemplate library bundle ----------------
-# Vite library mode → server-consumable ESM + inlined CSS at
-# server/template-dist/. Consumed by server/lib/pdf.ts via SSR.
+# --- Stage 1: build the SSR template bundles --------------------------
+# Vite library mode produces two server-consumable ESM + CSS bundles:
+#   server/template-dist/        — InvoiceTemplate (consumed by lib/pdf.ts)
+#   server/report-template-dist/ — ReportTemplate  (consumed by lib/report-pdf.ts)
 FROM node:20-alpine AS template-build
 WORKDIR /build/client
 COPY client/package.json client/package-lock.json* ./
 RUN npm ci
 COPY client/ ./
-# vite.config.server.ts writes to ../server/template-dist relative to
-# client/, so the sibling directory must exist before the build runs.
+# Vite configs write to ../server/{,report-}template-dist relative to
+# client/, so the sibling directory must exist before the builds run.
 RUN mkdir -p ../server
 RUN npm run build:server-template
+RUN npm run build:report-templates
 
 # --- Stage 2: backend runtime -----------------------------------------
 FROM node:20-alpine
@@ -32,5 +34,6 @@ COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev
 COPY server/ ./
 COPY --from=template-build /build/server/template-dist ./template-dist
+COPY --from=template-build /build/server/report-template-dist ./report-template-dist
 EXPOSE 3001
 CMD ["npm", "start"]

@@ -309,8 +309,14 @@ export const reports = pgTable(
       .notNull()
       .defaultNow(),
     parameters: jsonb('parameters'),
+    // Snapshot of the data the template was rendered against. Frozen at
+    // create time so re-renders and historical views don't drift when
+    // the underlying sold/invoices rows change.
+    resolved_data: jsonb('resolved_data'),
     pdf_s3_key: text('pdf_s3_key'),
+    pdf_generated_at: timestamp('pdf_generated_at', { withTimezone: true }),
     emailed_to: text('emailed_to').array(),
+    emailed_at: timestamp('emailed_at', { withTimezone: true }),
   },
   (table) => ({
     typeIdx: index('reports_type_idx').on(table.report_type),

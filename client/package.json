@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:server-template": "vite build --config vite.config.server.ts",
+    "build:report-templates": "vite build --config vite.config.report-templates.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

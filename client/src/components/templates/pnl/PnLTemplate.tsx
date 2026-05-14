@@ -178,6 +178,17 @@ export default function PnLTemplate({ data }: { data: PnLData }) {
         </tbody>
       </table>
 
+      {data.null_cost_count && data.null_cost_count > 0 ? (
+        <p className={styles.footnote}>
+          Note: {data.null_cost_count} container
+          {data.null_cost_count === 1 ? '' : 's'} sold in this period
+          {data.null_cost_count === 1 ? ' has' : ' have'} no acquisition
+          price recorded and {data.null_cost_count === 1 ? 'was' : 'were'}{' '}
+          excluded from container cost. Net profit shown is an upper
+          bound.
+        </p>
+      ) : null}
+
       <DocFooter
         left={`Internal report · generated ${fmtDate(data.generated_at)}`}
       />

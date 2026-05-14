@@ -43,9 +43,7 @@ function Navbar() {
 										<a href="/invoices">Invoices</a>
 									</li>
 									<li>
-										<a href="/reports" target="_blank">
-											Reports
-										</a>
+										<a href="/reports">Reports</a>
 									</li>
 									<li>
 										<a href="/dashboard">Dashboard</a>

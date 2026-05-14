@@ -112,3 +112,14 @@
 .loss {
   color: #a32a2a !important;
 }
+
+.footnote {
+  margin: 0.25in 0 0.3in;
+  padding: 8px 12px;
+  border-left: 3px solid #5a6478;
+  background: #f4f1e6;
+  font-size: 8.5pt;
+  font-style: italic;
+  color: #2a3142;
+  line-height: 1.5;
+}

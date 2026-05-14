@@ -11,10 +11,11 @@ import Home from "./routes/Home";
 import { Provider } from "./context/restaurantcontext";
 import Navbar from "./components/Navbar";
 import Reports from "./routes/Reports";
+import CreateReport from "./routes/CreateReport";
+import ReportDetail from "./routes/ReportDetail";
 import Invoices from "./routes/Invoices";
 import YardView from "./routes/YardView";
 import Dashboard from "./routes/Dashboard";
-import Printout from "./components/templates/Printout";
 import Auth from "./routes/Auth";
 import PopupContainer from "./components/PopupContainer";
 import CreateInvoice from "./routes/CreateInvoice";
@@ -42,13 +43,15 @@ const App = () => {
 				<Route path="/sh-invoices" element={<ShInvoices />} />
 				<Route path="/sh-invoices/:id" element={<ShInvoiceDetail />} />
 				<Route path="/reports" element={<Reports />} />
+				<Route path="/reports/new" element={<CreateReport />} />
+				<Route path="/reports/new/:type" element={<CreateReport />} />
+				<Route path="/reports/:id" element={<ReportDetail />} />
 				<Route path="/yardview" element={<YardView />} />
 				<Route path="/dashboard" element={<Dashboard />} />
 				<Route path="/clients" element={<Clients />} />
 				<Route path="/intake" element={<Intake />} />
 				<Route path="/audit" element={<Audit />} />
 				<Route path="/releases" element={<Releases />} />
-				<Route path="/reports/form" element={<Printout />} />
 				{import.meta.env.DEV && (
 					<Route
 						path="/admin/templates"
@@ -58,13 +61,11 @@ const App = () => {
 			</React.Fragment>
 		)
 	);
-	let url = window.location.href;
 	const path = window.location.pathname;
 	return (
 		<>
 			<Provider>
-				{!url.includes("form") &&
-					path !== "/auth" &&
+				{path !== "/auth" &&
 					!path.startsWith("/admin/templates") && <Navbar />}
 				<PopupContainer />
 				<div className="container">

@@ -1,0 +1,253 @@
+.page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  font-size: 1.75rem;
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--muted, #6e7781);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.pickerCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.125rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+}
+
+.pickerCard:hover {
+  border-color: var(--accent, #0969da);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  transform: translateY(-2px);
+}
+
+.pickerLabel {
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.pickerDesc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted, #6e7781);
+  line-height: 1.5;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.section {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 10px;
+  padding: 1rem 1.125rem 1.125rem;
+}
+
+.sectionTitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.required {
+  color: #a32a2a;
+}
+
+.sectionHint {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--muted, #6e7781);
+  line-height: 1.5;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: var(--bg, #fff);
+  color: var(--text, #111);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.input:focus,
+.textarea:focus {
+  outline: 2px solid var(--accent, #0969da);
+  outline-offset: 1px;
+  border-color: var(--accent, #0969da);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.fieldWide {
+  grid-column: 1 / -1;
+}
+
+.fieldLabel {
+  font-size: 0.8rem;
+  color: var(--muted, #6e7781);
+}
+
+.hint {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--muted, #6e7781);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.containerList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.containerOption {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.5rem 0.625rem;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.containerOption:hover {
+  border-color: var(--accent, #0969da);
+}
+
+.containerSelected {
+  border-color: var(--accent, #0969da);
+  background: rgba(9, 105, 218, 0.06);
+}
+
+.containerUnit {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.containerMeta {
+  font-size: 0.75rem;
+  color: var(--muted, #6e7781);
+}
+
+.containerEmpty {
+  grid-column: 1 / -1;
+  padding: 1rem;
+  text-align: center;
+  color: var(--muted, #6e7781);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.containerPicked {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(9, 105, 218, 0.08);
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.error {
+  padding: 0.625rem 0.875rem;
+  background: #ffeef0;
+  border: 1px solid #ffd8db;
+  color: #82071e;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.submitRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.submit {
+  padding: 0.5rem 1rem;
+  background: var(--accent, #0969da);
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancel {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cancel:hover {
+  border-color: var(--accent, #0969da);
+}
