@@ -133,14 +133,55 @@
 	border-color: var(--accent) !important;
 }
 
-.dashOptions {
+/* Text-style tab strip (centered, underline on selected). Replaces the
+ * old pill-buttons row. */
+.dashTabs {
 	display: flex;
-	gap: 8px;
-	margin-bottom: 20px;
+	justify-content: center;
+	gap: 32px;
+	margin: 0 auto 28px;
+	padding-bottom: 6px;
+	border-bottom: 1px solid var(--border);
 }
 
-.dashBtn {
-	margin-left: 0px !important;
+.dashTab {
+	position: relative;
+	background: none;
+	border: none;
+	padding: 8px 4px;
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: var(--text-muted);
+	cursor: pointer;
+	transition: color 0.15s ease;
+}
+
+.dashTab:hover {
+	color: var(--text-primary);
+}
+
+.dashTabActive {
+	color: var(--text-primary);
+}
+
+.dashTab::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: -7px;
+	height: 2px;
+	background: var(--accent);
+	border-radius: 2px;
+	transform: scaleX(0);
+	transform-origin: center;
+	transition: transform 0.18s ease;
+}
+
+.dashTabActive::after {
+	transform: scaleX(1);
 }
 
 .addWrapper {

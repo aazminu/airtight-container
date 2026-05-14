@@ -17,12 +17,14 @@ export default function Dashboard() {
   return (
     <div className="dashContainer">
       <h1 className="invHeader">Dashboard</h1>
-      <div className="dashOptions">
+      <div className="dashTabs" role="tablist">
         {TABS.map((t) => (
           <button
             key={t.key}
+            role="tab"
+            aria-selected={currTab === t.key}
             className={
-              currTab === t.key ? 'addBtn dashBtn selectedOption' : 'addBtn'
+              currTab === t.key ? 'dashTab dashTabActive' : 'dashTab'
             }
             onClick={() => setCurrTab(t.key)}
           >
