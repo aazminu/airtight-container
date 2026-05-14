@@ -1,0 +1,126 @@
+/*
+ * Delivery-specific styles. Brand atoms (sheet, header, parties,
+ * banner, footer, divider, section titles, base table) live in
+ * client/src/components/templates/shared/sheet.module.css.
+ */
+
+.containerRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding: 18px 22px;
+  background: #f4f1e6;
+  border: 1px solid #2a3142;
+  border-radius: 6px;
+  margin-bottom: 0.35in;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 7.5pt;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #5a6478;
+}
+
+.fieldValue {
+  font-size: 11pt;
+  font-weight: 600;
+  color: #0a0e1a;
+  font-variant-numeric: tabular-nums;
+}
+
+.fieldValue.mono {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5pt;
+}
+
+.fieldValueMuted {
+  font-size: 10pt;
+  color: #5a6478;
+}
+
+.modList {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.35in;
+  font-size: 9pt;
+}
+
+.modList thead th {
+  text-align: left;
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  color: #5a6478;
+  padding: 7px 6px;
+  border-bottom: 1px solid #2a3142;
+}
+
+.modList tbody td {
+  padding: 6px;
+  border-top: 1px solid #e3e2dc;
+}
+
+.modList tbody tr:first-child td {
+  border-top: 0;
+}
+
+.modList tbody tr:last-child td {
+  border-bottom: 1px solid #2a3142;
+}
+
+.notesBlock {
+  margin: 0 0 0.4in;
+  padding: 12px 16px;
+  background: #f4f1e6;
+  border-left: 3px solid #0a0e1a;
+  font-size: 9.5pt;
+  line-height: 1.55;
+}
+
+.notesLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 8pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5a6478;
+  margin-bottom: 4px;
+}
+
+.signatureRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5in;
+  margin-top: auto;
+  margin-bottom: 0.4in;
+}
+
+.signatureField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.signatureLine {
+  border-bottom: 1px solid #0a0e1a;
+  height: 28px;
+}
+
+.signatureLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 8pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0a0e1a;
+}

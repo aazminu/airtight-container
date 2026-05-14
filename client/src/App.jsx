@@ -22,7 +22,7 @@ import Clients from "./routes/Clients";
 import Intake from "./routes/Intake";
 import Audit from "./routes/Audit";
 import Releases from "./routes/Releases";
-import InvoiceTemplatePreview from "./routes/InvoiceTemplatePreview";
+import TemplatesPreview from "./routes/TemplatesPreview";
 import InvoiceDetail from "./routes/InvoiceDetail";
 import ShInvoices from "./routes/ShInvoices";
 import ShInvoiceDetail from "./routes/ShInvoiceDetail";
@@ -51,8 +51,8 @@ const App = () => {
 				<Route path="/reports/form" element={<Printout />} />
 				{import.meta.env.DEV && (
 					<Route
-						path="/admin/invoice-templates"
-						element={<InvoiceTemplatePreview />}
+						path="/admin/templates"
+						element={<TemplatesPreview />}
 					/>
 				)}
 			</React.Fragment>
@@ -65,7 +65,7 @@ const App = () => {
 			<Provider>
 				{!url.includes("form") &&
 					path !== "/auth" &&
-					!path.startsWith("/admin/invoice-templates") && <Navbar />}
+					!path.startsWith("/admin/templates") && <Navbar />}
 				<PopupContainer />
 				<div className="container">
 					<RouterProvider router={router} />

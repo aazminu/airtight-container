@@ -7,7 +7,16 @@ import {
   buildLineGroups,
   headlineDestination,
 } from './format';
-import logoSrc from '../../../assets/images/airtightfixed.png';
+import {
+  AIRTIGHT_PARTY,
+  Banner,
+  BrandHeader,
+  BrandSheet,
+  Divider,
+  DocFooter,
+  PartiesBlock,
+  type Party,
+} from '../shared';
 import styles from './InvoiceTemplate.module.css';
 
 export default function InvoiceTemplate({ data }: InvoiceTemplateProps) {
@@ -16,83 +25,32 @@ export default function InvoiceTemplate({ data }: InvoiceTemplateProps) {
   const { customer } = data;
   let lineCounter = 0;
 
+  const toParty: Party = {
+    primary: customer.business_name || customer.client_name,
+    secondary: customer.business_name ? customer.client_name : null,
+    lines: [
+      customer.street ?? null,
+      [customer.city, customer.state].filter(Boolean).join(', ') +
+        (customer.zip ? ' ' + customer.zip : ''),
+    ],
+    muted: [customer.contact_phone ?? null, customer.contact_email ?? null],
+  };
+
   return (
-    <div className={styles.sheet}>
-      <header className={styles.header}>
-        <div className={styles.brand}>
-          <img
-            src={logoSrc}
-            alt="Airtight Storage Systems"
-            className={styles.logo}
-          />
-        </div>
-        <div className={styles.invoiceMeta}>
-          <div className={styles.invoiceWord}>Invoice</div>
-          <dl className={styles.metaList}>
-            <div className={styles.metaRow}>
-              <dt>Number</dt>
-              <dd>{data.invoice_number}</dd>
-            </div>
-            <div className={styles.metaRow}>
-              <dt>Issued</dt>
-              <dd>{fmtDate(data.invoice_date)}</dd>
-            </div>
-          </dl>
-        </div>
-      </header>
+    <BrandSheet>
+      <BrandHeader
+        title="Invoice"
+        meta={[
+          { label: 'Number', value: data.invoice_number },
+          { label: 'Issued', value: fmtDate(data.invoice_date) },
+        ]}
+      />
 
-      <hr className={styles.divider} />
+      <Divider />
 
-      <section className={styles.parties}>
-        <div className={styles.partyBlock}>
-          <div className={styles.partyName}>Airtight Storage Systems Inc</div>
-          <div className={styles.partyLine}>41 Wilson Avenue</div>
-          <div className={styles.partyLine}>Manalapan, NJ 07726</div>
-          <div className={styles.partyLineMuted}>732-792-8111</div>
-          <div className={styles.partyLineMuted}>
-            michelle@airtightstorage.com
-          </div>
-        </div>
-        <div className={styles.toWord}>To</div>
-        <div className={styles.partyBlock}>
-          {customer.business_name && (
-            <div className={styles.partyName}>{customer.business_name}</div>
-          )}
-          <div
-            className={
-              customer.business_name ? styles.partyLineMuted : styles.partyName
-            }
-          >
-            {customer.client_name}
-          </div>
-          {customer.street && (
-            <div className={styles.partyLine}>{customer.street}</div>
-          )}
-          {(customer.city || customer.state || customer.zip) && (
-            <div className={styles.partyLine}>
-              {[customer.city, customer.state].filter(Boolean).join(', ')}
-              {customer.zip ? ' ' + customer.zip : ''}
-            </div>
-          )}
-          {customer.contact_phone && (
-            <div className={styles.partyLineMuted}>
-              {customer.contact_phone}
-            </div>
-          )}
-          {customer.contact_email && (
-            <div className={styles.partyLineMuted}>
-              {customer.contact_email}
-            </div>
-          )}
-        </div>
-      </section>
+      <PartiesBlock from={AIRTIGHT_PARTY} to={toParty} />
 
-      {deliver && (
-        <div className={styles.deliverBanner}>
-          <span className={styles.deliverLabel}>Deliver to</span>
-          <span className={styles.deliverValue}>{deliver}</span>
-        </div>
-      )}
+      {deliver && <Banner label="Deliver to" value={deliver} />}
 
       <table className={styles.items}>
         <thead>
@@ -190,12 +148,10 @@ export default function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </dl>
       </section>
 
-      <footer className={styles.footer}>
-        <div>Thank you for your business. · Salesperson Michelle</div>
-        <div>
-          Airtight Storage Systems Inc · 41 Wilson Avenue · Manalapan, NJ 07726
-        </div>
-      </footer>
-    </div>
+      <DocFooter
+        left="Thank you for your business. · Salesperson Michelle"
+        right="Airtight Storage Systems Inc · 41 Wilson Avenue · Manalapan, NJ 07726"
+      />
+    </BrandSheet>
   );
 }
