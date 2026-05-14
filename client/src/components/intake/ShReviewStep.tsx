@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import styles from './IntakeForm.module.css';
 import type { ShIntakeForm } from './ShDetailsStep';
 
@@ -7,20 +8,20 @@ interface Props {
 }
 
 export function ShReviewStep({ value, clientLabel }: Props) {
+  const { t } = useTranslation();
   return (
     <div className={styles.review}>
-      <h2 className={styles.h2}>Looks good?</h2>
+      <h2 className={styles.h2}>{t('review.heading')}</h2>
       <p className={styles.reviewIntro}>
-        Hit Submit and we'll log this box. Michelle will review the rates and
-        intake date before billing starts.
+        {t('review.sh_intro')}
       </p>
 
       <dl className={styles.summary}>
-        <SummaryRow label="Customer" value={clientLabel ?? '—'} />
-        <SummaryRow label="Unit number" value={value.unit_number} />
-        <SummaryRow label="Size" value={value.size} />
-        <SummaryRow label="Damage" value={value.damage || '—'} />
-        <SummaryRow label="Notes" value={value.notes || '—'} />
+        <SummaryRow label={t('review.customer')} value={clientLabel ?? '—'} />
+        <SummaryRow label={t('review.unit')} value={value.unit_number} />
+        <SummaryRow label={t('review.size')} value={value.size} />
+        <SummaryRow label={t('review.damage')} value={value.damage || '—'} />
+        <SummaryRow label={t('review.notes')} value={value.notes || '—'} />
       </dl>
     </div>
   );

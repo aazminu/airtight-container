@@ -1,4 +1,5 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Flow, FlowStep } from '../components/ui';
 import { userContext } from '../context/restaurantcontext';
 import {
@@ -74,6 +75,7 @@ const EMPTY_SH: ShIntakeForm = {
 // Admin-only fields (acquisition_price for Sales, rates for S&H) moved
 // to the audit screen entirely.
 export default function Intake() {
+  const { t } = useTranslation();
   const { setPopup } = useContext(userContext);
   const [kind, setKind] = useState<Kind>(null);
   const [step, setStep] = useState(0);
@@ -276,7 +278,7 @@ export default function Intake() {
     );
     if (!release) {
       setSubmitState('error');
-      setSubmitError("That release isn't available anymore — pick another.");
+      setSubmitError(t('intake.release_unavailable'));
       return;
     }
     setSubmitState('submitting');
@@ -300,7 +302,7 @@ export default function Intake() {
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setPopup('Box logged. Michelle will review it before it goes available.');
+      setPopup(t('intake.logged_sales'));
       resetForNextBox();
     } catch (e) {
       setSubmitState('error');
@@ -329,7 +331,7 @@ export default function Intake() {
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setPopup('Box logged. Michelle will review it before billing starts.');
+      setPopup(t('intake.logged_sh'));
       resetForNextBox();
     } catch (e) {
       setSubmitState('error');
@@ -360,7 +362,7 @@ export default function Intake() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1 className={styles.title}>Add a box</h1>
+        <h1 className={styles.title}>{t('intake.page_title')}</h1>
         <ol className={styles.stepper} aria-label="Intake progress">
           {labels.map((label, i) => (
             <li
@@ -381,7 +383,7 @@ export default function Intake() {
       <div className={styles.body}>
         <Flow step={step}>
           <FlowStep>
-            <h2 className={styles.h2}>What kind of box is this?</h2>
+            <h2 className={styles.h2}>{t('intake.kind_heading')}</h2>
             <div className={styles.kindRow}>
               <button
                 type="button"
@@ -389,9 +391,9 @@ export default function Intake() {
                 onClick={() => choose('sales')}
               >
                 <span className={styles.kindIcon} aria-hidden="true">📦</span>
-                <span className={styles.kindLabel}>Sales</span>
+                <span className={styles.kindLabel}>{t('intake.kind_sales')}</span>
                 <span className={styles.kindSub}>
-                  A box we bought and will resell. Has a release number.
+                  {t('intake.kind_sales_subtitle')}
                 </span>
               </button>
               <button
@@ -400,9 +402,9 @@ export default function Intake() {
                 onClick={() => choose('sh')}
               >
                 <span className={styles.kindIcon} aria-hidden="true">🏷️</span>
-                <span className={styles.kindLabel}>Storage</span>
+                <span className={styles.kindLabel}>{t('intake.kind_storage')}</span>
                 <span className={styles.kindSub}>
-                  A customer's box that we're holding on the yard.
+                  {t('intake.kind_storage_subtitle')}
                 </span>
               </button>
             </div>
@@ -486,10 +488,10 @@ export default function Intake() {
 
       <footer className={styles.footer}>
         <Button variant="ghost" onClick={back} disabled={!canBack}>
-          Back
+          {t('common.back')}
         </Button>
         <span className={styles.footerHint}>
-          {step + 1} of {labels.length}
+          {t('common.step_of', { step: step + 1, total: labels.length })}
         </span>
 
         {isReviewStep ? (
@@ -498,7 +500,7 @@ export default function Intake() {
             onClick={submit}
             disabled={submitState === 'submitting'}
           >
-            {submitState === 'submitting' ? 'Submitting…' : 'Submit'}
+            {submitState === 'submitting' ? t('common.submitting') : t('common.submit')}
           </Button>
         ) : (
           <Button
@@ -506,7 +508,7 @@ export default function Intake() {
             onClick={next}
             disabled={!canNext || (step === 0 && kind === null)}
           >
-            Next
+            {t('common.next')}
           </Button>
         )}
       </footer>

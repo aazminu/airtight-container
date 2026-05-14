@@ -36,7 +36,7 @@
   },
   "photo_step": {
     "doors_heading": "Foto de las puertas",
-    "doors_intro": "Toma una foto clara de las puertas. Asegúrate de que los números de unidad pintados y la etiqueta blanca estén derechos y se lean bien. Puedes saltarla si no tienes cámara a mano.",
+    "doors_intro": "Toma una foto clara de <strong>las puertas</strong>. Asegúrate de que los números de unidad pintados y la etiqueta blanca estén derechos y se lean bien. Puedes saltarla si no tienes cámara a mano.",
     "others_heading": "Otras fotos",
     "others_intro": "Opcional. Toma fotos de daños, el interior u otros ángulos que quieras guardar. Puedes agregar tantas como quieras, o tocar Siguiente para continuar.",
     "take_doors": "Tomar foto de la puerta",
@@ -53,10 +53,12 @@
     "heading": "Revisa el número de unidad",
     "no_image": "No se proporcionó imagen. Escribe el número de unidad a mano abajo.",
     "read_success": "Leímos <strong>{{unit}}</strong> de la foto (parece un <strong>{{size}}</strong>). Corrígelo abajo si no es correcto.",
+    "read_success_no_size": "Leímos <strong>{{unit}}</strong> de la foto. Corrígelo abajo si no es correcto.",
     "read_failed": "No pudimos detectar un número de unidad en la foto. Escríbelo a mano abajo.",
     "unit_label": "Número de unidad",
     "unit_placeholder": "ej. TRHU2174232",
     "matched_release": "Coincide con el release <strong>{{release}}</strong> ({{company}}). Lo llenaremos por ti en el siguiente paso.",
+    "matched_release_no_company": "Coincide con el release <strong>{{release}}</strong>. Lo llenaremos por ti en el siguiente paso.",
     "camera_summary": "Lo que vio la cámara"
   },
   "sales_details": {
@@ -128,5 +130,10 @@
     "box_count": "Cantidad de cajas",
     "empty": "N/D",
     "load_error": "No se pudieron cargar los números de release"
+  },
+  "help": {
+    "title": "Ayuda",
+    "lede": "Si algo no se ve bien o no estás seguro de qué hacer, pregúntale a Michelle. Te contestará rápido.",
+    "contact_heading": "Contacto"
   }
 }

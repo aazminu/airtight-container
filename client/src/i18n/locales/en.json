@@ -36,7 +36,7 @@
   },
   "photo_step": {
     "doors_heading": "Photo of the doors",
-    "doors_intro": "Take a clear photo of the doors. Make sure the painted unit numbers and the white sticker are right-side up and easy to read. You can skip this if the camera isn't handy.",
+    "doors_intro": "Take a clear photo of <strong>the doors</strong>. Make sure the painted unit numbers and the white sticker are right-side up and easy to read. You can skip this if the camera isn't handy.",
     "others_heading": "Other photos",
     "others_intro": "Optional. Snap any damage, the inside, or other angles you want on file. You can add as many as you want, or just tap Next to keep going.",
     "take_doors": "Take the door photo",
@@ -53,10 +53,12 @@
     "heading": "Check the unit number",
     "no_image": "No image provided. Type the unit number by hand below.",
     "read_success": "We read <strong>{{unit}}</strong> off the photo (looks like a <strong>{{size}}</strong>). Fix it below if that's not right.",
+    "read_success_no_size": "We read <strong>{{unit}}</strong> off the photo. Fix it below if that's not right.",
     "read_failed": "We couldn't pick out a unit number from the photo. Type it by hand below.",
     "unit_label": "Unit number",
     "unit_placeholder": "e.g. TRHU2174232",
     "matched_release": "Matched to release <strong>{{release}}</strong> ({{company}}). We'll fill that in for you on the next step.",
+    "matched_release_no_company": "Matched to release <strong>{{release}}</strong>. We'll fill that in for you on the next step.",
     "camera_summary": "What the camera saw"
   },
   "sales_details": {
@@ -128,5 +130,10 @@
     "box_count": "Box Count",
     "empty": "N/A",
     "load_error": "Failed to load release numbers"
+  },
+  "help": {
+    "title": "Help",
+    "lede": "If something looks wrong or you're not sure what to do, ask Michelle. She'll get back to you quickly.",
+    "contact_heading": "Contact"
   }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import styles from './IntakeForm.module.css';
 
 export interface SalesIntakeForm {
@@ -30,6 +31,7 @@ interface Props {
 // it's confirmed/edited on the prior Confirm step. Release picker is
 // locked when an auto-match landed.
 export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }: Props) {
+  const { t } = useTranslation();
   const [releases, setReleases] = useState<ReleaseOption[]>([]);
   const [loadingReleases, setLoadingReleases] = useState(true);
 
@@ -56,32 +58,32 @@ export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }
 
   return (
     <div className={styles.form}>
-      <h2 className={styles.h2}>Container details</h2>
+      <h2 className={styles.h2}>{t('sales_details.heading')}</h2>
 
       <div className={styles.readonlyLine}>
-        <span>Unit number</span>
+        <span>{t('sales_details.unit')}</span>
         <span>{value.unit_number || '—'}</span>
       </div>
 
       <label className={styles.field}>
-        <span className={styles.label}>Size</span>
+        <span className={styles.label}>{t('sales_details.size')}</span>
         <input
           type="text"
           value={value.size}
           onChange={(e) => onChange({ size: e.target.value })}
-          placeholder="20ft / 40ft / 40HC"
+          placeholder={t('sales_details.size_placeholder')}
           inputMode="text"
           required
         />
       </label>
 
       <label className={styles.field}>
-        <span className={styles.label}>Damage / condition</span>
+        <span className={styles.label}>{t('sales_details.damage')}</span>
         <input
           type="text"
           value={value.damage}
           onChange={(e) => onChange({ damage: e.target.value })}
-          placeholder="As-is / minor dent rear door / etc."
+          placeholder={t('sales_details.damage_placeholder')}
           inputMode="text"
           required
         />
@@ -89,7 +91,7 @@ export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }
 
       {lockedRelease ? (
         <div className={styles.readonlyLine}>
-          <span>Release</span>
+          <span>{t('sales_details.release')}</span>
           <span>
             {lockedRelease.release_number_value}
             {lockedRelease.sale_company_name
@@ -99,7 +101,7 @@ export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }
         </div>
       ) : (
         <label className={styles.field}>
-          <span className={styles.label}>Release</span>
+          <span className={styles.label}>{t('sales_details.release')}</span>
           <select
             value={value.release_number_id ?? ''}
             onChange={(e) =>
@@ -111,11 +113,14 @@ export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }
             required
           >
             <option value="" disabled>
-              {loadingReleases ? 'Loading…' : 'Pick a release'}
+              {loadingReleases ? t('common.loading') : t('sales_details.release_placeholder')}
             </option>
             {releases.map((r) => (
               <option key={r.release_number_id} value={r.release_number_id}>
-                {r.release_number_value} ({r.release_number_count} left)
+                {t('sales_details.release_option', {
+                  release: r.release_number_value,
+                  count: r.release_number_count,
+                })}
               </option>
             ))}
           </select>
@@ -123,23 +128,23 @@ export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }
       )}
 
       <label className={styles.field}>
-        <span className={styles.label}>Trucking company</span>
+        <span className={styles.label}>{t('sales_details.trucking')}</span>
         <input
           type="text"
           value={value.trucking_company}
           onChange={(e) => onChange({ trucking_company: e.target.value })}
-          placeholder="Who hauled it in (optional)"
+          placeholder={t('sales_details.trucking_placeholder')}
           autoComplete="organization"
         />
       </label>
 
       <label className={styles.field}>
-        <span className={styles.label}>Notes</span>
+        <span className={styles.label}>{t('sales_details.notes')}</span>
         <textarea
           value={value.notes}
           onChange={(e) => onChange({ notes: e.target.value })}
           rows={3}
-          placeholder="Anything else worth flagging"
+          placeholder={t('sales_details.notes_placeholder')}
         />
       </label>
     </div>

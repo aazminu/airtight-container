@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import styles from './IntakeForm.module.css';
 import type { SalesIntakeForm } from './SalesDetailsStep';
 
@@ -7,21 +8,21 @@ interface Props {
 }
 
 export function SalesReviewStep({ value, releaseLabel }: Props) {
+  const { t } = useTranslation();
   return (
     <div className={styles.review}>
-      <h2 className={styles.h2}>Looks good?</h2>
+      <h2 className={styles.h2}>{t('review.heading')}</h2>
       <p className={styles.reviewIntro}>
-        Hit Submit and we'll log this box. Michelle will review the details and
-        confirm the price before it's available.
+        {t('review.sales_intro')}
       </p>
 
       <dl className={styles.summary}>
-        <SummaryRow label="Unit number" value={value.unit_number} />
-        <SummaryRow label="Size" value={value.size} />
-        <SummaryRow label="Damage" value={value.damage} />
-        <SummaryRow label="Release" value={releaseLabel ?? '—'} />
-        <SummaryRow label="Trucking company" value={value.trucking_company || '—'} />
-        <SummaryRow label="Notes" value={value.notes || '—'} />
+        <SummaryRow label={t('review.unit')} value={value.unit_number} />
+        <SummaryRow label={t('review.size')} value={value.size} />
+        <SummaryRow label={t('review.damage')} value={value.damage} />
+        <SummaryRow label={t('review.release')} value={releaseLabel ?? '—'} />
+        <SummaryRow label={t('review.trucking')} value={value.trucking_company || '—'} />
+        <SummaryRow label={t('review.notes')} value={value.notes || '—'} />
       </dl>
     </div>
   );

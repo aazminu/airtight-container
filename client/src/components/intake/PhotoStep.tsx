@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   ocrIntakePhoto,
   presignIntakePhoto,
@@ -33,6 +34,7 @@ interface Props {
 // The doors photo is the canonical OCR target. The Confirm step still
 // handles the "no image provided" fall-back (manual unit-number input).
 export function PhotoStep({ kind, mode, photos, onChange, onOcr }: Props) {
+  const { t } = useTranslation();
   const [topLevelError, setTopLevelError] = useState<string | null>(null);
 
   const isDoors = mode === 'doors';
@@ -57,9 +59,7 @@ export function PhotoStep({ kind, mode, photos, onChange, onOcr }: Props) {
           onOcr(ocr);
         } catch (e) {
           // Non-fatal: staff types the unit number by hand on the next step.
-          setTopLevelError(
-            "We couldn't read the unit number from this photo. Type it by hand on the next step.",
-          );
+          setTopLevelError(t('photo_step.ocr_failed'));
           console.error(e);
         }
       }
@@ -86,30 +86,25 @@ export function PhotoStep({ kind, mode, photos, onChange, onOcr }: Props) {
     onChange(photos.filter((_, i) => i !== idx));
   };
 
-  const title = isDoors ? 'Photo of the doors' : 'Other photos';
-  const intro = isDoors ? (
-    <>
-      Take a clear photo of <strong>the doors</strong>. Make sure the painted
-      unit numbers and the white sticker are right-side up and easy to read.
-      You can skip this if the camera isn't handy.
-    </>
-  ) : (
-    <>
-      Optional. Snap any damage, the inside, or other angles you want on file.
-      You can add as many as you want, or just tap Next to keep going.
-    </>
-  );
+  const title = isDoors ? t('photo_step.doors_heading') : t('photo_step.others_heading');
+  const introKey = isDoors ? 'photo_step.doors_intro' : 'photo_step.others_intro';
   const captureLabel = (() => {
     if (isDoors) {
-      return photos.length === 0 ? 'Take the door photo' : 'Retake door photo';
+      return photos.length === 0
+        ? t('photo_step.take_doors')
+        : t('photo_step.retake_doors');
     }
-    return photos.length === 0 ? 'Take a photo' : '+ Add another photo';
+    return photos.length === 0
+      ? t('photo_step.take_photo')
+      : t('photo_step.add_another');
   })();
 
   return (
     <div className={styles.wrap}>
       <h2 className={styles.h2}>{title}</h2>
-      <p className={styles.intro}>{intro}</p>
+      <p className={styles.intro}>
+        <Trans i18nKey={introKey} components={{ strong: <strong /> }} />
+      </p>
 
       <div className={styles.captureRow}>
         <label className={styles.captureBtn}>
@@ -133,17 +128,17 @@ export function PhotoStep({ kind, mode, photos, onChange, onOcr }: Props) {
               data-role={isDoors ? 'primary' : 'extra'}
             >
               {p.uploading ? (
-                <div className={styles.uploading}>Uploading…</div>
+                <div className={styles.uploading}>{t('photo_step.uploading')}</div>
               ) : p.error ? (
-                <div className={styles.uploading}>Failed</div>
+                <div className={styles.uploading}>{t('photo_step.upload_failed')}</div>
               ) : (
-                <img src={p.previewUrl} alt={`Photo ${i + 1}`} />
+                <img src={p.previewUrl} alt={t('photo_step.photo_alt', { n: i + 1 })} />
               )}
               <button
                 type="button"
                 className={styles.tileRemove}
                 onClick={() => removeAt(i)}
-                aria-label="Remove photo"
+                aria-label={t('photo_step.remove')}
               >
                 ×
               </button>

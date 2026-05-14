@@ -28,6 +28,7 @@ import TemplatesPreview from "./routes/TemplatesPreview";
 import InvoiceDetail from "./routes/InvoiceDetail";
 import ShInvoices from "./routes/ShInvoices";
 import ShInvoiceDetail from "./routes/ShInvoiceDetail";
+import Help from "./routes/Help";
 
 const App = () => {
 	const router = createBrowserRouter(
@@ -53,6 +54,7 @@ const App = () => {
 				<Route path="/intake" element={<Intake />} />
 				<Route path="/audit" element={<Audit />} />
 				<Route path="/releases" element={<Releases />} />
+				<Route path="/help" element={<Help />} />
 				{import.meta.env.DEV && (
 					<Route
 						path="/admin/templates"

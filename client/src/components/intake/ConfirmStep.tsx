@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next';
 import styles from './IntakeForm.module.css';
 
 export interface OcrResult {
@@ -23,36 +24,46 @@ interface Props {
 // ONLY step where the unit number is editable; Details shows it as a
 // read-only line at the top.
 export function ConfirmStep({ ocr, unitNumber, onChange, releaseMatch }: Props) {
+  const { t } = useTranslation();
   const matchedSomething = ocr?.unit_number !== null && ocr?.unit_number !== undefined;
   const skipped = ocr === null;
 
   return (
     <div className={styles.form}>
-      <h2 className={styles.h2}>Check the unit number</h2>
+      <h2 className={styles.h2}>{t('confirm_step.heading')}</h2>
 
       {skipped ? (
         <p className={styles.reviewIntro}>
-          No image provided. Type the unit number by hand below.
+          {t('confirm_step.no_image')}
         </p>
       ) : matchedSomething ? (
         <p className={styles.reviewIntro}>
-          We read <strong>{ocr!.unit_number}</strong> off the photo
-          {ocr!.size ? <> (looks like a <strong>{ocr!.size}</strong>)</> : null}.
-          Fix it below if that's not right.
+          <Trans
+            i18nKey={
+              ocr?.size
+                ? 'confirm_step.read_success'
+                : 'confirm_step.read_success_no_size'
+            }
+            values={{
+              unit: ocr!.unit_number ?? '',
+              size: ocr?.size ?? '',
+            }}
+            components={{ strong: <strong /> }}
+          />
         </p>
       ) : (
         <p className={styles.reviewIntro}>
-          We couldn't pick out a unit number from the photo. Type it by hand below.
+          {t('confirm_step.read_failed')}
         </p>
       )}
 
       <label className={styles.field}>
-        <span className={styles.label}>Unit number</span>
+        <span className={styles.label}>{t('confirm_step.unit_label')}</span>
         <input
           type="text"
           value={unitNumber}
           onChange={(e) => onChange(e.target.value.toUpperCase())}
-          placeholder="e.g. TRHU2174232"
+          placeholder={t('confirm_step.unit_placeholder')}
           inputMode="text"
           autoCapitalize="characters"
           autoCorrect="off"
@@ -63,17 +74,24 @@ export function ConfirmStep({ ocr, unitNumber, onChange, releaseMatch }: Props) 
 
       {releaseMatch && (
         <div className={styles.matchBadge}>
-          Matched to release <strong>{releaseMatch.release_number_value}</strong>
-          {releaseMatch.sale_company_name
-            ? <> ({releaseMatch.sale_company_name})</>
-            : null}
-          . We'll fill that in for you on the next step.
+          <Trans
+            i18nKey={
+              releaseMatch.sale_company_name
+                ? 'confirm_step.matched_release'
+                : 'confirm_step.matched_release_no_company'
+            }
+            values={{
+              release: releaseMatch.release_number_value,
+              company: releaseMatch.sale_company_name ?? '',
+            }}
+            components={{ strong: <strong /> }}
+          />
         </div>
       )}
 
       {ocr && ocr.lines.length > 0 && (
         <details>
-          <summary>What the camera saw</summary>
+          <summary>{t('confirm_step.camera_summary')}</summary>
           <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.8125rem' }}>
             {ocr.lines.join('\n')}
           </pre>

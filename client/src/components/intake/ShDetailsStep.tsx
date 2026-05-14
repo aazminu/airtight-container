@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import styles from './IntakeForm.module.css';
 
 export interface ShIntakeForm {
@@ -25,6 +26,7 @@ interface Props {
 // yard staff doesn't see them. Server fills client.default_* into the
 // row on insert; admin confirms or overrides during audit.
 export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
+  const { t } = useTranslation();
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
 
@@ -49,15 +51,15 @@ export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
 
   return (
     <div className={styles.form}>
-      <h2 className={styles.h2}>Storage details</h2>
+      <h2 className={styles.h2}>{t('sh_details.heading')}</h2>
 
       <div className={styles.readonlyLine}>
-        <span>Unit number</span>
+        <span>{t('sh_details.unit')}</span>
         <span>{value.unit_number || '—'}</span>
       </div>
 
       <label className={styles.field}>
-        <span className={styles.label}>Customer</span>
+        <span className={styles.label}>{t('sh_details.customer')}</span>
         <select
           value={value.client_id ?? ''}
           onChange={(e) =>
@@ -67,7 +69,7 @@ export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
           required
         >
           <option value="" disabled>
-            {loadingClients ? 'Loading…' : 'Pick a customer'}
+            {loadingClients ? t('common.loading') : t('sh_details.customer_placeholder')}
           </option>
           {clients.map((c) => (
             <option key={c.id} value={c.id}>
@@ -80,35 +82,35 @@ export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
 
       <div className={styles.row}>
         <label className={styles.field}>
-          <span className={styles.label}>Size</span>
+          <span className={styles.label}>{t('sh_details.size')}</span>
           <input
             type="text"
             value={value.size}
             onChange={(e) => onChange({ size: e.target.value })}
-            placeholder="20ft / 40ft / 40HC"
+            placeholder={t('sh_details.size_placeholder')}
             inputMode="text"
             required
           />
         </label>
         <label className={styles.field}>
-          <span className={styles.label}>Damage / condition</span>
+          <span className={styles.label}>{t('sh_details.damage')}</span>
           <input
             type="text"
             value={value.damage}
             onChange={(e) => onChange({ damage: e.target.value })}
-            placeholder="As-is / minor dent / etc."
+            placeholder={t('sh_details.damage_placeholder')}
             inputMode="text"
           />
         </label>
       </div>
 
       <label className={styles.field}>
-        <span className={styles.label}>Notes</span>
+        <span className={styles.label}>{t('sh_details.notes')}</span>
         <textarea
           value={value.notes}
           onChange={(e) => onChange({ notes: e.target.value })}
           rows={3}
-          placeholder="Anything else worth flagging"
+          placeholder={t('sh_details.notes_placeholder')}
         />
       </label>
     </div>
