@@ -4,9 +4,16 @@
 
 ---
 
-## Phase 5 in flight — PRs 5.1–5.5 landed, mod-preset admin next
+## Phase 5 in flight — PRs 5.1–5.5 landed + mod-preset admin + Dashboard polish + Dashboard P&L expansion
 
-PRs 5.1 (schema + API), 5.2 (brand-consistent templates), 5.3 (resolvers + PDF/email + UI), 5.4 (Dashboard P&L panel), and 5.5 (release_summary report + /releases page rework) are merged into `2.0` locally. The dialog refactor (replace native confirm/prompt with styled dialogs) and the release-quota fix (drop intake decrement, auto-bump on overflow, conservative `0007` backfill) landed as direct follow-ups on `2.0`. **Next up is the mod-preset admin Dashboard tab + InvoiceEditor datalist swap to `/api/v2/mod-presets`** — originally slotted as 5.5 but bumped when release_summary claimed the slot. Seed migration already loaded the four entries with stable positions 0–3; route is already wired admin POST/PUT/DELETE + employee GET; just no UI.
+PRs 5.1 (schema + API), 5.2 (brand-consistent templates), 5.3 (resolvers + PDF/email + UI), 5.4 (Dashboard P&L panel), and 5.5 (release_summary report + /releases page rework) are merged into `2.0` locally. Direct follow-ups on `2.0`:
+- Dialog refactor (replace native confirm/prompt with styled dialogs).
+- Release-quota fix (drop intake decrement, auto-bump on overflow, conservative `0007` backfill).
+- Mod-preset admin Dashboard tab + InvoiceEditor/CreateInvoice datalist swap to `useModPresetLabels()` against `/api/v2/mod-presets`.
+- Dashboard polish: shared `.inventoryTable` / `.tableBtn` styles defined (they were referenced but had no CSS), `.hidden` class added (it was being used to toggle tabs but didn't exist), Releases tab dropped (the /releases page replaces it), tab strip restyled to centered text + accent underline.
+- **Dashboard P&L expansion (recharts ^3.8.1)** — KPI strip (6 cards), trend LineChart over 3/6/12/24 prior periods, top-clients BarChart, yard snapshot (state donut + size bars + pending-audit/flagged-damage footers). New backend endpoints: `GET /api/v2/pnl/{timeseries,top-clients,yard}` with helpers in `server/lib/report-resolvers/dashboard-extras.ts` + a `previousPeriod()` helper on the P&L resolver.
+
+**Possible next items** (in rough priority): Phase 6 prep (Spanish localization, Help page content), Phase 7 (driver-receipt thermal printer / A80), staging environment for `2.0` cutover, history bulk re-render script.
 
 ### Phase 5 design decisions (locked 2026-05-14)
 
