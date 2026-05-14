@@ -11,7 +11,7 @@ describe('createReportSchema', () => {
     ]);
   });
 
-  it('accepts a delivery_sheet payload with container_id', () => {
+  it('accepts a delivery_sheet payload with just container_id (resolver fills defaults)', () => {
     const r = createReportSchema.safeParse({
       report_type: 'delivery_sheet',
       parameters: { container_id: 42 },
@@ -23,6 +23,54 @@ describe('createReportSchema', () => {
     const r = createReportSchema.safeParse({
       report_type: 'delivery_sheet',
       parameters: {},
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('accepts a delivery_sheet with the full operator-entered field set', () => {
+    const r = createReportSchema.safeParse({
+      report_type: 'delivery_sheet',
+      parameters: {
+        container_id: 42,
+        delivery_date: '2026-04-12T13:30:00Z',
+        delivery_company: 'JT Hauling Co.',
+        onsite_contact: 'John Doe · 555-0142',
+        door_orientation: 'Doors facing road',
+        payment_details: 'Cash on delivery',
+        receipt_note: 'Standard delivery — call 30 minutes out.',
+        receipt_summary: '1 40\'HC Weather Tight Container',
+        delivery_address: {
+          name: 'John Doe',
+          street: '418 Shoreline Dr',
+          locality: 'Toms River, NJ 08753',
+        },
+        notes: 'Tight driveway — back in only',
+      },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('accepts a delivery_sheet with client_id fallback (no invoice yet)', () => {
+    // The edge path: container has no invoice, so the operator picks
+    // the client directly. The resolver should skip the invoice join
+    // and use this client_id when populating the customer block.
+    const r = createReportSchema.safeParse({
+      report_type: 'delivery_sheet',
+      parameters: {
+        container_id: 42,
+        client_id: 7,
+      },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects a delivery_sheet with a malformed delivery_address subfield', () => {
+    const r = createReportSchema.safeParse({
+      report_type: 'delivery_sheet',
+      parameters: {
+        container_id: 42,
+        delivery_address: { name: 123 }, // not a string
+      },
     });
     expect(r.success).toBe(false);
   });
