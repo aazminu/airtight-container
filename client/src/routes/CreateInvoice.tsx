@@ -9,8 +9,8 @@ import type {
   InvoiceModification,
 } from '../components/templates/invoice/types';
 import {
-  MODIFICATION_PRESETS,
   MODIFICATION_DATALIST_ID,
+  useModPresetLabels,
 } from '../components/forms/modificationPresets';
 import styles from './CreateInvoice.module.css';
 
@@ -114,6 +114,7 @@ export default function CreateInvoice() {
   const [ccFeePct, setCcFeePct] = useState('3.5');
   const ccFeeRate = pctToDecimal(ccFeePct);
   const [invoiceDate, setInvoiceDate] = useState<string>(todayISO);
+  const modPresetLabels = useModPresetLabels();
   const [submitState, setSubmitState] = useState<
     | { kind: 'idle' }
     | { kind: 'submitting' }
@@ -646,7 +647,7 @@ export default function CreateInvoice() {
               </div>
             </div>
             <datalist id={MODIFICATION_DATALIST_ID}>
-              {MODIFICATION_PRESETS.map((d) => (
+              {modPresetLabels.map((d) => (
                 <option key={d} value={d} />
               ))}
             </datalist>

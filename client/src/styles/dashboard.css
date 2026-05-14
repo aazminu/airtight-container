@@ -189,6 +189,10 @@
 	color: var(--text-primary);
 }
 
+.hidden {
+	display: none;
+}
+
 /* User management table inherits .inventoryTable styles */
 .accountTable {
 	overflow-x: auto;

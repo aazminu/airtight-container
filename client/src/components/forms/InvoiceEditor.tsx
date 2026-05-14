@@ -7,8 +7,8 @@ import type {
 import { Button } from '../ui';
 import { fmtCurrency } from '../templates/invoice/format';
 import {
-  MODIFICATION_PRESETS,
   MODIFICATION_DATALIST_ID,
+  useModPresetLabels,
 } from './modificationPresets';
 import styles from './InvoiceEditor.module.css';
 
@@ -64,6 +64,7 @@ export default function InvoiceEditor({
   const [available, setAvailable] = useState<InventoryRow[]>([]);
   const [pickerValue, setPickerValue] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const modPresetLabels = useModPresetLabels();
 
   useEffect(() => {
     let cancelled = false;
@@ -263,7 +264,7 @@ export default function InvoiceEditor({
   return (
     <div className={styles.editor}>
       <datalist id={MODIFICATION_DATALIST_ID}>
-        {MODIFICATION_PRESETS.map((d) => (
+        {modPresetLabels.map((d) => (
           <option key={d} value={d} />
         ))}
       </datalist>

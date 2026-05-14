@@ -2,13 +2,15 @@ import { useState } from 'react';
 import '../styles/dashboard.css';
 import SetReleases from '../components/forms/SetReleases';
 import UserList from '../components/lists/UserList';
+import ModPresetsAdmin from '../components/lists/ModPresetsAdmin';
 import PnLPanel from '../components/PnLPanel';
 
-type Tab = 'pnl' | 'releases' | 'acct';
+type Tab = 'pnl' | 'releases' | 'mods' | 'acct';
 
 const TABS: Array<{ key: Tab; label: string }> = [
   { key: 'pnl', label: 'P&L' },
   { key: 'releases', label: 'Releases' },
+  { key: 'mods', label: 'Modification Presets' },
   { key: 'acct', label: 'Account Management' },
 ];
 
@@ -36,6 +38,9 @@ export default function Dashboard() {
       </div>
       <div className={currTab === 'releases' ? '' : 'hidden'}>
         <SetReleases />
+      </div>
+      <div className={currTab === 'mods' ? '' : 'hidden'}>
+        <ModPresetsAdmin />
       </div>
       <div className={currTab === 'acct' ? '' : 'hidden'}>
         <UserList />
