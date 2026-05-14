@@ -20,6 +20,7 @@ import shInventoryRoute from "./routes/v2/sh_inventory.js";
 import shInvoiceRoute from "./routes/v2/sh_invoice.js";
 import intakeRoute from "./routes/v2/intake.js";
 import reportRoute from "./routes/v2/report.js";
+import pnlRoute from "./routes/v2/pnl.js";
 import modPresetsRoute from "./routes/v2/mod_presets.js";
 import { generateShMonthEnd, priorMonth } from "./lib/sh-month-end.js";
 
@@ -54,6 +55,7 @@ app.use("/api/v2/sh-inventory", shInventoryRoute);
 app.use("/api/v2/sh-invoice", shInvoiceRoute);
 app.use("/api/v2/intake", intakeRoute);
 app.use("/api/v2/report", reportRoute);
+app.use("/api/v2/pnl", pnlRoute);
 app.use("/api/v2/mod-presets", modPresetsRoute);
 
 app.post("/api/v1/send", emailLimiter, checkAuth, async (req, res) => {
