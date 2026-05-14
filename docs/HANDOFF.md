@@ -4,16 +4,28 @@
 
 ---
 
-## Phase 5 in flight — PRs 5.1–5.5 landed + mod-preset admin + Dashboard polish + Dashboard P&L expansion
+## Phase 5 complete on `2.0`. Phase 6 partial — yard i18n + mobile audit done; Help content + Spanish review pending.
 
-PRs 5.1 (schema + API), 5.2 (brand-consistent templates), 5.3 (resolvers + PDF/email + UI), 5.4 (Dashboard P&L panel), and 5.5 (release_summary report + /releases page rework) are merged into `2.0` locally. Direct follow-ups on `2.0`:
+**Phase 5** — PRs 5.1 (schema + API), 5.2 (brand-consistent templates), 5.3 (resolvers + PDF/email + UI), 5.4 (Dashboard P&L panel), and 5.5 (release_summary report + /releases page rework) are merged into `2.0` locally. Direct follow-ups on `2.0`:
 - Dialog refactor (replace native confirm/prompt with styled dialogs).
 - Release-quota fix (drop intake decrement, auto-bump on overflow, conservative `0007` backfill).
 - Mod-preset admin Dashboard tab + InvoiceEditor/CreateInvoice datalist swap to `useModPresetLabels()` against `/api/v2/mod-presets`.
 - Dashboard polish: shared `.inventoryTable` / `.tableBtn` styles defined (they were referenced but had no CSS), `.hidden` class added (it was being used to toggle tabs but didn't exist), Releases tab dropped (the /releases page replaces it), tab strip restyled to centered text + accent underline.
 - **Dashboard P&L expansion (recharts ^3.8.1)** — KPI strip (6 cards), trend LineChart over 3/6/12/24 prior periods, top-clients BarChart, yard snapshot (state donut + size bars + pending-audit/flagged-damage footers). New backend endpoints: `GET /api/v2/pnl/{timeseries,top-clients,yard}` with helpers in `server/lib/report-resolvers/dashboard-extras.ts` + a `previousPeriod()` helper on the P&L resolver.
+- **P&L per-container drill-down** — clicking Sales Rev / Sales Cost / Net Profit / Avg Revenue per Box on the dashboard opens a Modal table of every container that contributed to the period (Unit#, Invoice date, Client, Sale, Acq cost, Mod rev/cost, Trucking, per-row Profit). Focused column highlights based on which card you clicked. New endpoint `GET /api/v2/pnl/breakdown` + `resolvePnlBreakdown()`.
 
-**Possible next items** (in rough priority): Phase 6 prep (Spanish localization, Help page content), Phase 7 (driver-receipt thermal printer / A80), staging environment for `2.0` cutover, history bulk re-render script.
+**Phase 6 — i18n + mobile + polish (partial):**
+- **i18n scaffold landed.** `i18next` + `react-i18next` + `i18next-browser-languagedetector` installed. Single `yard` namespace covering every English string a yard worker sees. Bundles at `client/src/i18n/locales/{en,es}.json`; Spanish is a first-pass draft and would benefit from a native review before prod. Selection persists in localStorage. Navbar gains an EN/ES segmented toggle. Admin flows stay English-only (yard-only scope per PLAN §7).
+- **Yard-flow strings wrapped:** Navbar yard items, YardView page, UpcomingOutbounds (state cards, table headers, pagination, popups), ReleaseNumbers, ShYardSection, Intake.tsx + all 6 step components (PhotoStep, ConfirmStep w/ `<Trans>` + `<strong>` for bold OCR feedback, SalesDetailsStep, ShDetailsStep, SalesReview, ShReview). Two narrower keys (`read_success_no_size`, `matched_release_no_company`) handle the case where OCR didn't pick up a size or release company.
+- **iPad/mobile compliance fixes:** Photo-tile remove button 24px → 40px+, ShYardSection date input 36px → 44px, `inputMode`/`autoCapitalize` hints across intake form fields, iPad-portrait breakpoint on yardview (3-col → 2-col → 1-col), horizontal scroll affordance on `.yardScrollWrap`. Audit punch list applied in full.
+- **Navbar polish:** new `UserAvatar` monogram component (palette-hashed initial), logo gets a real height, profile dropdown gains role line + click-outside / ESC-to-close + danger-tint logout. Old `profile.png` and the `onMouseOver` width-swell are gone.
+- **`/help` route stub** — minimal contact-Michelle card so the navbar link doesn't 404. Real content per the PLAN §8 follow-up ("does the user author the FAQs?") is still pending.
+
+**Next** (need user direction):
+- Spanish translation review — native pass over `client/src/i18n/locales/es.json` (~100 strings).
+- Help page content — user-authored FAQs to flesh out the stub.
+- Then Phase 7 (driver-receipt thermal printer, needs A80 spec conversation) and/or Phase 8 (QuickBooks integration, needs QB Online vs Desktop decision).
+- Staging environment before the `2.0` → `main` cutover is still unscheduled.
 
 ### Phase 5 design decisions (locked 2026-05-14)
 
