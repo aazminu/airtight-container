@@ -4,9 +4,23 @@
 
 ---
 
-## Phase 4 complete — Phase 5 next
+## Phase 5 in flight — PR 5.1 landed, PR 5.2 next
 
-All three Phase 4 PRs (4.1 tabbed inventory list, 4.2 two-pane edit modal, 4.3 yard view polish) are merged into `2.0` locally. **Next up is Phase 5 — Reports + Dashboard + P&L.** Pick the kickoff conversation from [PLAN.md §7 Phase 5](PLAN.md#phase-5--reports--dashboard--pl).
+PR 5.1 (reports + mod_presets schema + API) is merged into `2.0` locally. **Next up is PR 5.2 — brand-consistent report templates.** Then 5.3 list/forms, 5.4 dashboard P&L panel, 5.5 dashboard mod-preset admin.
+
+### Phase 5 design decisions (locked 2026-05-14)
+
+- **Four report types**: `delivery_sheet`, `io_report`, `pnl`, `sh_statement`. Each gets its own parameters jsonb shape (validated by a discriminated union in `server/validation/report.ts`), its own generator form (5.3), and its own template (5.2).
+- **One Delivery template variant**, not three. No A/B/C pitches — just modernize the existing delivery doc.
+- **Strict brand fidelity across every report template.** This is a hard constraint, not a guideline. The invoice template (`client/src/components/templates/invoice/InvoiceTemplate.tsx`, PR 3.1) is the reference. Reports must match:
+  - **Fonts**: Archivo Black for display/headers, IBM Plex Sans for body + grand-total values, IBM Plex Mono for tabular/numeric runs (line numbers, IDs). All loaded via Google Fonts `@import` in the CSS module exactly as InvoiceTemplate does.
+  - **Logo**: same airtight logo asset (`client/src/assets/images/airtight*.png`). Left in the header strip, slim crop.
+  - **Accent**: same red accent bar (CSS var `--accent` from tokens.css) under section titles.
+  - **Layout atoms**: slim header (logo left, doc-title right in Archivo Black). FROM/TO (or equivalent) addresses with the centered Archivo Black connector. Items table 8.5pt, sub-rows tight, line numbers in IBM Plex Mono. Summary block with terms left + totals stack right where applicable.
+  - **Paper-cream sheet** in print, terms verbatim from InvoiceTemplate where the doc carries them.
+- **Dashboard P&L panel**: aggregate cards (sales revenue / cost / profit + S&H revenue) with month/quarter/year toggle + "Generate PDF" button. PDF generation runs through the same Puppeteer pipeline as invoices (`server/lib/pdf.ts`, PR 3.2).
+- **Reports list view**: tile grid mirroring `InvoicesGrid.tsx` (PR 3.3), with sidebar facet by `report_type`. Saved-report rows live in `reports` (PLAN §3.3).
+- **Mod-presets admin** lands in PR 5.5 as a Dashboard tab. The InvoiceEditor `<datalist>` switches from the hard-coded array (`client/src/components/forms/modificationPresets.ts`) to a fetch against `/api/v2/mod-presets`. Seed migration already inserted the four legacy entries with stable positions 0-3.
 
 ### Phase 4 design decisions (locked 2026-05-14)
 
@@ -17,21 +31,34 @@ All three Phase 4 PRs (4.1 tabbed inventory list, 4.2 two-pane edit modal, 4.3 y
 - **UI copy rule (established mid-Phase-4):** user-facing strings must never reference Phase N / PR N / PLAN.md / branch names / commit shas. Comments in source are fine. See `feedback_ui_language_no_plan_refs.md` in user memory.
 - **Yard view:** Units by Type on top, Releases below, S&H last. Per-state columns (Available/Hold = days onsite; Sold = outbound + release#). Outbound boxes don't appear in yard view (state filter is `=== 'sold'`, not `IN ('sold','outbound')` — different semantic than /inventory's Sold tab). Time format pinned to America/New_York via `Intl.DateTimeFormat`.
 
-### Do these things before you write any Phase 5 code
+### PR 5.2 — brand-consistent report templates (next)
 
-1. **Read [PLAN.md §4.6 (P&L)](PLAN.md#46-pl) and [§7 Phase 5](PLAN.md#phase-5--reports--dashboard--pl).**
-2. **Read `client/src/routes/Reports.jsx`** — the current report surface area (one delivery-sheet form, redirects awkwardly). This is what Phase 5 replaces.
-3. **Read `client/src/routes/Dashboard.jsx`** — current dashboard tabs (Releases + Users only). Phase 5 adds P&L panel + cleans up tabs.
-4. **Skim `client/src/components/templates/Delivery.jsx`** and `client/src/components/reports/DeliverySheet.jsx` — these are how reports render today. Phase 5 generalizes the pattern.
-5. **Carryover from Phase 4:** `Header.jsx` is gone; `inventorylist.css` is gone; `Modal` has a new `size` prop; `InventoryEditor` is the cookbook for two-pane diff editors with passive read-only hints.
+Spec:
 
-### Open conversations before Phase 5 work goes deep
+- Extract shared brand atoms from `client/src/components/templates/invoice/InvoiceTemplate.tsx` into a reusable layer (probably `templates/shared/*` — header strip, accent bar, FROM/TO connector, summary block, paper-cream sheet wrapper). InvoiceTemplate keeps working without changes; shared atoms back both it and the new report templates.
+- Build four templates: `DeliveryTemplate.tsx`, `IOReportTemplate.tsx`, `PnLTemplate.tsx`, `ShStatementTemplate.tsx`. Each drives both on-screen detail page + the Puppeteer PDF (mirror `server/lib/pdf.ts` from PR 3.2).
+- Replace the legacy `client/src/components/templates/Delivery.jsx` and `client/src/components/reports/DeliverySheet.jsx` with the new template-driven flow.
+- Extend the dev-only `/admin/invoice-templates` preview route into `/admin/templates` (or similar) so each report renders with realistic seed data for visual review during development. Same pattern as PR 3.1.
+- PDF rendering endpoint: `POST /api/v2/report/:id/pdf` mirrors `POST /api/v2/invoice/:id/pdf` — runs the template through Puppeteer, uploads to S3, sets `pdf_s3_key`.
 
-- **Three initial report types** — delivery sheet (carryover), I/O report (currently commented out in legacy code), P&L. Anything else to add? E.g. a per-client S&H statement?
-- **P&L panel shape on the dashboard** — month/quarter/year toggle, sales/S&H stratification, drill-down behavior?
-- **Reports list view** — same tile pattern as Invoices (PR 3.3), or a simple table list of past saved runs?
-- **Saved reports** — does saving a report always generate a PDF + email option, or is "preview without save" allowed (e.g., scratch P&L explorations)?
-- **Admin-editable modification presets** — PR 3.11 follow-up; natural home is the dashboard. Promote `client/src/components/forms/modificationPresets.ts` (hard-coded array of 4) to a `mod_presets` table with admin CRUD.
+### Pre-PR-5.2 reading
+
+1. **`client/src/components/templates/invoice/InvoiceTemplate.tsx`** + its CSS module — this is the brand reference. Match it exactly.
+2. **`server/lib/pdf.ts`** (PR 3.2) — the SSR + Puppeteer pipeline. Reports route through the same.
+3. **`server/routes/v2/invoice.js`** `/pdf` + `/email` endpoints — copy-pasta starting point for `/report/:id/pdf` and `/report/:id/email`.
+4. **`docs/PLAN.md` §3.3** — `reports` table shape (already matches the migration shipped in 5.1).
+
+### Open conversations before PR 5.2 work goes deep
+
+- **Logo asset choice** for non-invoice docs — same airtight logo as invoices? (Default: yes, full brand consistency.)
+- **PDF naming convention in S3** — `reports/{type}/{id}.pdf` or `reports/{id}.pdf`? (PR 3.2 used `invoices/{invoice_id}.pdf`.)
+- **Email-on-generate flow** — auto-email if `emailed_to` was supplied in the POST, or always a separate user action via `/email`? (PR 3.4 has the invoice precedent.)
+
+### Phase 5 status
+
+| PR | Contents |
+|---|---|
+| 5.1 | Schema + API plumbing for reports + mod_presets. Drizzle migration `0005_phase5_reports_modpresets.sql` creates the `reports` table (per PLAN §3.3) and the `mod_presets` table (id, label UNIQUE, position, created_at). FK from `reports.generated_by → user.id` ON DELETE SET NULL so report history survives a user delete. Migration is idempotent — re-applying on top of a stub table from an earlier drizzle-push tidies the duplicate FK and enforces NOT NULL on generated_at. Seeded mod_presets with the four entries from `client/src/components/forms/modificationPresets.ts`. Routes: `/api/v2/report` (GET list w/ ?report_type filter, GET :id, POST admin create + persist parameters jsonb, DELETE admin) — PDF rendering deferred to PR 5.2 once templates land; `pdf_s3_key` stays null until then. `/api/v2/mod-presets` (GET employee, POST/PUT/DELETE admin; 23505 unique-violations → 409 friendly). Validation: `createReportSchema` is a discriminatedUnion on report_type with per-type parameters shapes; modPresetSchema trims labels + bounds position. 11 + 9 new validation tests bring the server suite from 98 → 118. No client work yet — that starts in 5.2 with templates and 5.3 with the list + generator UI. |
 
 ### Follow-up items carried over from Phases 3 + 4
 
