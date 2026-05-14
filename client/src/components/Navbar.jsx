@@ -1,15 +1,33 @@
 import React from "react";
-import { useContext, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import "../styles/navbar.css";
 import logo from "../assets/images/airtightfixed.png";
-import profile from "../assets/images/profile.png";
 import { userContext } from "../context/restaurantcontext";
 import { PendingAuditNav } from "./PendingAuditNav";
+import UserAvatar from "./UserAvatar";
 
 function Navbar() {
 	const [showUserOps, setShowUserOps] = useState(false);
-	const [userWidth, setuserWidth] = useState("40px");
 	const { user, setUser, setPopup, theme, toggleTheme } = useContext(userContext);
+	const profileRef = useRef(null);
+
+	useEffect(() => {
+		if (!showUserOps) return;
+		const onDown = (e) => {
+			if (profileRef.current && !profileRef.current.contains(e.target)) {
+				setShowUserOps(false);
+			}
+		};
+		const onKey = (e) => {
+			if (e.key === "Escape") setShowUserOps(false);
+		};
+		document.addEventListener("mousedown", onDown);
+		document.addEventListener("keydown", onKey);
+		return () => {
+			document.removeEventListener("mousedown", onDown);
+			document.removeEventListener("keydown", onKey);
+		};
+	}, [showUserOps]);
 
 	const logout = () => {
 		fetch("/api/auth/sign-out", {
@@ -23,14 +41,12 @@ function Navbar() {
 		});
 	};
 
-	const changeWidth = () => {
-		userWidth === "40px" ? setuserWidth("45px") : setuserWidth("40px");
-	};
-
 	return (
 		<div className="navbarOuter">
 			<div className="navbar">
-				<img src={logo} alt="logo" width={"10%"}></img>
+				<a href="/" className="navbarBrand" aria-label="Airtight home">
+					<img src={logo} alt="Airtight logo" className="navbarLogo" />
+				</a>
 				<nav>
 					{user.permissions !== "unauthorized" && (
 						<ul>
@@ -80,24 +96,28 @@ function Navbar() {
 					>
 						<span className="themeToggleThumb"></span>
 					</button>
-					<div className="profileContainer">
-						<img
-							className="userProfile"
-							src={profile}
-							alt="profile"
-							width={userWidth}
+					<div className="profileContainer" ref={profileRef}>
+						<UserAvatar
+							email={user.email}
+							size={36}
 							onClick={() => setShowUserOps(!showUserOps)}
-							onMouseOver={() => changeWidth()}
-							onMouseLeave={() => changeWidth()}
-						></img>
+						/>
 						{showUserOps && (
-							<div className="profileDropdown">
-								<div>
+							<div className="profileDropdown" role="menu">
+								<div className="profileEmail" title={user.email}>
 									{user.email === "unauthorized" ? "Guest" : user.email}
 								</div>
+								<div className="profileRole">
+									{user.permissions === "admin"
+										? "Admin"
+										: user.permissions === "employee"
+											? "Employee"
+											: ""}
+								</div>
 								<button
+									type="button"
 									className="logoutBtn authBtn"
-									onClick={() => logout()}
+									onClick={logout}
 								>
 									Logout
 								</button>
