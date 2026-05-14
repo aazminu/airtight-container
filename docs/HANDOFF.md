@@ -51,14 +51,18 @@
 - **UI copy rule (established mid-Phase-4):** user-facing strings must never reference Phase N / PR N / PLAN.md / branch names / commit shas. Comments in source are fine. See `feedback_ui_language_no_plan_refs.md` in user memory.
 - **Yard view:** Units by Type on top, Releases below, S&H last. Per-state columns (Available/Hold = days onsite; Sold = outbound + release#). Outbound boxes don't appear in yard view (state filter is `=== 'sold'`, not `IN ('sold','outbound')` — different semantic than /inventory's Sold tab). Time format pinned to America/New_York via `Intl.DateTimeFormat`.
 
-### Mod-preset admin (next)
+### Tomorrow's pickup
 
-Spec:
+**Blocked on user decisions:**
+1. **Spanish review** — pass over `client/src/i18n/locales/es.json` (~100 strings, machine-translated first pass) for native correctness before prod. Yard-staff-facing copy quality matters.
+2. **Help page content** — `/help` is currently a contact-Michelle stub at `client/src/routes/Help.tsx`. User authors FAQs OR signs off on me drafting from observed app behavior.
 
-- New Dashboard tab "Modification presets" (admin only). CRUD against the existing `/api/v2/mod-presets` endpoints.
-- List view: reorderable by `position`. Add/edit/delete rows. 23505 unique-violations come back as a 409 — surface inline as "Label already exists."
-- InvoiceEditor + CreateInvoice swap the hard-coded import `client/src/components/forms/modificationPresets.ts` for a fetch against `/api/v2/mod-presets`. Free-text values still allowed (datalist suggestions, not enum).
-- Decide: keep `modificationPresets.ts` as a stale fallback for offline / fetch-failed dev, or delete outright. Lean toward delete since `<input list>` gracefully degrades to a plain text input when the datalist is empty.
+**Unblocked if user is busy:**
+- **Dashboard P&L refinements** — year-over-year overlay on trend chart; container-size filter; top-clients drill-down (click bar → that client's invoices).
+- **UI-level tests** — InvoicesGrid + InvoiceEditor have server-side coverage but no React component tests. RTL/snapshot pass per the carried-over Phase 3 follow-up.
+- **Historical re-render bulk run** — `server/scripts/rerender-all-invoices.ts` is ready. Recommended dance: `--dry-run` → `--limit 5` + S3 sample → full.
+
+**Smoke caveat from last session:** auth rate-limit is 20 req / 15 min on `/api/auth/*`. Heavy Playwright iteration burns through it fast; wait ~15min between aggressive smoke sessions or you'll start seeing 429s and the page kicks to `/auth`. The /intake page in Spanish has NOT been end-to-end smoked because of this — first thing to verify if you log in tomorrow: navigate /intake, toggle ES via the navbar pill, walk both Sales and S&H paths to check no English leaks through.
 
 ### Phase 5 design decisions locked during PR 5.3 (2026-05-14)
 
@@ -103,8 +107,10 @@ Spec:
 - **Don't run anything against prod.** Local DB only.
 - **Don't change snapshot totals on existing invoices.** Re-renders consume the snapshot.
 - **Don't bypass lazy migration.** Convert `.jsx` → `.tsx` only when touching a file for real work.
-- **Don't `git push` `2.0` to origin without an ask.** Local-only since PR 1.1.
+- **Don't `git push` `2.0` to origin without an ask.** Local-only since PR 1.1 (currently 117 commits ahead).
 - **Don't backfill per-modification line items on legacy invoices.** Owner ruled it out; legacy stays single-line.
+- **Don't translate admin flows.** Yard scope only (Intake, YardView, /help, Add A Box, navbar items the yard worker sees). Inventory / Invoices / Reports / Dashboard / Clients / Releases / Audit stay English.
+- **Don't add new keys directly to `es.json`** without a matching English key — they'll never render. Add to both bundles together.
 
 ---
 
@@ -170,8 +176,8 @@ None block Phase 4.
 - **Hardware swap** (iPad → rugged Android handheld) — raise inside printer convo.
 - **S&H invoice email send** — see "follow-up items" above. Lacks a Puppeteer S&H template; the detail page is HTML-only right now.
 - **Historical re-render bulk run** — script is ready (PR 3.8). User to schedule.
-- **Spanish translation source** — Phase 6 prep.
-- **Help page content** — author vs draft. Phase 6 prep.
+- **Spanish translation review** — first-pass `es.json` is machine-translated. Native review before prod.
+- **Help page content** — stub shipped; real FAQs pending.
 - **Staging environment** — none today. Probably worth standing up before `2.0` → `main` cutover.
 - **Vite 8 / vitest 4 bumps** — dev-tooling-only esbuild advisories (GHSA-67mh-4wv8-2f99).
 
@@ -214,7 +220,9 @@ None block Phase 4.
 - **`pg_advisory_xact_lock` keys**: sales invoice sequence uses `0x4149_5253_4551_4e23` (hex of "AIRSEQ#"), S&H sequence uses `0x5054_4853_4551_4e23`. Different keys so the two domains don't block each other.
 - **Rate fields are stored as decimals, displayed as percents.** `invoices.tax_rate` and `invoices.cc_fee_rate` are `numeric` decimals (e.g. `0.06625`). The Phase 3 editor + create flow always present them as percents (`6.625`, `3.5`) and convert at the UI boundary via `pctToDecimal` / inline math. Server math is decimal-only; if you add a new rate-bearing field, follow the same convention.
 - **Design tokens live in `client/src/styles/tokens.css`**, loaded from `main.tsx`. Defines `--bg`, `--bg-surface`, `--surface` (alias), `--bg-page`, `--text`, `--muted`, `--hover`, `--border`, `--accent`, `--accent-fg`, `--success`/`--danger`/`--warning`/`--info` + corresponding `-bg` / `-fg` pairs, plus radius / shadow / font tokens. Every Phase 3 component CSS module references these as `var(--…)`. Page chrome (`html`/`body`) themed there too. Native date / search inputs picked up `color-scheme: light dark` + dark-mode tints on the OS-rendered indicators.
-- **Modification description input is `<input list="modification-presets">`** wherever per-mod line items exist (CreateInvoice Details step, InvoiceEditor). The shared datalist is in `client/src/components/forms/modificationPresets.ts`. Free text still accepted; presets are just typeahead suggestions. Promote to a `mod_presets` table when Phase 5 adds admin CRUD.
+- **Modification description input is `<input list="modification-presets">`** wherever per-mod line items exist (CreateInvoice Details step, InvoiceEditor). The shared datalist is now fed by `useModPresetLabels()` in `client/src/components/forms/modificationPresets.ts`, which fetches `/api/v2/mod-presets` and module-caches the result. Admin CRUD lives on the Dashboard "Modification Presets" tab; mutations publish back into the cache so the editor stays in sync.
+- **i18n yard-only scope.** `i18next` + `react-i18next` mounted from `client/src/main.tsx`. Single `yard` namespace at `client/src/i18n/locales/{en,es}.json`. ALL yard-flow files (`Intake.tsx` + `intake/*` steps, `YardView.tsx`, `UpcomingOutbounds.tsx`, `ReleaseNumbers.jsx`, `ShYardSection.tsx`, navbar yard items, `Help.tsx`) pull strings via `t()`. Admin pages stay hard-coded English. Conditional translation strings (e.g. OCR feedback when size is missing) use narrower keys like `read_success_no_size` rather than rendering empty parens. Use `<Trans>` for any string with embedded markup (`<strong>` etc.). Navbar has the EN/ES segmented toggle next to the theme switch; selection persists in localStorage under `app.lang`.
+- **Avatar/monogram pattern.** `client/src/components/UserAvatar.tsx` renders a circular monogram from the user's email initial with a palette-hashed background. Drop the legacy `profile.png` import — `UserAvatar` is the canonical avatar primitive.
 
 ---
 
