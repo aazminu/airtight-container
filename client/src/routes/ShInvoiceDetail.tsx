@@ -76,7 +76,7 @@ export default function ShInvoiceDetail() {
   const handleSend = async () => {
     if (!invoice) return;
     const ok = window.confirm(
-      `Mark invoice #${invoice.invoice_number} as sent? (PR 3.7 wires the status flip; per-customer email goes out via the same Resend path as sales invoices in a follow-up.)`,
+      `Mark invoice #${invoice.invoice_number} as sent?`,
     );
     if (!ok) return;
     setAction({ kind: 'busy', label: 'Sending…' });

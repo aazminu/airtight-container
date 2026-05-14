@@ -261,20 +261,20 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
             <ReadOnlyField
               label="Sale Co."
               value={row.sale_company_name}
-              hint="Driven by release #"
+              hint="Set by the release number"
               onAttemptEdit={() =>
                 setReadOnlyHint(
-                  'Sale company is derived from the container’s release number. Reassign the release on the Releases page to change it.',
+                  'The sale company comes from the container’s release number. To change it, reassign the release on the Releases page.',
                 )
               }
             />
             <ReadOnlyField
               label="Release #"
               value={row.release_number_value}
-              hint="Reassign via Releases page"
+              hint="Change on the Releases page"
               onAttemptEdit={() =>
                 setReadOnlyHint(
-                  'Release numbers are managed on the Releases page. Reassign the container there to change this.',
+                  'Release numbers are managed on the Releases page. Open Releases to reassign this container.',
                 )
               }
             />
@@ -283,7 +283,7 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
               value={row.date?.slice(0, 10) ?? null}
               onAttemptEdit={() =>
                 setReadOnlyHint(
-                  'Intake date is set when the container arrives. Admin can override it from the Audit page while the container is pending audit.',
+                  'The intake date is recorded when a container arrives. While a container is still pending review, an admin can adjust it from the Audit page.',
                 )
               }
             />
@@ -292,7 +292,7 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
               value={row.state}
               onAttemptEdit={() =>
                 setReadOnlyHint(
-                  'Container state advances via lifecycle actions: invoice creation marks the container sold; the driver receipt (Phase 7) will mark it outbound.',
+                  'A container’s state updates automatically as it moves through the yard. Creating an invoice for it marks it sold; once it ships out, it becomes outbound.',
                 )
               }
             />
