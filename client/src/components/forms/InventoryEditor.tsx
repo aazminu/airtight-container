@@ -23,6 +23,7 @@ export interface InventoryEditorRow {
   release_number_value: string | null;
   outbound_date: string | null;
   invoice_number: number | null;
+  invoice_id: number | null;
 }
 
 interface Props {
@@ -32,8 +33,13 @@ interface Props {
   onError: (msg: string) => void;
 }
 
+// unit_number is intentionally NOT here. It's set at intake and may be
+// corrected during audit (admin reading the photo), but after a box
+// transitions out of 'pending' state the number locks. Editing it later
+// would orphan the matching release_number_containers row that intake
+// auto-flipped to is_used=true based on the original number — keeping
+// it read-only here keeps inventory + release enumeration in sync.
 const EDITABLE_FIELDS = [
-  'unit_number',
   'size',
   'damage',
   'trucking_company',
@@ -44,7 +50,6 @@ const EDITABLE_FIELDS = [
 type EditableField = (typeof EDITABLE_FIELDS)[number];
 
 const FIELD_LABELS: Record<EditableField, string> = {
-  unit_number: 'Unit Number',
   size: 'Size',
   damage: 'Damage',
   trucking_company: 'Trucking Co.',
@@ -153,7 +158,7 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          unit_number: draft.unit_number,
+          unit_number: row.unit_number, // locked — pass through unchanged
           size: draft.size,
           damage: draft.damage,
           trucking_company: draft.trucking_company,
@@ -259,6 +264,16 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
                 hint banner at the top explaining where to make the
                 change instead. */}
             <ReadOnlyField
+              label="Unit Number"
+              value={row.unit_number.trim()}
+              hint="Locked after audit"
+              onAttemptEdit={() =>
+                setReadOnlyHint(
+                  'A container’s unit number is set at intake and can be corrected on the Audit page while the container is still pending. Once audit completes, the unit number is locked so it stays in sync with the release number it was matched to.',
+                )
+              }
+            />
+            <ReadOnlyField
               label="Sale Co."
               value={row.sale_company_name}
               hint="Set by the release number"
@@ -325,9 +340,9 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
                   Outbound: {row.outbound_date?.slice(0, 10) ?? '—'} ·{' '}
                   Invoice: {row.invoice_number ?? '—'}
                 </span>
-                {hasInvoice && (
+                {hasInvoice && row.invoice_id != null && (
                   <a
-                    href={`/invoices/${row.invoice_number}`}
+                    href={`/invoices/${row.invoice_id}`}
                     className={styles.readonlyLink}
                     onClick={(e) => e.stopPropagation()}
                   >

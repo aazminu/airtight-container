@@ -70,6 +70,7 @@ router.get("/", checkEmployee, async (req, res) => {
 				release_number_value: release_numbers.release_number_value,
 				outbound_date: sold.outbound_date,
 				invoice_number: invoices.invoice_number,
+				invoice_id: invoices.invoice_id,
 			})
 			.from(inventory)
 			.leftJoin(
@@ -222,14 +223,42 @@ router.post("/add", checkEmployee, async (req, res) => {
 // clears is_pending_audit, transitions pending → available. Returns 404
 // if the row has already been audited or doesn't exist (mirrors the S&H
 // audit endpoint's behavior so the UI can treat them uniformly).
+//
+// PR 4.3 follow-up: when the admin corrects unit_number during audit
+// (typical case: OCR misread that the admin caught by reading the photo),
+// also rename the matching release_number_containers row so the
+// enumeration stays linked to the same physical box. The release
+// auto-association at intake stored the row using the (now-wrong)
+// original unit_number; without this cascade the post-audit container
+// would no longer match its enumeration entry. Wrapped in a transaction
+// so a PK conflict on the cascade can't leave inventory + enumeration
+// diverged.
 router.put(
 	"/audit/:id",
 	checkAdmin,
 	validateBody(auditInventorySchema),
 	async (req, res) => {
+		const client = await db.pool.connect();
 		try {
 			const b = req.body;
-			const result = await db.query(
+			await client.query("BEGIN");
+
+			const before = await client.query(
+				`SELECT unit_number, release_number_id
+				 FROM inventory
+				 WHERE id = $1 AND is_pending_audit = true`,
+				[req.params.id],
+			);
+			if (before.rows.length === 0) {
+				await client.query("ROLLBACK");
+				return res
+					.status(404)
+					.json({ message: "Not found or already audited" });
+			}
+			const oldUnit = before.rows[0].unit_number;
+			const releaseId = before.rows[0].release_number_id;
+
+			const result = await client.query(
 				`UPDATE inventory SET
 					acquisition_price = COALESCE($1, acquisition_price),
 					date = COALESCE($2::timestamptz, date),
@@ -241,7 +270,7 @@ router.put(
 					is_pending_audit = false,
 					state = CASE WHEN state = 'pending' THEN 'available'::inventory_state ELSE state END
 				 WHERE id = $8 AND is_pending_audit = true
-				 RETURNING id, state, is_pending_audit`,
+				 RETURNING id, state, is_pending_audit, unit_number`,
 				[
 					b.acquisition_price ?? null,
 					b.date ?? null,
@@ -251,22 +280,42 @@ router.put(
 					b.damage ?? null,
 					b.trucking_company ?? null,
 					req.params.id,
-				]
+				],
 			);
 			if (result.rows.length === 0) {
+				await client.query("ROLLBACK");
 				return res
 					.status(404)
 					.json({ message: "Not found or already audited" });
 			}
+
+			// Cascade unit_number change to the enumeration row if any.
+			// Match by trim+upper because that's how intake stores the
+			// container_number on auto-association.
+			const oldNorm = (oldUnit ?? "").trim().toUpperCase();
+			const newNorm = (result.rows[0].unit_number ?? "").trim().toUpperCase();
+			if (oldNorm !== newNorm && releaseId) {
+				await client.query(
+					`UPDATE release_number_containers
+					 SET container_number = $1
+					 WHERE release_number_id = $2 AND container_number = $3`,
+					[newNorm, releaseId, oldNorm],
+				);
+			}
+
+			await client.query("COMMIT");
 			res.status(200).json({
 				status: "success",
 				data: { box: result.rows[0] },
 			});
 		} catch (err) {
+			await client.query("ROLLBACK").catch(() => {});
 			console.error("inventory.audit error:", err);
 			res.status(500).json({ message: "Internal server error" });
+		} finally {
+			client.release();
 		}
-	}
+	},
 );
 
 router.put("/:id", checkAdmin, async (req, res) => {

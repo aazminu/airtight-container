@@ -5,6 +5,7 @@ import {
   useState,
   type ChangeEvent,
 } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Badge } from '../components/ui';
 import { InventoryEditor } from '../components/forms/InventoryEditor';
 import { userContext } from '../context/restaurantcontext';
@@ -30,6 +31,7 @@ interface InventoryRow {
   release_number_value: string | null;
   outbound_date: string | null;
   invoice_number: number | null;
+  invoice_id: number | null;
 }
 
 type Tab = 'available' | 'pending' | 'sold';
@@ -106,6 +108,7 @@ const matchesSearch = (row: InventoryRow, q: string): boolean => {
 };
 
 export default function Inventory() {
+  const navigate = useNavigate();
   const { setPopup } = useContext(userContext) as {
     setPopup: (msg: string) => void;
   };
@@ -326,7 +329,12 @@ export default function Inventory() {
           </thead>
           <tbody>
             {pageItems.map((r) => (
-              <tr key={r.id} onClick={() => setEditing(r)}>
+              <tr
+                key={r.id}
+                onClick={() =>
+                  r.state === 'pending' ? navigate('/audit') : setEditing(r)
+                }
+              >
                 <td>
                   <span className={styles.unitCell}>
                     {r.unit_number.trim()}
