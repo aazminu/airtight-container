@@ -276,6 +276,22 @@
 	color: var(--text-muted);
 }
 
+/* Empty-state row inside a yard card */
+.yardEmpty {
+	padding: 28px 14px !important;
+	color: var(--text-muted) !important;
+	font-style: italic;
+	font-size: 12px;
+}
+
+/* Subtle time string below the outbound date in the Sold card */
+.yardTimeText {
+	display: inline-block;
+	margin-top: 2px;
+	color: var(--text-muted);
+	font-size: 11px;
+}
+
 @media (max-width: 900px) {
 	.yardReleasesSection,
 	.yardUnitSection {
