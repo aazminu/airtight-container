@@ -190,7 +190,11 @@ async function resolveSalesDelivery(
     onsite_contact: params.onsite_contact ?? null,
     door_orientation: params.door_orientation ?? null,
     payment_details: params.payment_details ?? null,
-    receipt_note: params.receipt_note ?? ctr.invoice_notes ?? null,
+    // Receipt note is operator-only — we do NOT default to
+    // sold.invoice_notes. If the operator wants the invoice note on
+    // the delivery sheet they can copy it in; otherwise the banner
+    // stays off the page entirely.
+    receipt_note: params.receipt_note ?? null,
     notes: params.notes ?? null,
   };
 }

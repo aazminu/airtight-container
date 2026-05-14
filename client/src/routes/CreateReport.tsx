@@ -664,7 +664,11 @@ function DeliveryFlow() {
 
             <div className={styles.sectionTitle}>Receipt block</div>
             <div className={styles.fieldGrid}>
-              <Field label="Receipt note" wide hint="Defaults to the invoice note">
+              <Field
+                label="Receipt note"
+                wide
+                hint="Left blank = no receipt banner on the sheet"
+              >
                 <input
                   className={styles.input}
                   value={params.receipt_note}
