@@ -12,7 +12,7 @@ function Navbar() {
 	const [showUserOps, setShowUserOps] = useState(false);
 	const { user, setUser, setPopup, theme, toggleTheme } = useContext(userContext);
 	const profileRef = useRef(null);
-	const { i18n } = useTranslation();
+	const { i18n, t } = useTranslation();
 	const currentLang = i18n.resolvedLanguage === "es" ? "es" : "en";
 
 	useEffect(() => {
@@ -80,13 +80,13 @@ function Navbar() {
 								</>
 							)}
 							<li>
-								<a href="/yardview">Yard View</a>
+								<a href="/yardview">{t("navbar.yard_view")}</a>
 							</li>
 							<li>
-								<a href="/intake">Add A Box</a>
+								<a href="/intake">{t("navbar.add_a_box")}</a>
 							</li>
 							<li>
-								<a href="/help">Help</a>
+								<a href="/help">{t("navbar.help")}</a>
 							</li>
 						</ul>
 					)}
@@ -117,7 +117,7 @@ function Navbar() {
 					<button
 						className="themeToggle"
 						onClick={toggleTheme}
-						aria-label="Toggle dark mode"
+						aria-label={t("navbar.toggle_dark")}
 						data-theme-active={theme}
 					>
 						<span className="themeToggleThumb"></span>
@@ -131,13 +131,15 @@ function Navbar() {
 						{showUserOps && (
 							<div className="profileDropdown" role="menu">
 								<div className="profileEmail" title={user.email}>
-									{user.email === "unauthorized" ? "Guest" : user.email}
+									{user.email === "unauthorized"
+										? t("navbar.guest")
+										: user.email}
 								</div>
 								<div className="profileRole">
 									{user.permissions === "admin"
-										? "Admin"
+										? t("navbar.admin")
 										: user.permissions === "employee"
-											? "Employee"
+											? t("navbar.employee")
 											: ""}
 								</div>
 								<button
@@ -145,7 +147,7 @@ function Navbar() {
 									className="logoutBtn authBtn"
 									onClick={logout}
 								>
-									Logout
+									{t("navbar.logout")}
 								</button>
 							</div>
 						)}
