@@ -111,12 +111,8 @@ export default function ReleaseSummaryTemplate({
                       <span className={styles.outDate}>
                         {fmtDate(c.outbound_date)}
                       </span>
-                      {c.buyer_label || c.destination ? (
-                        <span className={styles.outBuyer}>
-                          {[c.buyer_label, c.destination]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </span>
+                      {c.buyer_label ? (
+                        <span className={styles.outBuyer}>{c.buyer_label}</span>
                       ) : null}
                     </>
                   ) : (
