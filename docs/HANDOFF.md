@@ -4,25 +4,45 @@
 
 ---
 
-## Phase 3 complete — Phase 4 next
+## Phase 4 in flight — PR 4.1 landed, PR 4.2 next
 
-All eleven Phase 3 PRs (3.1–3.11) are merged into `2.0` locally. **Next up is Phase 4 — Inventory + Yard refresh.** Pick the kickoff conversation from [PLAN.md §7 Phase 4](PLAN.md#phase-4--inventory--yard-refresh).
+PR 4.1 (tabbed inventory list) is merged into `2.0` locally. **Next up is PR 4.2 — popup edit modal with two-pane diff preview.** PR 4.3 is yard view polish.
 
-### Do these things before you write any code
+### Phase 4 design decisions (locked 2026-05-14)
 
-1. **Read [PLAN.md](PLAN.md) §5 (UI rework — Inventory section) and §7 Phase 4.**
-2. **Read `client/src/components/lists/InventoryList.jsx`** — pagination bug at line 53 (`+= 1`) is the canonical reference for the "broken pagination" mentioned in PLAN. This component is what Phase 4 replaces. **Heads up**: it currently imports `client/src/styles/inventorylist.css`, which still defines tokens that overlap with the new global `client/src/styles/tokens.css`. When Phase 4 deletes this jsx file, drop `inventorylist.css` too — tokens are already in `tokens.css`.
-3. **Skim `client/src/components/lists/InvoicesGrid.tsx`** (PR 3.3) and `client/src/routes/InvoiceDetail.tsx` (PR 3.4) — Phase 4 follows the same shape (tiled/table list + popup edit modal vertical) so the patterns there are a good cookbook.
-4. **Reuse `<Stepper>`** (`client/src/components/ui/Stepper.tsx`) for any multi-step flows Phase 4 needs. CreateInvoice uses it; Intake will lazy-migrate later.
-5. **Reuse `modificationPresets.ts` + `<datalist>` pattern** for any list-of-suggested-options inputs — typeahead with free text fallback. Set up so future presets can move to a DB table without breaking the input shape (see PLAN §8 admin-editable mod-preset follow-up).
+- **Inventory split:** three tabs — `available` / `pending` / `sold`. Hold rows nest inside `available` with a "Held" badge; `outbound` nests inside `sold` with an "Outbound" badge until Phase 7's printer flow gives `outbound` its own state-flipping path.
+- **Mark Outbound is gone.** PR 4.1 deleted `OutboundForm.jsx` + the drawer button. The driver-receipt print in Phase 7 will be what stamps `outbound_date` and flips state to `outbound`.
+- **Search/sort:** header search box + per-column header-click sort. No sidebar facet (the invoices-grid sidebar pattern was not adopted here — too few sale companies to justify).
+- **Yard view facelift = polish only** in PR 4.3 (same three sections, restyle into tokens, fix the manual TZ math in YardRow.jsx). No new groupings.
 
-### Open conversations before Phase 4 work goes deep
+### PR 4.2 — popup edit modal (next)
 
-- **Three state-segmented inventory tables** — `available` / `sold` / `outbound`? Or `available` / `pending` / `sold`? Confirm at kickoff.
-- **Popup edit modal vertical layout** — which fields, validation rules?
-- **Search-in-header pattern** — mirror invoices grid (header free-text + sidebar by sale_company maybe) or pure table?
-- **"Mark Outbound" button removal** — confirm the outbound flow that replaces it (probably part of the invoice send/email path? Or a yard checkout action?).
-- **Yard view facelift scope** — same data, just polish, or new groupings?
+Spec from the kickoff:
+
+- New `client/src/components/forms/InventoryEditor.tsx`. Two-pane inside `<Modal>`: edit form left, **live before/after diff right** highlighting changed fields. Footer "Save changes" → reveals "Confirm" with a change summary; commit only on Confirm.
+- Fields editable: all intake fields (unit#, size, damage, sale_company, release#, acq.price, trucking_co, notes). Read-only photo strip at top — reuse `<PhotoLightbox>`; presign GETs server-side and surface in the list response when needed (PR 4.1's GET already returns `photos: string[]`).
+- **When `state === 'sold'`** (rows in the Sold tab): also surface sale_price, modification_price, destination, outbound_date — these write through `/api/v1/inventory/sold/:id` (the same legacy POST the new invoice flow uses) or a v2 equivalent if added.
+- The stopgap modal in `Inventory.tsx` (`InventoryEditModal`) is what gets replaced. It currently edits unit#/size/damage/trucking_co/acq.price (via `PUT /api/v1/inventory/:id`) + notes (via `PUT /notes/:id`). State and sold-row fields are out of scope for the stopgap.
+- `is_pending_audit` toggle was **not** included — audit screen at `/audit` stays the canonical workflow.
+
+### Pre-PR-4.2 reading
+
+1. **Read PLAN.md §5 (UI rework — Inventory section).**
+2. **Read `client/src/routes/Inventory.tsx`** — particularly the `InventoryEditModal` component at the bottom (the stopgap PR 4.2 replaces). Reuse the `<Modal>` mount, the field-mapping pattern, and the `set()` helper.
+3. **Skim `client/src/components/forms/InvoiceEditor.tsx`** (PR 3.4) — closest reference for an edit-form-with-server-reconciliation pattern. Its container-add/remove + per-mod reorder logic isn't relevant, but the "controlled draft → diff vs original → POST" shape is.
+4. **`client/src/components/ui/PhotoLightbox.tsx`** — already in the UI library. Used by Audit (`Audit.tsx:307` PhotoStrip). Reuse for the photo strip in the editor.
+
+### Open conversations before PR 4.2 work goes deep
+
+- **Sold-row writes** — `/api/v1/inventory/sold/:id` POST today *creates* a sold row (it's the legacy "mark sold" insert called by the invoice create flow). For editing an existing sold row we need an UPDATE path. Options: (a) PUT to a new endpoint, (b) reuse `/api/v2/invoice/:id` PUT (which already reconciles sold fields per PR 3.4) by invoice-id reverse lookup. Probably (a); resolve at kickoff.
+- **Photos** — do we ship a re-upload path in the editor, or stay read-only with "add photos via re-intake"? Read-only is the easier scope.
+- **Diff highlighting fidelity** — per-field background tint, or a summary list ("Acq.Price 213 → 425")? Pick one at kickoff; both are simple.
+
+### Phase 4 status
+
+| PR | Contents |
+|---|---|
+| 4.1 | Tabbed `/inventory` rewrite. New `client/src/routes/Inventory.tsx` + `.module.css`. Three tabs (Available / Pending / Sold) with live counts; Hold rows in Available with a "Held" badge; Outbound rows in Sold with an "Outbound" badge. Header search (full-text against unit#, sale co., release#, damage, notes, trucking co., invoice#, acq.price). Per-column header-click sort with asc/desc toggle + indicators; empties last. Common columns: Unit#, Size, Sale Co., Date Added, Days Onsite, Acq. Price, Release#; Sold tab adds Outbound + Invoice#. Pagination fixed (legacy `+= 1` phantom-page bug removed); 25/50/100 per-page. Stopgap edit modal (replaced in PR 4.2). Server: `GET /api/v1/inventory` LEFT JOINs sale_companies + release_numbers + sold + invoice_containers + invoices to surface `sale_company_name` / `release_number_value` / `outbound_date` / `invoice_number` per row. Legacy retired: `lists/InventoryList.jsx`, `rows/Row.jsx`, `forms/OutboundForm.jsx`, `forms/UpdateForm.jsx`, `SearchContainers.jsx`, `Header.jsx`, `styles/inventorylist.css` (yardview's two depended-on rules moved into `yardview.css`). |
 
 ### Follow-up items that didn't fit cleanly into Phase 3
 
