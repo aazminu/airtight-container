@@ -1,5 +1,10 @@
-// Profit + Loss for a given period. PR 5.3 server resolver will
-// aggregate over sold/invoices for sales + sh_invoice_lines for S&H.
+// Profit + Loss for a given period. Server resolver aggregates over
+// sold/invoices for sales and sh_invoice_lines for S&H. Pending-review
+// S&H invoices DO count toward revenue (per owner decision).
+//
+// Containers with NULL acquisition_price are excluded from the cost
+// calc and surfaced via `nulls_footnote` so the operator can see the
+// number is incomplete.
 
 export interface PnLData {
   report_id: number | string;
@@ -29,4 +34,8 @@ export interface PnLData {
     /** Distinct S&H clients with activity in the period. */
     client_count: number;
   };
+  /** Containers sold in the period whose acquisition_price is NULL.
+   *  Excluded from the cost calc; rendered as a footnote so the
+   *  reader knows the cost number is incomplete. */
+  null_cost_count?: number;
 }

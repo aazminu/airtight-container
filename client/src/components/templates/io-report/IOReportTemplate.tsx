@@ -5,7 +5,7 @@ import {
   DocFooter,
   SectionTitle,
 } from '../shared';
-import type { IOReportData, IOReportRow } from './types';
+import type { IOReportData, IOReportRow, IOReportSource } from './types';
 import styles from './IOReportTemplate.module.css';
 
 const fmtDate = (iso: string | null | undefined): string => {
@@ -15,6 +15,11 @@ const fmtDate = (iso: string | null | undefined): string => {
     month: 'short',
     day: 'numeric',
   });
+};
+
+const SOURCE_LABELS: Record<IOReportSource, { inbound: string; outbound: string }> = {
+  sales: { inbound: 'Sales — releases inbound', outbound: 'Sales — sold containers out' },
+  sh: { inbound: 'Storage & Handling — check-ins', outbound: 'Storage & Handling — pickups' },
 };
 
 export default function IOReportTemplate({ data }: { data: IOReportData }) {
@@ -38,19 +43,19 @@ export default function IOReportTemplate({ data }: { data: IOReportData }) {
       <section className={styles.section}>
         <SectionTitle>Inbound</SectionTitle>
         <div className={styles.countBanner}>
-          <span className={styles.countLabel}>Containers</span>
+          <span className={styles.countLabel}>Total</span>
           <span className={styles.countValue}>{data.inbound.length}</span>
         </div>
-        <Rows rows={data.inbound} kind="inbound" />
+        <GroupedRows rows={data.inbound} kind="inbound" />
       </section>
 
       <section className={styles.section}>
         <SectionTitle>Outbound</SectionTitle>
         <div className={styles.countBanner}>
-          <span className={styles.countLabel}>Containers</span>
+          <span className={styles.countLabel}>Total</span>
           <span className={styles.countValue}>{data.outbound.length}</span>
         </div>
-        <Rows rows={data.outbound} kind="outbound" />
+        <GroupedRows rows={data.outbound} kind="outbound" />
       </section>
 
       <DocFooter />
@@ -58,7 +63,7 @@ export default function IOReportTemplate({ data }: { data: IOReportData }) {
   );
 }
 
-function Rows({
+function GroupedRows({
   rows,
   kind,
 }: {
@@ -68,36 +73,54 @@ function Rows({
   if (rows.length === 0) {
     return (
       <div className={styles.emptyRow}>
-        No {kind} containers in this date window.
+        No {kind} activity in this date window.
       </div>
     );
   }
+
+  // Render sales first, then S&H. Skip empty groups.
+  const order: IOReportSource[] = ['sales', 'sh'];
+  const groups = order
+    .map((source) => ({ source, rows: rows.filter((r) => r.source === source) }))
+    .filter((g) => g.rows.length > 0);
+
   return (
-    <table className={styles.table}>
-      <thead>
-        <tr>
-          <th className={styles.colUnit}>Unit #</th>
-          <th className={styles.colSize}>Size</th>
-          <th className={styles.colDate}>Date</th>
-          <th className={styles.colParty}>
-            {kind === 'inbound' ? 'Sale Company' : 'Customer / Destination'}
-          </th>
-          <th className={styles.colRelease}>Release #</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r, i) => (
-          <tr key={i}>
-            <td className={styles.colUnit}>{r.unit_number.trim()}</td>
-            <td className={styles.colSize}>{r.size}</td>
-            <td className={styles.colDate}>{fmtDate(r.date)}</td>
-            <td className={styles.colParty}>{r.party}</td>
-            <td className={styles.colRelease}>
-              {r.release_number_value ?? '—'}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <>
+      {groups.map(({ source, rows: groupRows }) => (
+        <div key={source}>
+          <div className={styles.sourceLabel}>{SOURCE_LABELS[source][kind]}</div>
+          <table className={styles.subTable}>
+            <thead>
+              <tr>
+                <th className={styles.colUnit}>Unit #</th>
+                <th className={styles.colSize}>Size</th>
+                <th className={styles.colDate}>Date</th>
+                <th className={styles.colParty}>
+                  {source === 'sales'
+                    ? kind === 'inbound'
+                      ? 'Sale Company'
+                      : 'Customer / Destination'
+                    : 'Client'}
+                </th>
+                <th className={styles.colRelease}>Release #</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groupRows.map((r, i) => (
+                <tr key={`${source}-${i}`}>
+                  <td className={styles.colUnit}>{r.unit_number.trim()}</td>
+                  <td className={styles.colSize}>{r.size}</td>
+                  <td className={styles.colDate}>{fmtDate(r.date)}</td>
+                  <td className={styles.colParty}>{r.party}</td>
+                  <td className={styles.colRelease}>
+                    {r.release_number_value ?? '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </>
   );
 }

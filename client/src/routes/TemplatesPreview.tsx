@@ -207,6 +207,7 @@ const IO_REPORT_FIXTURE: IOReportData = {
       date: '2026-03-04',
       party: 'SeaCube',
       release_number_value: 'P534112',
+      source: 'sales',
     },
     {
       unit_number: 'DRYU933305-2',
@@ -214,6 +215,7 @@ const IO_REPORT_FIXTURE: IOReportData = {
       date: '2026-03-09',
       party: 'SeaCube',
       release_number_value: 'P683513',
+      source: 'sales',
     },
     {
       unit_number: 'FAMU827154-7',
@@ -221,6 +223,7 @@ const IO_REPORT_FIXTURE: IOReportData = {
       date: '2026-03-15',
       party: 'Flex Box',
       release_number_value: 'FB05MNYC9',
+      source: 'sales',
     },
     {
       unit_number: 'TRDU657649-3',
@@ -228,6 +231,21 @@ const IO_REPORT_FIXTURE: IOReportData = {
       date: '2026-03-22',
       party: 'Triton',
       release_number_value: 'ANYC$13294',
+      source: 'sales',
+    },
+    {
+      unit_number: 'CGMU100023-4',
+      size: "40'HC",
+      date: '2026-03-06',
+      party: 'Lakeside Marina Co.',
+      source: 'sh',
+    },
+    {
+      unit_number: 'TGHU772212-1',
+      size: "20'",
+      date: '2026-03-18',
+      party: 'Hudson Valley Co.',
+      source: 'sh',
     },
   ],
   outbound: [
@@ -236,18 +254,28 @@ const IO_REPORT_FIXTURE: IOReportData = {
       size: "40'HC",
       date: '2026-03-08',
       party: 'Belleayre Mountain · Highmount, NY',
+      source: 'sales',
     },
     {
       unit_number: 'DRYU304922-3',
       size: '20',
       date: '2026-03-19',
       party: 'Hudson Valley Co. · Newburgh, NY',
+      source: 'sales',
     },
     {
       unit_number: 'WBPU700005-4',
       size: "40'HC",
       date: '2026-03-27',
       party: 'Eastern Trade · Philadelphia, PA',
+      source: 'sales',
+    },
+    {
+      unit_number: 'CGMU100023-4',
+      size: "40'HC",
+      date: '2026-03-25',
+      party: 'Lakeside Marina Co.',
+      source: 'sh',
     },
   ],
 };
@@ -257,6 +285,7 @@ const PNL_FIXTURE: PnLData = {
   generated_at: new Date().toISOString(),
   period_label: 'March 2026',
   granularity: 'month',
+  null_cost_count: 2,
   sales: {
     revenue: 42_800,
     cost: 18_200,

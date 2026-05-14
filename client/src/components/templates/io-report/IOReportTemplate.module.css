@@ -84,3 +84,48 @@
   color: #5a6478;
   font-style: italic;
 }
+
+.sourceLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-size: 7.5pt;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #5a6478;
+  padding: 12px 6px 4px;
+}
+
+.sourceLabel:first-of-type {
+  padding-top: 0;
+}
+
+.subTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+  margin-bottom: 10px;
+}
+
+.subTable thead th {
+  text-align: left;
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  color: #5a6478;
+  padding: 7px 6px;
+  border-bottom: 1px solid #2a3142;
+}
+
+.subTable tbody td {
+  padding: 6px;
+  border-top: 1px solid #e3e2dc;
+  vertical-align: top;
+}
+
+.subTable tbody tr:first-child td {
+  border-top: 0;
+}
+
+.subTable tbody tr:last-child td {
+  border-bottom: 1px solid #2a3142;
+}
