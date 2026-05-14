@@ -108,41 +108,35 @@
 }
 
 .colUnit {
-  width: 18%;
+  width: 16%;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 8.5pt;
 }
 
 .colSize {
-  width: 10%;
+  width: 8%;
 }
 
 .colCondition {
-  width: 18%;
+  width: 14%;
 }
 
 .colState {
-  width: 14%;
+  width: 12%;
 }
 
 .colIntake {
-  width: 14%;
+  width: 12%;
   font-variant-numeric: tabular-nums;
 }
 
 .colOut {
-  width: 26%;
-}
-
-.outDate {
-  display: block;
+  width: 12%;
   font-variant-numeric: tabular-nums;
 }
 
-.outBuyer {
-  display: block;
-  font-size: 8.5pt;
-  color: #5a6478;
+.colBuyer {
+  width: 26%;
 }
 
 .archivedFootnote {

@@ -92,7 +92,8 @@ export default function ReleaseSummaryTemplate({
               <th className={styles.colCondition}>Condition</th>
               <th className={styles.colState}>State</th>
               <th className={styles.colIntake}>Intake</th>
-              <th className={styles.colOut}>Outbound · Buyer</th>
+              <th className={styles.colOut}>Outbound</th>
+              <th className={styles.colBuyer}>Buyer</th>
             </tr>
           </thead>
           <tbody>
@@ -106,19 +107,9 @@ export default function ReleaseSummaryTemplate({
                 </td>
                 <td className={styles.colIntake}>{fmtDate(c.intake_date)}</td>
                 <td className={styles.colOut}>
-                  {c.outbound_date ? (
-                    <>
-                      <span className={styles.outDate}>
-                        {fmtDate(c.outbound_date)}
-                      </span>
-                      {c.buyer_label ? (
-                        <span className={styles.outBuyer}>{c.buyer_label}</span>
-                      ) : null}
-                    </>
-                  ) : (
-                    '—'
-                  )}
+                  {c.outbound_date ? fmtDate(c.outbound_date) : '—'}
                 </td>
+                <td className={styles.colBuyer}>{c.buyer_label ?? '—'}</td>
               </tr>
             ))}
           </tbody>
