@@ -1,4 +1,5 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import YardRow, { type YardContainer } from '../rows/YardRow';
 import { userContext } from '../../context/restaurantcontext';
 
@@ -10,10 +11,10 @@ interface Props {
 
 const PAGE_SIZE = 10;
 
-const TITLES: Record<YardCardType, string> = {
-  available: 'Available Units',
-  hold: 'Held Units',
-  sold: 'Sold Units',
+const TITLE_KEY: Record<YardCardType, string> = {
+  available: 'outbounds.available',
+  hold: 'outbounds.held',
+  sold: 'outbounds.sold',
 };
 
 // Yard view treats 'outbound' as "no longer in the yard" — so the Sold
@@ -33,6 +34,7 @@ function UpcomingOutbounds({ type }: Props) {
   const { setPopup } = useContext(userContext) as {
     setPopup: (msg: string) => void;
   };
+  const { t } = useTranslation();
   const [boxes, setBoxes] = useState<YardContainer[]>([]);
   const [page, setPage] = useState(0);
 
@@ -48,13 +50,13 @@ function UpcomingOutbounds({ type }: Props) {
         setBoxes(filtered);
         setPage(0);
       } catch {
-        if (!cancelled) setPopup('ERROR Unable to get inventory');
+        if (!cancelled) setPopup(t('outbounds.load_error'));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [type, setPopup]);
+  }, [type, setPopup, t]);
 
   const pageCount = Math.max(1, Math.ceil(boxes.length / PAGE_SIZE));
   const pageBoxes = useMemo(
@@ -65,22 +67,22 @@ function UpcomingOutbounds({ type }: Props) {
   return (
     <div className={`${type}Container`}>
       <h2 className="yardHead">
-        {TITLES[type]}
+        {t(TITLE_KEY[type])}
         <span className="yardCount">{boxes.length}</span>
       </h2>
       <div className="yardScrollWrap">
         <table className="yardTable">
           <thead>
             <tr>
-              <th>Unit Number</th>
-              <th>Size</th>
+              <th>{t('outbounds.unit_number')}</th>
+              <th>{t('outbounds.size')}</th>
               {type === 'sold' ? (
                 <>
-                  <th>Outbound</th>
-                  <th>Release #</th>
+                  <th>{t('outbounds.outbound')}</th>
+                  <th>{t('outbounds.release_num')}</th>
                 </>
               ) : (
-                <th>Days Onsite</th>
+                <th>{t('outbounds.days_onsite')}</th>
               )}
             </tr>
           </thead>
@@ -91,7 +93,7 @@ function UpcomingOutbounds({ type }: Props) {
             {pageBoxes.length === 0 && (
               <tr>
                 <td colSpan={type === 'sold' ? 4 : 3} className="yardEmpty">
-                  No units.
+                  {t('outbounds.no_units')}
                 </td>
               </tr>
             )}
@@ -106,10 +108,10 @@ function UpcomingOutbounds({ type }: Props) {
             onClick={() => setPage((p) => p - 1)}
             disabled={page === 0}
           >
-            ← Prev
+            {t('common.prev_arrow')}
           </button>
           <span className="yardPageInfo">
-            {page + 1} / {pageCount}
+            {t('common.page_of', { page: page + 1, total: pageCount })}
           </span>
           <button
             type="button"
@@ -117,7 +119,7 @@ function UpcomingOutbounds({ type }: Props) {
             onClick={() => setPage((p) => p + 1)}
             disabled={page >= pageCount - 1}
           >
-            Next →
+            {t('common.next_arrow')}
           </button>
         </div>
       )}
