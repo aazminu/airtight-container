@@ -10,7 +10,7 @@ import type { IOReportData } from '../components/templates/io-report/types';
 import type { PnLData } from '../components/templates/pnl/types';
 import type { ReleaseSummaryData } from '../components/templates/release-summary/types';
 import type { ShStatementData } from '../components/templates/sh-statement/types';
-import { Badge } from '../components/ui';
+import { Badge, useConfirm, usePrompt } from '../components/ui';
 import { userContext } from '../context/restaurantcontext';
 import styles from './ReportDetail.module.css';
 
@@ -72,6 +72,8 @@ export default function ReportDetail() {
     user?: { permissions?: string };
   };
   const isAdmin = user?.permissions === 'admin';
+  const confirm = useConfirm();
+  const prompt = usePrompt();
   const [report, setReport] = useState<ReportRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -152,19 +154,28 @@ export default function ReportDetail() {
       (report.resolved_data as { client?: { contact_email?: string } })?.client
         ?.contact_email ??
       '';
-    const to = window.prompt(
-      'Send to (comma-separated for multiple):',
-      fallback,
-    );
+    const to = await prompt({
+      title: 'Email report',
+      label: 'Recipients',
+      message: 'Comma-separated for multiple addresses.',
+      defaultValue: fallback,
+      placeholder: 'name@example.com',
+      confirmLabel: 'Send',
+      validate: (v) => {
+        const list = v
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (list.length === 0) return 'At least one recipient is required.';
+        const bad = list.find((s) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
+        return bad ? `Not a valid email: ${bad}` : null;
+      },
+    });
     if (to === null) return;
     const list = to
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
-    if (list.length === 0) {
-      setAction({ kind: 'err', message: 'No recipient given.' });
-      return;
-    }
     setAction({ kind: 'busy', label: 'Sending…' });
     try {
       const res = await fetch(`/api/v2/report/${report.id}/email`, {
@@ -187,9 +198,12 @@ export default function ReportDetail() {
 
   const handleDelete = async () => {
     if (!report) return;
-    const ok = window.confirm(
-      `Delete report #${report.id}? The row and the stored PDF will both be removed. This cannot be undone.`,
-    );
+    const ok = await confirm({
+      title: 'Delete report?',
+      message: `Report #${report.id}: the row and the stored PDF will both be removed. This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    });
     if (!ok) return;
     setAction({ kind: 'busy', label: 'Deleting…' });
     try {

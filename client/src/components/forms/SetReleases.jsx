@@ -2,8 +2,10 @@ import React from "react";
 import { useState, useEffect, useContext } from "react";
 import ReleaseForm from "./ReleaseForm";
 import { userContext } from "../../context/restaurantcontext";
+import { useConfirm } from "../ui";
 function SetReleases() {
 	const { setPopup } = useContext(userContext);
+	const confirm = useConfirm();
 	const [releases, setReleases] = useState([]);
 	const [newName, setNewName] = useState("");
 	const [add, setAdd] = useState(false);
@@ -30,11 +32,15 @@ function SetReleases() {
 			});
 	}, [setPopup, setReleases]);
 
-	const deleteCompany = (id) => {
-		let confirm = window.confirm(
-			"Are you sure you want to remove this company?"
-		);
-		if (!confirm) return;
+	const deleteCompany = async (id) => {
+		const ok = await confirm({
+			title: "Remove company?",
+			message:
+				"This deletes the sale company entry. Releases under it will lose their company link.",
+			confirmLabel: "Remove",
+			danger: true,
+		});
+		if (!ok) return;
 		fetch(`/api/v2/release/company/${id}`, {
 			method: "DELETE",
 			headers: {

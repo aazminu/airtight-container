@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Badge, Button } from '../components/ui';
+import { Badge, Button, useConfirm } from '../components/ui';
 import { fmtCurrency, fmtDate } from '../components/templates/invoice/format';
 import { userContext } from '../context/restaurantcontext';
 import styles from './ShInvoiceDetail.module.css';
@@ -48,6 +48,7 @@ export default function ShInvoiceDetail() {
   const navigate = useNavigate();
   const { user } = useContext(userContext) as { user?: { permissions?: string } };
   const isAdmin = user?.permissions === 'admin';
+  const confirm = useConfirm();
   const [invoice, setInvoice] = useState<ShInvoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,9 +76,11 @@ export default function ShInvoiceDetail() {
 
   const handleSend = async () => {
     if (!invoice) return;
-    const ok = window.confirm(
-      `Mark invoice #${invoice.invoice_number} as sent?`,
-    );
+    const ok = await confirm({
+      title: 'Mark as sent?',
+      message: `Invoice #${invoice.invoice_number} will be flagged as delivered to the customer.`,
+      confirmLabel: 'Mark sent',
+    });
     if (!ok) return;
     setAction({ kind: 'busy', label: 'Sending…' });
     try {

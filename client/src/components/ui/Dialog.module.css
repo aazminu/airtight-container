@@ -1,0 +1,51 @@
+.message {
+  margin: 0 0 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+
+.input {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.9375rem;
+  background: var(--bg-input);
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.error {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--danger-bg, rgba(209, 36, 47, 0.08));
+  border: 1px solid var(--danger, rgba(209, 36, 47, 0.25));
+  color: var(--danger-fg, #82071e);
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}

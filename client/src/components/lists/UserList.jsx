@@ -1,9 +1,11 @@
 import React from "react";
 import { useState, useEffect, useContext } from "react";
 import { userContext } from "../../context/restaurantcontext";
+import { useConfirm } from "../ui";
 
 function UserList() {
 	const { setPopup } = useContext(userContext);
+	const confirm = useConfirm();
 	const [accounts, setAccounts] = useState([]);
 	useEffect(() => {
 		fetch(`/api/v2/dashboard`, {
@@ -27,10 +29,14 @@ function UserList() {
 	}, [setPopup]);
 
 	const deleteUser = async (user) => {
-		const confirm = window.confirm(
-			"Are you sure you want to delete this user? They will be unable to login to the system."
-		);
-		if (!confirm) return;
+		const ok = await confirm({
+			title: "Delete user?",
+			message:
+				"They will lose access to the system immediately. Existing data they created stays in place.",
+			confirmLabel: "Delete",
+			danger: true,
+		});
+		if (!ok) return;
 
 		fetch(`/api/v2/dashboard/${user.id}`, {
 			method: "DELETE",
@@ -49,12 +55,18 @@ function UserList() {
 		});
 	};
 
-	const updatePermissions = (account) => (e) => {
+	const updatePermissions = (account) => async (e) => {
 		const newPermission = e.target.value;
-		const confirm = window.confirm(
-			`Are you sure you want to set ${account.email} to ${newPermission}? This will affect their abilities to control the site.`
-		);
-		if (!confirm) return;
+		const ok = await confirm({
+			title: "Change permissions?",
+			message: `${account.email} will be set to ${newPermission}. This affects their abilities across the system.`,
+			confirmLabel: "Change",
+		});
+		if (!ok) {
+			// Reset the select to its prior value visually.
+			e.target.value = account.role ?? account.permissions ?? "";
+			return;
+		}
 
 		fetch(`/api/v2/dashboard/${account.id}`, {
 			method: "PUT",

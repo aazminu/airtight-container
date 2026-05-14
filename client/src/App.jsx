@@ -10,6 +10,7 @@ import Detail from "./routes/Detail";
 import Home from "./routes/Home";
 import { Provider } from "./context/restaurantcontext";
 import Navbar from "./components/Navbar";
+import { ToastProvider, ConfirmProvider, PromptProvider } from "./components/ui";
 import Reports from "./routes/Reports";
 import CreateReport from "./routes/CreateReport";
 import ReportDetail from "./routes/ReportDetail";
@@ -65,12 +66,18 @@ const App = () => {
 	return (
 		<>
 			<Provider>
-				{path !== "/auth" &&
-					!path.startsWith("/admin/templates") && <Navbar />}
-				<PopupContainer />
-				<div className="container">
-					<RouterProvider router={router} />
-				</div>
+				<ToastProvider>
+					<ConfirmProvider>
+						<PromptProvider>
+							{path !== "/auth" &&
+								!path.startsWith("/admin/templates") && <Navbar />}
+							<PopupContainer />
+							<div className="container">
+								<RouterProvider router={router} />
+							</div>
+						</PromptProvider>
+					</ConfirmProvider>
+				</ToastProvider>
 			</Provider>
 		</>
 	);

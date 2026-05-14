@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import InvoiceTemplate from '../components/templates/invoice/InvoiceTemplate';
 import type { InvoiceData } from '../components/templates/invoice/types';
-import { Button } from '../components/ui';
+import { Button, useConfirm, usePrompt } from '../components/ui';
 import { fmtDate } from '../components/templates/invoice/format';
 import { userContext } from '../context/restaurantcontext';
 import InvoiceEditor from '../components/forms/InvoiceEditor';
@@ -25,6 +25,8 @@ export default function InvoiceDetail() {
   const navigate = useNavigate();
   const { user } = useContext(userContext) as { user?: { permissions?: string } };
   const isAdmin = user?.permissions === 'admin';
+  const confirm = useConfirm();
+  const prompt = usePrompt();
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,15 +85,21 @@ export default function InvoiceDetail() {
   const handleEmail = async () => {
     if (!invoice) return;
     const fallbackTo = invoice.customer.contact_email ?? '';
-    const to = window.prompt(
-      'Send to email address:',
-      fallbackTo,
-    );
+    const to = await prompt({
+      title: 'Email invoice',
+      label: 'Recipient',
+      defaultValue: fallbackTo,
+      placeholder: 'name@example.com',
+      confirmLabel: 'Send',
+      validate: (v) => {
+        const t = v.trim();
+        if (!t) return 'Recipient email is required.';
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(t))
+          return 'Not a valid email address.';
+        return null;
+      },
+    });
     if (to === null) return;
-    if (!to.trim()) {
-      setAction({ kind: 'err', message: 'No recipient given.' });
-      return;
-    }
     setAction({ kind: 'busy', label: 'Sending…' });
     try {
       const res = await fetch(`/api/v2/invoice/${invoice.invoice_id}/email`, {
@@ -116,9 +124,12 @@ export default function InvoiceDetail() {
 
   const handleDelete = async () => {
     if (!invoice) return;
-    const ok = window.confirm(
-      `Delete invoice #${invoice.invoice_number}? Sold rows for its containers will be removed and the containers will return to "available". This cannot be undone.`,
-    );
+    const ok = await confirm({
+      title: 'Delete invoice?',
+      message: `Invoice #${invoice.invoice_number}: sold rows for its containers will be removed and the containers will return to "available". This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    });
     if (!ok) return;
     setAction({ kind: 'busy', label: 'Deleting…' });
     try {
