@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../ui';
 import { userContext } from '../../context/restaurantcontext';
 import styles from './ShYardSection.module.css';
@@ -40,6 +41,7 @@ const isoToLocalInput = (d: Date): string => {
 export function ShYardSection() {
   const { user } = useContext(userContext);
   const isAdmin = user.permissions === 'admin';
+  const { t } = useTranslation();
   const [boxes, setBoxes] = useState<InStorageBox[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,16 +70,18 @@ export function ShYardSection() {
   return (
     <section className={styles.section}>
       <div className={styles.head}>
-        <h2 className={styles.title}>Storage</h2>
+        <h2 className={styles.title}>{t('sh_yard.title')}</h2>
         <span className={styles.count}>
-          {loading ? 'Loading…' : `${boxes.length} on the yard`}
+          {loading
+            ? t('common.loading')
+            : t('sh_yard.count', { count: boxes.length })}
         </span>
       </div>
 
       {error && <div className={styles.checkoutError}>{error}</div>}
 
       {!loading && boxes.length === 0 ? (
-        <div className={styles.empty}>No storage boxes on the yard.</div>
+        <div className={styles.empty}>{t('sh_yard.empty')}</div>
       ) : (
         <div className={styles.list}>
           {boxes.map((b) => (
@@ -103,6 +107,7 @@ function ShYardRow({
   isAdmin: boolean;
   onCheckedOut: () => void;
 }) {
+  const { t } = useTranslation();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutDate, setCheckoutDate] = useState(() =>
     isoToLocalInput(new Date()),
@@ -147,13 +152,13 @@ function ShYardRow({
         </span>
       </div>
       <span className={styles.daysBadge} data-long={days > 30}>
-        {days} day{days === 1 ? '' : 's'} on yard
+        {t(days === 1 ? 'sh_yard.days_on_yard_one' : 'sh_yard.days_on_yard_other', { days })}
       </span>
       {isAdmin && (
         <div>
           {!checkoutOpen ? (
             <Button variant="ghost" onClick={() => setCheckoutOpen(true)}>
-              Check out
+              {t('sh_yard.check_out')}
             </Button>
           ) : (
             <div className={styles.checkoutInline}>
@@ -168,14 +173,14 @@ function ShYardRow({
                 onClick={confirmCheckout}
                 disabled={submitting}
               >
-                {submitting ? '…' : 'Confirm'}
+                {submitting ? '…' : t('common.confirm')}
               </Button>
               <Button
                 variant="ghost"
                 onClick={() => setCheckoutOpen(false)}
                 disabled={submitting}
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
               {error && <div className={styles.checkoutError}>{error}</div>}
             </div>

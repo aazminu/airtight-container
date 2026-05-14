@@ -1,10 +1,12 @@
 import React from "react";
 import { useState, useEffect, useContext } from "react";
+import { useTranslation } from "react-i18next";
 import { userContext } from "../../context/restaurantcontext";
 
 const PAGE_SIZE = 8;
 
 function ReleaseCard({ company }) {
+	const { t } = useTranslation();
 	const [page, setPage] = useState(0);
 	const pageCount = Math.ceil(company.numbers.length / PAGE_SIZE);
 	const pageItems = company.numbers.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -18,8 +20,8 @@ function ReleaseCard({ company }) {
 			<table className="releaseTable">
 				<thead>
 					<tr>
-						<th>Release #</th>
-						<th>Box Count</th>
+						<th>{t("releases_panel.release_num")}</th>
+						<th>{t("releases_panel.box_count")}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -32,7 +34,7 @@ function ReleaseCard({ company }) {
 						))
 					) : (
 						<tr>
-							<td colSpan={2}>N/A</td>
+							<td colSpan={2}>{t("releases_panel.empty")}</td>
 						</tr>
 					)}
 				</tbody>
@@ -44,17 +46,17 @@ function ReleaseCard({ company }) {
 						onClick={() => setPage((p) => p - 1)}
 						disabled={page === 0}
 					>
-						&#8592; Prev
+						{t("common.prev_arrow")}
 					</button>
 					<span className="yardPageInfo">
-						{page + 1} / {pageCount}
+						{t("common.page_of", { page: page + 1, total: pageCount })}
 					</span>
 					<button
 						className="yardPageBtn"
 						onClick={() => setPage((p) => p + 1)}
 						disabled={page >= pageCount - 1}
 					>
-						Next &#8594;
+						{t("common.next_arrow")}
 					</button>
 				</div>
 			)}
@@ -64,6 +66,7 @@ function ReleaseCard({ company }) {
 
 function ReleaseNumbers() {
 	const { setPopup } = useContext(userContext);
+	const { t } = useTranslation();
 	const [releases, setReleases] = useState([]);
 	useEffect(() => {
 		fetch("/api/v2/release", {
@@ -75,7 +78,7 @@ function ReleaseNumbers() {
 		})
 			.then((res) => {
 				if (!res.ok) {
-					setPopup("ERROR Failed to get release numbers");
+					setPopup(t("releases_panel.load_error"));
 					return;
 				}
 				return res.json();
@@ -83,7 +86,7 @@ function ReleaseNumbers() {
 			.then((data) => {
 				setReleases(data.data.releases);
 			});
-	}, [setPopup]);
+	}, [setPopup, t]);
 	return (
 		<div className="releaseContainer">
 			{releases.map((company) => (
