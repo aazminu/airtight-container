@@ -97,10 +97,113 @@
   margin-bottom: 4px;
 }
 
-.signatureRow {
+.receiptSummary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: -0.15in 0 0.35in;
+  padding: 8px 12px;
+  background: #f4f1e6;
+  border-left: 3px solid #0a0e1a;
+}
+
+.receiptSummaryLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #5a6478;
+}
+
+.receiptSummaryValue {
+  font-size: 10pt;
+  font-weight: 600;
+  color: #0a0e1a;
+}
+
+.detailGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.5in;
+  column-gap: 24px;
+  row-gap: 8px;
+  margin: 0 0 0.3in;
+}
+
+.detailLine {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px solid #e3e2dc;
+}
+
+.detailLineWide {
+  grid-column: 1 / -1;
+}
+
+.detailLineLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 7.5pt;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5a6478;
+  margin: 0;
+}
+
+.detailLineValue {
+  margin: 0;
+  font-size: 10pt;
+  color: #0a0e1a;
+  word-break: break-word;
+}
+
+.pickupRow {
+  margin-bottom: 0.35in;
+  padding: 10px 14px;
+  background: #f4f1e6;
+  border: 1px solid #2a3142;
+  border-radius: 6px;
+}
+
+.pickupBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pickupLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 7.5pt;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5a6478;
+}
+
+.pickupValue {
+  font-size: 10pt;
+  font-weight: 500;
+  color: #0a0e1a;
+}
+
+.disclaimer {
+  margin: 0.25in 0 0.2in;
+  padding: 8px 0;
+  font-size: 8.5pt;
+  font-style: italic;
+  text-align: center;
+  color: #0a0e1a;
+  letter-spacing: 0.02em;
+  border-top: 1px dashed #2a3142;
+  border-bottom: 1px dashed #2a3142;
+}
+
+.signatureRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.3in;
   margin-top: auto;
   margin-bottom: 0.4in;
 }

@@ -88,7 +88,7 @@ export default function TemplatesPreview() {
           >
             <option value="invoice">Invoice</option>
             <option value="delivery">Delivery sheet</option>
-            <option value="io_report">I/O report</option>
+            <option value="io_report">In/Out report</option>
             <option value="pnl">Profit + Loss</option>
             <option value="sh_statement">S&amp;H statement</option>
           </select>
@@ -155,20 +155,41 @@ export default function TemplatesPreview() {
 function buildDeliveryFixture(inv: InvoiceData | null): DeliveryData | null {
   if (!inv || inv.containers.length === 0) return null;
   const c = inv.containers[0];
+  const cu = inv.customer;
+  const locality =
+    [cu.city, cu.state].filter(Boolean).join(', ') +
+    (cu.zip ? ' ' + cu.zip : '');
+  const sizePrefix = c.size?.slice(0, 3).trim() || c.size || '';
   return {
     delivery_id: `D-${inv.invoice_number}`,
     generated_at: new Date().toISOString(),
-    outbound_date: c.outbound_date,
-    customer: inv.customer,
+    delivery_date: c.outbound_date ?? new Date().toISOString(),
+    customer: {
+      business_name: cu.business_name,
+      client_name: cu.client_name,
+      contact_phone: cu.contact_phone,
+      contact_email: cu.contact_email,
+    },
+    delivery_address: {
+      name: null,
+      street: c.destination || cu.street,
+      locality: locality || null,
+    },
     container: {
       unit_number: c.unit_number,
       size: c.size,
       damage: c.damage,
       release_number_value: null,
       sale_company_name: null,
+      receipt_summary: `1 ${sizePrefix} Weather Tight Container`,
     },
-    destination: c.destination || 'Pickup at yard',
-    trucker: null, // InvoiceLineContainer doesn't surface outbound_trucker; PR 5.3 resolver will
+    // PR 5.3 generator form will collect these. Preview uses realistic
+    // placeholder values so we can verify the brand layout end-to-end.
+    delivery_company: 'JT Hauling Co.',
+    onsite_contact: 'John Doe · 555-0142',
+    door_orientation: 'Doors facing road',
+    payment_details: 'Cash on delivery',
+    receipt_note: 'Standard delivery — call 30 minutes out.',
     modifications: c.modifications ?? [],
     notes: null,
   };

@@ -21,7 +21,7 @@ export default function IOReportTemplate({ data }: { data: IOReportData }) {
   return (
     <BrandSheet>
       <BrandHeader
-        title="I / O Report"
+        title="In / Out"
         titleSize="sm"
         meta={[
           { label: 'Number', value: data.report_id },
