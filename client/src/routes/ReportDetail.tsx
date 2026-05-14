@@ -3,16 +3,23 @@ import { useNavigate, useParams } from 'react-router-dom';
 import DeliveryTemplate from '../components/templates/delivery/DeliveryTemplate';
 import IOReportTemplate from '../components/templates/io-report/IOReportTemplate';
 import PnLTemplate from '../components/templates/pnl/PnLTemplate';
+import ReleaseSummaryTemplate from '../components/templates/release-summary/ReleaseSummaryTemplate';
 import ShStatementTemplate from '../components/templates/sh-statement/ShStatementTemplate';
 import type { DeliveryData } from '../components/templates/delivery/types';
 import type { IOReportData } from '../components/templates/io-report/types';
 import type { PnLData } from '../components/templates/pnl/types';
+import type { ReleaseSummaryData } from '../components/templates/release-summary/types';
 import type { ShStatementData } from '../components/templates/sh-statement/types';
 import { Badge } from '../components/ui';
 import { userContext } from '../context/restaurantcontext';
 import styles from './ReportDetail.module.css';
 
-type ReportType = 'delivery_sheet' | 'io_report' | 'pnl' | 'sh_statement';
+type ReportType =
+  | 'delivery_sheet'
+  | 'io_report'
+  | 'pnl'
+  | 'sh_statement'
+  | 'release_summary';
 
 interface ReportRow {
   id: number;
@@ -37,6 +44,7 @@ const TYPE_LABELS: Record<ReportType, string> = {
   io_report: 'In / Out report',
   pnl: 'Profit + Loss',
   sh_statement: 'S&H statement',
+  release_summary: 'Release summary',
 };
 
 type ActionState =
@@ -344,5 +352,11 @@ function ReportInline({ row }: { row: ReportRow }) {
       return <PnLTemplate data={row.resolved_data as unknown as PnLData} />;
     case 'sh_statement':
       return <ShStatementTemplate data={row.resolved_data as unknown as ShStatementData} />;
+    case 'release_summary':
+      return (
+        <ReleaseSummaryTemplate
+          data={row.resolved_data as unknown as ReleaseSummaryData}
+        />
+      );
   }
 }

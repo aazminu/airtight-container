@@ -5,13 +5,19 @@ import DeliveryTemplate from '../components/templates/delivery/DeliveryTemplate'
 import type { DeliveryData } from '../components/templates/delivery/types';
 import styles from './CreateReport.module.css';
 
-type ReportType = 'delivery_sheet' | 'io_report' | 'pnl' | 'sh_statement';
+type ReportType =
+  | 'delivery_sheet'
+  | 'io_report'
+  | 'pnl'
+  | 'sh_statement'
+  | 'release_summary';
 
 const TYPE_LABELS: Record<ReportType, string> = {
   delivery_sheet: 'Delivery sheet',
   io_report: 'In / Out report',
   pnl: 'Profit + Loss',
   sh_statement: 'S&H statement',
+  release_summary: 'Release summary',
 };
 
 const TYPE_DESCRIPTIONS: Record<ReportType, string> = {
@@ -23,9 +29,17 @@ const TYPE_DESCRIPTIONS: Record<ReportType, string> = {
     'Profit + Loss for a month, quarter, or year. Sales revenue vs. acquisition + modification cost, plus S&H revenue.',
   sh_statement:
     'Per-client storage & handling statement. Lists every monthly invoice in a date window with in/out fees and storage-day charges.',
+  release_summary:
+    'Per-release box ledger. Lists every container logged under a release number with state, intake date, and outbound info. Quota + filled count at the top.',
 };
 
-const TYPES: ReportType[] = ['delivery_sheet', 'io_report', 'pnl', 'sh_statement'];
+const TYPES: ReportType[] = [
+  'delivery_sheet',
+  'io_report',
+  'pnl',
+  'sh_statement',
+  'release_summary',
+];
 
 function isReportType(v: string | undefined): v is ReportType {
   return v != null && (TYPES as string[]).includes(v);
@@ -91,6 +105,7 @@ export default function CreateReport() {
       {type === 'io_report' && <IoForm />}
       {type === 'pnl' && <PnlForm />}
       {type === 'sh_statement' && <ShStatementForm />}
+      {type === 'release_summary' && <ReleaseSummaryForm />}
     </div>
   );
 }
@@ -1111,6 +1126,127 @@ function ShStatementForm() {
             />
           </Field>
         </Grid>
+      </Section>
+
+      <SubmitRow error={error} busy={busy} />
+    </form>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Release summary form (single page)
+// ──────────────────────────────────────────────────────────────────────
+
+interface ReleaseOption {
+  release_id: number;
+  release_number: string;
+  release_count: number;
+  inventory_count: number;
+  company: string;
+}
+
+function ReleaseSummaryForm() {
+  const navigate = useNavigate();
+  const [options, setOptions] = useState<ReleaseOption[]>([]);
+  const [releaseId, setReleaseId] = useState<number | null>(null);
+  const [search, setSearch] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/v2/release', { credentials: 'include' });
+        const body = await res.json();
+        if (cancelled) return;
+        const flat: ReleaseOption[] = [];
+        for (const c of body?.data?.releases ?? []) {
+          for (const r of c.numbers ?? []) {
+            flat.push({ ...r, company: c.company });
+          }
+        }
+        setOptions(flat);
+      } catch {
+        // Non-fatal: empty picker.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return options.slice(0, 80);
+    return options
+      .filter(
+        (r) =>
+          r.release_number?.toLowerCase().includes(q) ||
+          r.company?.toLowerCase().includes(q),
+      )
+      .slice(0, 80);
+  }, [options, search]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!releaseId) {
+      setError('Pick a release first.');
+      return;
+    }
+    setBusy(true);
+    const result = await submitReport('release_summary', {
+      release_id: releaseId,
+    });
+    setBusy(false);
+    if ('error' in result) {
+      setError(result.error);
+      return;
+    }
+    navigate(`/reports/${result.id}`);
+  };
+
+  const selected = options.find((r) => r.release_id === releaseId);
+
+  return (
+    <form className={styles.form} onSubmit={handleSubmit}>
+      <Section title="Release" required>
+        <input
+          type="search"
+          className={styles.input}
+          placeholder="Search release number or company…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <div className={styles.list}>
+          {filtered.map((r) => {
+            const checked = releaseId === r.release_id;
+            return (
+              <button
+                key={r.release_id}
+                type="button"
+                className={`${styles.optionRow} ${checked ? styles.checked : ''}`}
+                onClick={() => setReleaseId(r.release_id)}
+              >
+                <input type="radio" checked={checked} readOnly tabIndex={-1} />
+                <span className={styles.optionRowName}>{r.release_number}</span>
+                <span className={styles.optionRowMeta}>
+                  {r.company} · {r.inventory_count}/{r.release_count}
+                </span>
+              </button>
+            );
+          })}
+          {filtered.length === 0 && (
+            <div className={styles.empty}>No matching releases.</div>
+          )}
+        </div>
+        {selected && (
+          <div className={styles.hint}>
+            Picked: <strong>{selected.release_number}</strong> ({selected.company}) —{' '}
+            {selected.inventory_count}/{selected.release_count} filled.
+          </div>
+        )}
       </Section>
 
       <SubmitRow error={error} busy={busy} />

@@ -118,11 +118,40 @@ export interface ShStatementData {
   };
 }
 
+export interface ReleaseSummaryContainer {
+  unit_number: string;
+  size: string;
+  damage: string | null;
+  state: string;
+  intake_date: string;
+  outbound_date: string | null;
+  destination: string | null;
+  invoice_number: number | null;
+  buyer_label: string | null;
+}
+
+export interface ReleaseSummaryData {
+  report_id: number | string;
+  generated_at: string;
+  release_number_value: string;
+  sale_company_name: string;
+  /** Total boxes the release was opened for (release_numbers.release_number_count). */
+  quota: number;
+  /** Count of inventory rows currently pointing at this release. Sold/outbound boxes still count. */
+  filled_count: number;
+  /** quota - filled_count, clamped at zero. */
+  remaining: number;
+  is_complete: boolean;
+  completed_at: string | null;
+  containers: ReleaseSummaryContainer[];
+}
+
 export type ResolvedReportData =
   | { report_type: 'delivery_sheet'; data: DeliveryData }
   | { report_type: 'io_report'; data: IOReportData }
   | { report_type: 'pnl'; data: PnLData }
-  | { report_type: 'sh_statement'; data: ShStatementData };
+  | { report_type: 'sh_statement'; data: ShStatementData }
+  | { report_type: 'release_summary'; data: ReleaseSummaryData };
 
 // db/index.js is plain JS and its `query` return is inferred imprecisely
 // (the `pool.query` overload set lands on QueryArrayResult, making

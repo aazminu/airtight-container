@@ -50,6 +50,13 @@ const EMAIL_COPY = {
 			}`,
 		body: "Your S&H statement is attached.",
 	},
+	release_summary: {
+		subject: (data) =>
+			`Release summary — ${data?.release_number_value ?? "release"} (${
+				data?.sale_company_name ?? "company"
+			})`,
+		body: "Your release summary is attached.",
+	},
 };
 
 // BCC the operator's logging mailboxes on every outbound report (same

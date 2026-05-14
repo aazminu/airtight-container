@@ -2,13 +2,30 @@ import { describe, it, expect } from 'vitest';
 import { createReportSchema, REPORT_TYPES } from '../../validation/report.js';
 
 describe('createReportSchema', () => {
-  it('lists exactly four report types', () => {
+  it('lists the supported report types', () => {
     expect(REPORT_TYPES).toEqual([
       'delivery_sheet',
       'io_report',
       'pnl',
       'sh_statement',
+      'release_summary',
     ]);
+  });
+
+  it('accepts a release_summary with release_id', () => {
+    const r = createReportSchema.safeParse({
+      report_type: 'release_summary',
+      parameters: { release_id: 42 },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects a release_summary missing release_id', () => {
+    const r = createReportSchema.safeParse({
+      report_type: 'release_summary',
+      parameters: {},
+    });
+    expect(r.success).toBe(false);
   });
 
   it('accepts a delivery_sheet payload with just container_id (resolver fills defaults)', () => {
