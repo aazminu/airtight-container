@@ -193,10 +193,139 @@
 	display: none;
 }
 
-/* User management table inherits .inventoryTable styles */
+/* Shared dashboard table look (Accounts, Modification Presets, etc).
+ * Matches /inventory's table — sticky cream-bg header, alternating row
+ * tint, hover state, themed inputs. */
 .accountTable {
+	width: 100%;
+	max-width: 920px;
 	overflow-x: auto;
 	margin-top: 12px;
+	background: var(--bg-surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-md);
+	box-shadow: var(--shadow-sm);
+}
+
+.inventoryTable {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 13px;
+	color: var(--text-primary);
+}
+
+.inventoryTable th,
+.inventoryTable td {
+	padding: 10px 14px;
+	text-align: left;
+	border-bottom: 1px solid var(--border);
+	vertical-align: middle;
+}
+
+.inventoryTable thead th,
+.inventoryHeader th {
+	background: var(--bg-surface-2);
+	color: var(--text-secondary);
+	font-size: 11px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	user-select: none;
+	white-space: nowrap;
+}
+
+.inventoryTable tbody tr {
+	transition: background-color 0.08s ease;
+}
+
+.inventoryTable tbody tr:hover td {
+	background: var(--row-hover);
+}
+
+.inventoryTable tbody tr:nth-child(even) td {
+	background: var(--bg-row-alt);
+}
+
+.inventoryTable tbody tr:nth-child(even):hover td {
+	background: var(--row-hover);
+}
+
+.inventoryTable tbody tr:last-child td {
+	border-bottom: none;
+}
+
+.inventoryTable input[type="text"],
+.inventoryTable input:not([type]) {
+	width: 100%;
+	padding: 6px 8px;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	background: var(--bg-surface);
+	color: var(--text-primary);
+	font: inherit;
+	transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.inventoryTable input[type="text"]:focus,
+.inventoryTable input:not([type]):focus {
+	outline: none;
+	border-color: var(--accent);
+	box-shadow: 0 0 0 2px var(--accent-soft, rgba(0, 0, 0, 0.08));
+}
+
+/* Table action buttons (reorder, delete) */
+.tableBtn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 30px;
+	height: 30px;
+	padding: 0 8px;
+	border: 1px solid var(--border-strong);
+	background: var(--bg-surface);
+	color: var(--text-primary);
+	border-radius: var(--radius-sm);
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+}
+
+.tableBtn:hover:not(:disabled) {
+	background: var(--accent);
+	color: var(--accent-fg);
+	border-color: var(--accent);
+}
+
+.tableBtn:disabled {
+	opacity: 0.35;
+	cursor: not-allowed;
+}
+
+.tableBtn.deleteBtn {
+	color: var(--danger, #c33);
+	border-color: var(--border-strong);
+}
+
+.tableBtn.deleteBtn:hover:not(:disabled) {
+	background: var(--danger, #c33);
+	color: var(--danger-fg, #fff);
+	border-color: var(--danger, #c33);
+}
+
+.reorderCell {
+	white-space: nowrap;
+}
+
+.reorderCell .tableBtn + .tableBtn {
+	margin-left: 6px;
+}
+
+.emptyRow {
+	text-align: center;
+	padding: 20px 14px;
+	color: var(--text-muted);
+	font-style: italic;
 }
 
 .permissionSelect {
@@ -220,6 +349,36 @@
 	flex-direction: column;
 	align-items: center;
 	padding-top: 16px;
+	gap: 12px;
+	width: 100%;
+}
+
+.accountSettingsWrapper .addForm {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	width: 100%;
+	max-width: 920px;
+}
+
+.accountSettingsWrapper .addForm input {
+	flex: 1;
+	min-width: 0;
+	padding: 7px 10px;
+	border-radius: var(--radius-sm);
+	border: 1px solid var(--border);
+	background: var(--bg-surface);
+	color: var(--text-primary);
+	font: inherit;
+}
+
+.tabSubtle {
+	max-width: 720px;
+	margin: 0;
+	color: var(--text-muted);
+	font-size: 13px;
+	line-height: 1.45;
+	text-align: center;
 }
 
 @media (max-width: 768px) {

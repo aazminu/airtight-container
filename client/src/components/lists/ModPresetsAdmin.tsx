@@ -139,21 +139,13 @@ export default function ModPresetsAdmin() {
   return (
     <div className="accountSettingsWrapper">
       <h3 className="relSubtitle">Modification Presets</h3>
-      <p
-        style={{
-          maxWidth: 540,
-          textAlign: 'center',
-          color: 'var(--text-muted)',
-          fontSize: 13,
-          marginBottom: 12,
-        }}
-      >
+      <p className="tabSubtle">
         Suggested descriptions for the modifications field on invoice line items.
         Free text is always allowed; these just appear as typeahead.
       </p>
       <div className="accountTable">
         <table className="inventoryTable">
-          <thead className="inventoryHeader">
+          <thead>
             <tr>
               <th>Label</th>
               <th>Order</th>
@@ -163,13 +155,13 @@ export default function ModPresetsAdmin() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={3} style={{ textAlign: 'center', padding: 16 }}>
+                <td colSpan={3} className="emptyRow">
                   Loading…
                 </td>
               </tr>
             ) : presets.length === 0 ? (
               <tr>
-                <td colSpan={3} style={{ textAlign: 'center', padding: 16 }}>
+                <td colSpan={3} className="emptyRow">
                   No presets yet.
                 </td>
               </tr>
@@ -178,27 +170,18 @@ export default function ModPresetsAdmin() {
                 <tr className="userRow" key={p.id}>
                   <td>
                     <input
+                      type="text"
                       defaultValue={p.label}
                       onBlur={(e) => renameAt(p, e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '6px 8px',
-                        border: '1px solid var(--border-strong)',
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'var(--bg-surface)',
-                        color: 'var(--text-primary)',
-                        font: 'inherit',
-                      }}
                     />
                   </td>
-                  <td className="center" style={{ whiteSpace: 'nowrap' }}>
+                  <td className="center reorderCell">
                     <button
                       type="button"
                       className="tableBtn"
                       disabled={i === 0}
                       onClick={() => move(p, -1)}
                       aria-label="Move up"
-                      style={{ marginRight: 4 }}
                     >
                       ↑
                     </button>
@@ -241,24 +224,12 @@ export default function ModPresetsAdmin() {
           </tbody>
         </table>
       </div>
-      <form
-        onSubmit={addPreset}
-        className="addForm"
-        style={{ marginTop: 16, display: 'flex', gap: 8 }}
-      >
+      <form onSubmit={addPreset} className="addForm">
         <input
           type="text"
           placeholder="New preset label"
           value={newLabel}
           onChange={(e) => setNewLabel(e.target.value)}
-          style={{
-            padding: '6px 10px',
-            border: '1px solid var(--border-strong)',
-            borderRadius: 'var(--radius-sm)',
-            background: 'var(--bg-surface)',
-            color: 'var(--text-primary)',
-            minWidth: 240,
-          }}
         />
         <button type="submit" className="addBtn" disabled={!newLabel.trim()}>
           Add preset
