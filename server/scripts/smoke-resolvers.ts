@@ -5,19 +5,24 @@
 
 import 'dotenv/config';
 import { resolveReport } from '../lib/report-resolvers/index.js';
+import { rowsOf } from '../lib/report-resolvers/types.js';
 import db from '../db/index.js';
 
 async function main() {
   const tests: Array<{ name: string; report_type: string; parameters: unknown }> = [];
 
   // Pick a real container + invoice for delivery_sheet smoke.
-  const { rows: deliveryCandidate } = await db.query(
+  const dRes = await db.query(
     `SELECT ic.container_id, i.client_id
      FROM invoice_containers ic
      JOIN invoices i ON i.invoice_id = ic.invoice_id
      ORDER BY i.invoice_id DESC
      LIMIT 1`,
   );
+  const deliveryCandidate = rowsOf<{
+    container_id: number;
+    client_id: number;
+  }>(dRes);
   if (deliveryCandidate.length > 0) {
     tests.push({
       name: 'delivery_sheet (happy path)',
@@ -29,9 +34,10 @@ async function main() {
   }
 
   // Pick a recent client_id for sh_statement smoke.
-  const { rows: shClient } = await db.query(
+  const shRes = await db.query(
     `SELECT DISTINCT client_id FROM sh_invoices LIMIT 1`,
   );
+  const shClient = rowsOf<{ client_id: number }>(shRes);
   if (shClient.length > 0) {
     tests.push({
       name: 'sh_statement',
