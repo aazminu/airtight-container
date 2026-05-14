@@ -8,7 +8,8 @@ export type ReportType =
   | 'delivery_sheet'
   | 'io_report'
   | 'pnl'
-  | 'sh_statement';
+  | 'sh_statement'
+  | 'release_summary';
 
 export interface ReportRow {
   id: number;
@@ -37,6 +38,7 @@ const TYPE_LABELS: Record<ReportType, string> = {
   io_report: 'In / Out',
   pnl: 'Profit + Loss',
   sh_statement: 'S&H statement',
+  release_summary: 'Release summary',
 };
 
 const TYPE_WORDMARKS: Record<ReportType, string> = {
@@ -44,6 +46,7 @@ const TYPE_WORDMARKS: Record<ReportType, string> = {
   io_report: 'In / Out',
   pnl: 'P+L',
   sh_statement: 'S+H',
+  release_summary: 'Release',
 };
 
 const fmtDate = (iso: string): string =>
@@ -83,6 +86,18 @@ function summarize(row: ReportRow): string {
         `Client #${params.client_id ?? ''}`
       );
     }
+    case 'release_summary': {
+      const r = resolved as {
+        release_number_value?: string;
+        sale_company_name?: string;
+        filled_count?: number;
+        quota?: number;
+      };
+      if (r.release_number_value) {
+        return `${r.release_number_value} · ${r.filled_count ?? '?'}/${r.quota ?? '?'}`;
+      }
+      return `Release #${params.release_id ?? ''}`;
+    }
   }
 }
 
@@ -107,6 +122,7 @@ const buildBuckets = (rows: ReportRow[]): TypeBucket[] => {
     io_report: 0,
     pnl: 0,
     sh_statement: 0,
+    release_summary: 0,
   };
   for (const r of rows) {
     counts[r.report_type] += 1;

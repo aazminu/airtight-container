@@ -31,20 +31,31 @@ const groupReleases = (data) => {
 				release_id: release.release_number_id,
 				release_count: release.release_number_count,
 				release_number: release.release_number_value,
+				// PR 5.x: real inventory count under this release. Used by
+				// the Active/Filled tab math on the client and to surface a
+				// {actual}/{quota} label instead of the misleading old
+				// "{quota} remaining" label.
+				inventory_count: Number(release.inventory_count ?? 0),
 			});
 		}
 	}
 	return finalObj;
 };
 
-// Active releases only — `is_complete=true` means the release is done and
-// shouldn't appear in intake pickers. Companies still appear even when they
-// have no active releases (LEFT JOIN filter).
+// All non-archived releases (active + filled). is_complete = true is the
+// admin-archive escape hatch (the legacy DELETE button soft-deletes), and
+// archived releases stay out of both tabs. Companies still appear even
+// when they have no live releases (LEFT JOIN on sale_companies).
 router.get("/", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
 			`SELECT sc.sale_company_name, sc.sale_company_id,
-			        rn.release_number_id, rn.release_number_count, rn.release_number_value
+			        rn.release_number_id, rn.release_number_count, rn.release_number_value,
+			        (
+			          SELECT COUNT(*)::int
+			          FROM inventory inv
+			          WHERE inv.release_number_id = rn.release_number_id
+			        ) AS inventory_count
 			 FROM sale_companies sc
 			 LEFT JOIN release_numbers rn
 			   ON rn.sale_company_id = sc.sale_company_id AND rn.is_complete = false
@@ -57,6 +68,7 @@ router.get("/", checkEmployee, async (req, res) => {
 			data: { releases },
 		});
 	} catch (err) {
+		console.error("release.list error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -178,6 +190,41 @@ router.delete("/:id", checkAdmin, async (req, res) => {
 // Pre-loaded container numbers per release. Intake auto-associates by
 // unit_number on insert (see server/routes/v1/inventory.js POST /add) —
 // no client-side change required for the legacy intake form.
+
+// Real inventory rows under this release. Drives the "In yard" section
+// on /releases and feeds the release_summary report resolver.
+// Includes sold-row joins so the page can show outbound state.
+router.get("/:id/inventory", checkEmployee, async (req, res) => {
+	try {
+		const releaseId = Number(req.params.id);
+		if (!Number.isInteger(releaseId)) {
+			return res.status(400).json({ message: "Invalid release id" });
+		}
+		const results = await db.query(
+			`SELECT inv.id, inv.unit_number, inv.size, inv.damage,
+			        inv.state, inv.date AS intake_date,
+			        s.outbound_date, s.destination,
+			        i.invoice_id, i.invoice_number,
+			        COALESCE(cl.business_name, cl.client_name) AS buyer_label
+			 FROM inventory inv
+			 LEFT JOIN sold s ON s.inventory_id = inv.id
+			 LEFT JOIN invoice_containers ic ON ic.container_id = inv.id
+			 LEFT JOIN invoices i ON i.invoice_id = ic.invoice_id
+			 LEFT JOIN clients cl ON cl.id = i.client_id
+			 WHERE inv.release_number_id = $1
+			 ORDER BY inv.date ASC, inv.id ASC`,
+			[releaseId],
+		);
+		res.status(200).json({
+			status: "success",
+			results: results.rows.length,
+			data: { containers: results.rows },
+		});
+	} catch (err) {
+		console.error("release.inventory error:", err);
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
 
 router.get("/:id/containers", checkEmployee, async (req, res) => {
 	try {

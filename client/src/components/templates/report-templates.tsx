@@ -7,17 +7,20 @@
 import DeliveryTemplate from './delivery/DeliveryTemplate';
 import IOReportTemplate from './io-report/IOReportTemplate';
 import PnLTemplate from './pnl/PnLTemplate';
+import ReleaseSummaryTemplate from './release-summary/ReleaseSummaryTemplate';
 import ShStatementTemplate from './sh-statement/ShStatementTemplate';
 import type { DeliveryData } from './delivery/types';
 import type { IOReportData } from './io-report/types';
 import type { PnLData } from './pnl/types';
+import type { ReleaseSummaryData } from './release-summary/types';
 import type { ShStatementData } from './sh-statement/types';
 
 export type ReportTemplateProps =
   | { type: 'delivery_sheet'; data: DeliveryData }
   | { type: 'io_report'; data: IOReportData }
   | { type: 'pnl'; data: PnLData }
-  | { type: 'sh_statement'; data: ShStatementData };
+  | { type: 'sh_statement'; data: ShStatementData }
+  | { type: 'release_summary'; data: ReleaseSummaryData };
 
 export default function ReportTemplate(props: ReportTemplateProps) {
   switch (props.type) {
@@ -29,5 +32,7 @@ export default function ReportTemplate(props: ReportTemplateProps) {
       return <PnLTemplate data={props.data} />;
     case 'sh_statement':
       return <ShStatementTemplate data={props.data} />;
+    case 'release_summary':
+      return <ReleaseSummaryTemplate data={props.data} />;
   }
 }

@@ -1,6 +1,10 @@
 import { resolveDeliverySheet, type DeliverySheetParams } from './delivery.js';
 import { resolveIoReport, type IoReportParams } from './io.js';
 import { resolvePnL, type PnlParams } from './pnl.js';
+import {
+  resolveReleaseSummary,
+  type ReleaseSummaryParams,
+} from './release-summary.js';
 import { resolveShStatement, type ShStatementParams } from './sh-statement.js';
 import type { ResolvedReportData } from './types.js';
 
@@ -39,6 +43,14 @@ export async function resolveReport(
         report_type: 'sh_statement',
         data: await resolveShStatement(
           parameters as ShStatementParams,
+          reportId,
+        ),
+      };
+    case 'release_summary':
+      return {
+        report_type: 'release_summary',
+        data: await resolveReleaseSummary(
+          parameters as ReleaseSummaryParams,
           reportId,
         ),
       };

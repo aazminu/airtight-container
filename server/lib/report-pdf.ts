@@ -84,7 +84,8 @@ export type ReportType =
   | 'delivery_sheet'
   | 'io_report'
   | 'pnl'
-  | 'sh_statement';
+  | 'sh_statement'
+  | 'release_summary';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function renderReportPdf(

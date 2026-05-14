@@ -24,6 +24,7 @@ export const REPORT_TYPES = [
   'io_report',
   'pnl',
   'sh_statement',
+  'release_summary',
 ] as const;
 
 export type ReportType = (typeof REPORT_TYPES)[number];
@@ -101,6 +102,10 @@ const shStatementParams = z.object({
   end_date: isoDate.optional(),
 });
 
+const releaseSummaryParams = z.object({
+  release_id: z.number().int().positive(),
+});
+
 export const createReportSchema = z.discriminatedUnion('report_type', [
   z.object({
     report_type: z.literal('delivery_sheet'),
@@ -120,6 +125,11 @@ export const createReportSchema = z.discriminatedUnion('report_type', [
   z.object({
     report_type: z.literal('sh_statement'),
     parameters: shStatementParams,
+    emailed_to: z.array(z.string().email()).optional(),
+  }),
+  z.object({
+    report_type: z.literal('release_summary'),
+    parameters: releaseSummaryParams,
     emailed_to: z.array(z.string().email()).optional(),
   }),
 ]);
