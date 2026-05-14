@@ -16,6 +16,7 @@ import {
 import {
 	resolveTopClients,
 	resolveYardSnapshot,
+	resolvePnlBreakdown,
 } from "../../lib/report-resolvers/dashboard-extras.js";
 
 const router = express.Router();
@@ -125,6 +126,37 @@ router.get("/top-clients", checkEmployee, async (req, res) => {
 		res.status(200).json({ status: "success", data: { clients: rows } });
 	} catch (err) {
 		console.error("pnl.top-clients error:", err);
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
+
+// GET /api/v2/pnl/breakdown?granularity=...&period=...
+// Per-container rows that feed every Sales-side aggregate on the panel
+// (revenue, cost, mod revenue/cost, trucking, sale_price). Used by the
+// "view per-container detail" modal.
+router.get("/breakdown", checkEmployee, async (req, res) => {
+	const granularity = String(req.query.granularity ?? "");
+	const period = String(req.query.period ?? "");
+	if (!ALLOWED_GRANULARITY.has(granularity)) {
+		return res
+			.status(400)
+			.json({ message: "granularity must be one of: month, quarter, year" });
+	}
+	if (!period) {
+		return res.status(400).json({ message: "period is required" });
+	}
+	try {
+		resolvePeriod(granularity, period);
+	} catch (err) {
+		return res.status(400).json({
+			message: err instanceof Error ? err.message : "Invalid period",
+		});
+	}
+	try {
+		const rows = await resolvePnlBreakdown({ granularity, period });
+		res.status(200).json({ status: "success", data: { rows } });
+	} catch (err) {
+		console.error("pnl.breakdown error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });

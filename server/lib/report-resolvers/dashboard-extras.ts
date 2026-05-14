@@ -90,6 +90,101 @@ export async function resolveTopClients(
   }));
 }
 
+export interface PnlBreakdownRow {
+  container_id: number;
+  unit_number: string;
+  intake_date: string | null;
+  size: string | null;
+  damage: string | null;
+  acquisition_price: number | null;
+  sale_price: number | null;
+  material_cost: number;
+  labor_cost: number;
+  trucking_rate: number;
+  mod_revenue: number;
+  invoice_id: number;
+  invoice_number: number | null;
+  invoice_date: string | null;
+  client_name: string | null;
+  business_name: string | null;
+}
+
+export async function resolvePnlBreakdown(
+  params: PnlParams,
+): Promise<PnlBreakdownRow[]> {
+  const { start, end_exclusive } = resolvePeriod(
+    params.granularity,
+    params.period,
+  );
+  const sql = `
+    SELECT
+      inv.id                                  AS container_id,
+      TRIM(inv.unit_number)                   AS unit_number,
+      inv.date                                AS intake_date,
+      inv.size                                AS size,
+      inv.damage                              AS damage,
+      inv.acquisition_price                   AS acquisition_price,
+      s.sale_price                            AS sale_price,
+      COALESCE(s.material_cost, 0)            AS material_cost,
+      COALESCE(s.labor_cost, 0)               AS labor_cost,
+      COALESCE(s.trucking_rate, 0)            AS trucking_rate,
+      COALESCE((
+        SELECT SUM(sm.price::numeric)
+        FROM sold_modifications sm
+        WHERE sm.sold_id = s.id
+      ), 0)                                   AS mod_revenue,
+      i.invoice_id                            AS invoice_id,
+      i.invoice_number                        AS invoice_number,
+      i.invoice_date                          AS invoice_date,
+      c.client_name                           AS client_name,
+      c.business_name                         AS business_name
+    FROM invoices i
+    JOIN invoice_containers ic ON ic.invoice_id = i.invoice_id
+    JOIN inventory inv         ON inv.id = ic.container_id
+    LEFT JOIN sold s           ON s.inventory_id = inv.id
+    LEFT JOIN clients c        ON c.id = i.client_id
+    WHERE i.invoice_date >= $1 AND i.invoice_date < $2
+    ORDER BY i.invoice_date DESC, inv.unit_number
+  `;
+  const result = await db.query(sql, [start, end_exclusive]);
+  const rows = rowsOf<{
+    container_id: number;
+    unit_number: string;
+    intake_date: Date | null;
+    size: string | null;
+    damage: string | null;
+    acquisition_price: string | null;
+    sale_price: string | null;
+    material_cost: string | null;
+    labor_cost: string | null;
+    trucking_rate: string | null;
+    mod_revenue: string | null;
+    invoice_id: number;
+    invoice_number: number | null;
+    invoice_date: Date | null;
+    client_name: string | null;
+    business_name: string | null;
+  }>(result);
+  return rows.map((r) => ({
+    container_id: r.container_id,
+    unit_number: r.unit_number,
+    intake_date: r.intake_date ? new Date(r.intake_date).toISOString() : null,
+    size: r.size,
+    damage: r.damage,
+    acquisition_price: r.acquisition_price == null ? null : NUM(r.acquisition_price),
+    sale_price: r.sale_price == null ? null : NUM(r.sale_price),
+    material_cost: NUM(r.material_cost),
+    labor_cost: NUM(r.labor_cost),
+    trucking_rate: NUM(r.trucking_rate),
+    mod_revenue: NUM(r.mod_revenue),
+    invoice_id: r.invoice_id,
+    invoice_number: r.invoice_number,
+    invoice_date: r.invoice_date ? new Date(r.invoice_date).toISOString() : null,
+    client_name: r.client_name,
+    business_name: r.business_name,
+  }));
+}
+
 export interface YardBucket {
   key: string;
   count: number;

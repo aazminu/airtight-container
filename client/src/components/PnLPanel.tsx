@@ -15,8 +15,38 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { Modal } from './ui';
 import type { PnLData } from './templates/pnl/types';
 import styles from './PnLPanel.module.css';
+
+interface BreakdownRow {
+  container_id: number;
+  unit_number: string;
+  intake_date: string | null;
+  size: string | null;
+  damage: string | null;
+  acquisition_price: number | null;
+  sale_price: number | null;
+  material_cost: number;
+  labor_cost: number;
+  trucking_rate: number;
+  mod_revenue: number;
+  invoice_id: number;
+  invoice_number: number | null;
+  invoice_date: string | null;
+  client_name: string | null;
+  business_name: string | null;
+}
+
+type SortKey =
+  | 'unit_number'
+  | 'invoice_date'
+  | 'client_name'
+  | 'acquisition_price'
+  | 'sale_price'
+  | 'mod_revenue'
+  | 'mod_cost'
+  | 'profit';
 
 // Live dashboard P&L panel.
 // Hits four endpoints whenever the period selection changes:
@@ -178,6 +208,15 @@ export default function PnLPanel() {
   const [error, setError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
+  const [breakdownFocus, setBreakdownFocus] = useState<
+    'revenue' | 'cost' | 'profit' | 'avg' | null
+  >(null);
+  const [breakdown, setBreakdown] = useState<BreakdownRow[] | null>(null);
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const [breakdownError, setBreakdownError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('invoice_date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   const period = useMemo(() => buildPeriod(sel), [sel]);
 
@@ -258,7 +297,93 @@ export default function PnLPanel() {
 
   useEffect(() => {
     fetchAll();
+    // Period changed — invalidate the cached breakdown so the next open
+    // refetches against the new period.
+    setBreakdown(null);
   }, [fetchAll]);
+
+  const openBreakdown = async (
+    focus: 'revenue' | 'cost' | 'profit' | 'avg',
+  ) => {
+    setBreakdownFocus(focus);
+    setBreakdownOpen(true);
+    if (breakdown != null) return;
+    setBreakdownLoading(true);
+    setBreakdownError(null);
+    try {
+      const qs = new URLSearchParams({
+        granularity: sel.granularity,
+        period,
+      });
+      const res = await fetch(`/api/v2/pnl/breakdown?${qs}`, {
+        credentials: 'include',
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setBreakdownError(body?.message ?? `HTTP ${res.status}`);
+        return;
+      }
+      setBreakdown((body.data?.rows ?? []) as BreakdownRow[]);
+    } catch (e) {
+      setBreakdownError(e instanceof Error ? e.message : 'Network error');
+    } finally {
+      setBreakdownLoading(false);
+    }
+  };
+
+  const sortedBreakdown = useMemo(() => {
+    if (!breakdown) return null;
+    const cmpStr = (a: string | null, b: string | null) =>
+      (a ?? '').localeCompare(b ?? '');
+    const cmpNum = (a: number, b: number) => a - b;
+    const getModCost = (r: BreakdownRow) => r.material_cost + r.labor_cost;
+    const getProfit = (r: BreakdownRow) =>
+      (r.sale_price ?? 0) +
+      r.mod_revenue -
+      (r.acquisition_price ?? 0) -
+      getModCost(r);
+    const arr = breakdown.slice();
+    arr.sort((a, b) => {
+      let v = 0;
+      switch (sortKey) {
+        case 'unit_number':
+          v = cmpStr(a.unit_number, b.unit_number);
+          break;
+        case 'invoice_date':
+          v = cmpStr(a.invoice_date, b.invoice_date);
+          break;
+        case 'client_name':
+          v = cmpStr(a.client_name, b.client_name);
+          break;
+        case 'acquisition_price':
+          v = cmpNum(a.acquisition_price ?? -1, b.acquisition_price ?? -1);
+          break;
+        case 'sale_price':
+          v = cmpNum(a.sale_price ?? 0, b.sale_price ?? 0);
+          break;
+        case 'mod_revenue':
+          v = cmpNum(a.mod_revenue, b.mod_revenue);
+          break;
+        case 'mod_cost':
+          v = cmpNum(getModCost(a), getModCost(b));
+          break;
+        case 'profit':
+          v = cmpNum(getProfit(a), getProfit(b));
+          break;
+      }
+      return sortDir === 'asc' ? v : -v;
+    });
+    return arr;
+  }, [breakdown, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'unit_number' || key === 'client_name' ? 'asc' : 'desc');
+    }
+  };
 
   const updateField = <K extends keyof PnlSelection>(
     key: K,
@@ -431,17 +556,20 @@ export default function PnLPanel() {
               subtle={`${data.sales.container_count} container${
                 data.sales.container_count === 1 ? '' : 's'
               }`}
+              onClick={() => openBreakdown('revenue')}
             />
             <KpiCard
               label="Sales Cost"
               value={fmtCurrency(data.sales.cost + data.sales.mod_cost)}
               subtle="Acquisition + modification"
+              onClick={() => openBreakdown('cost')}
             />
             <KpiCard
               label="Net Profit"
               value={fmtCurrency(netProfit)}
               subtle="Sales + S&H combined"
               tone={netProfit >= 0 ? 'profit' : 'loss'}
+              onClick={() => openBreakdown('profit')}
             />
             <KpiCard
               label="Avg Revenue / Box"
@@ -452,6 +580,11 @@ export default function PnLPanel() {
                       data.sales.container_count === 1 ? '' : 's'
                     }`
                   : 'No containers'
+              }
+              onClick={
+                data.sales.container_count
+                  ? () => openBreakdown('avg')
+                  : undefined
               }
             />
             <KpiCard
@@ -720,7 +853,251 @@ export default function PnLPanel() {
           ) : null}
         </>
       )}
+
+      <Modal
+        open={breakdownOpen}
+        onClose={() => setBreakdownOpen(false)}
+        size="lg"
+        title={`Per-container detail · ${data?.period_label ?? period}`}
+      >
+        <BreakdownTable
+          loading={breakdownLoading}
+          error={breakdownError}
+          rows={sortedBreakdown}
+          focus={breakdownFocus}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={toggleSort}
+        />
+      </Modal>
     </div>
+  );
+}
+
+function BreakdownTable({
+  loading,
+  error,
+  rows,
+  focus,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  loading: boolean;
+  error: string | null;
+  rows: BreakdownRow[] | null;
+  focus: 'revenue' | 'cost' | 'profit' | 'avg' | null;
+  sortKey: SortKey;
+  sortDir: 'asc' | 'desc';
+  onSort: (k: SortKey) => void;
+}) {
+  if (loading) {
+    return <div className={styles.placeholder}>Loading containers…</div>;
+  }
+  if (error) {
+    return <div className={styles.error}>{error}</div>;
+  }
+  if (!rows || rows.length === 0) {
+    return (
+      <div className={styles.placeholder}>
+        No containers invoiced in this period.
+      </div>
+    );
+  }
+
+  const fmtShortDate = (iso: string | null): string => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', {
+      year: '2-digit',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  let totalSalePrice = 0;
+  let totalAcq = 0;
+  let totalModRev = 0;
+  let totalModCost = 0;
+  let totalTrucking = 0;
+  let nullCost = 0;
+  for (const r of rows) {
+    if (r.sale_price != null) totalSalePrice += r.sale_price;
+    if (r.acquisition_price == null) nullCost += 1;
+    else totalAcq += r.acquisition_price;
+    totalModRev += r.mod_revenue;
+    totalModCost += r.material_cost + r.labor_cost;
+    totalTrucking += r.trucking_rate;
+  }
+  const totalProfit = totalSalePrice + totalModRev - totalAcq - totalModCost;
+
+  const arrow = (key: SortKey) =>
+    sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '';
+
+  const focusClass = (key: SortKey) =>
+    (focus === 'revenue' && key === 'sale_price') ||
+    (focus === 'cost' && key === 'acquisition_price') ||
+    (focus === 'profit' && key === 'profit') ||
+    (focus === 'avg' && key === 'sale_price')
+      ? styles.breakdownFocusCol
+      : '';
+
+  return (
+    <>
+      <div className={styles.breakdownScroll}>
+        <table className={styles.breakdownTable}>
+          <thead>
+            <tr>
+              <th
+                className={styles.breakdownSort}
+                onClick={() => onSort('unit_number')}
+              >
+                Unit#{arrow('unit_number')}
+              </th>
+              <th
+                className={styles.breakdownSort}
+                onClick={() => onSort('invoice_date')}
+              >
+                Invoiced{arrow('invoice_date')}
+              </th>
+              <th
+                className={styles.breakdownSort}
+                onClick={() => onSort('client_name')}
+              >
+                Client{arrow('client_name')}
+              </th>
+              <th
+                className={`${styles.breakdownNum} ${styles.breakdownSort} ${focusClass('sale_price')}`}
+                onClick={() => onSort('sale_price')}
+              >
+                Sale{arrow('sale_price')}
+              </th>
+              <th
+                className={`${styles.breakdownNum} ${styles.breakdownSort} ${focusClass('acquisition_price')}`}
+                onClick={() => onSort('acquisition_price')}
+              >
+                Acq cost{arrow('acquisition_price')}
+              </th>
+              <th
+                className={`${styles.breakdownNum} ${styles.breakdownSort}`}
+                onClick={() => onSort('mod_revenue')}
+              >
+                Mod rev{arrow('mod_revenue')}
+              </th>
+              <th
+                className={`${styles.breakdownNum} ${styles.breakdownSort}`}
+                onClick={() => onSort('mod_cost')}
+              >
+                Mod cost{arrow('mod_cost')}
+              </th>
+              <th className={styles.breakdownNum}>Trucking</th>
+              <th
+                className={`${styles.breakdownNum} ${styles.breakdownSort} ${focusClass('profit')}`}
+                onClick={() => onSort('profit')}
+              >
+                Profit{arrow('profit')}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const modCost = r.material_cost + r.labor_cost;
+              const profit =
+                (r.sale_price ?? 0) +
+                r.mod_revenue -
+                (r.acquisition_price ?? 0) -
+                modCost;
+              return (
+                <tr key={r.container_id}>
+                  <td className={styles.breakdownUnit}>
+                    {r.unit_number || '—'}
+                    {r.size ? (
+                      <span className={styles.breakdownMeta}>{r.size}</span>
+                    ) : null}
+                  </td>
+                  <td>{fmtShortDate(r.invoice_date)}</td>
+                  <td>{(r.business_name ?? r.client_name) || '—'}</td>
+                  <td className={styles.breakdownNum}>
+                    {r.sale_price == null ? '—' : fmtCurrency(r.sale_price)}
+                  </td>
+                  <td
+                    className={`${styles.breakdownNum} ${
+                      r.acquisition_price == null ? styles.breakdownNull : ''
+                    }`}
+                    title={
+                      r.acquisition_price == null
+                        ? 'No acquisition price recorded — excluded from cost'
+                        : undefined
+                    }
+                  >
+                    {r.acquisition_price == null
+                      ? 'NULL'
+                      : fmtCurrency(r.acquisition_price)}
+                  </td>
+                  <td className={styles.breakdownNum}>
+                    {fmtCurrency(r.mod_revenue)}
+                  </td>
+                  <td className={styles.breakdownNum}>{fmtCurrency(modCost)}</td>
+                  <td
+                    className={`${styles.breakdownNum} ${styles.breakdownTrucking}`}
+                  >
+                    {fmtCurrency(r.trucking_rate)}
+                  </td>
+                  <td
+                    className={`${styles.breakdownNum} ${
+                      profit >= 0 ? styles.profit : styles.loss
+                    }`}
+                  >
+                    {fmtCurrency(profit)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={3} className={styles.breakdownTotalLabel}>
+                <strong>Totals · {rows.length} container{rows.length === 1 ? '' : 's'}</strong>
+              </td>
+              <td className={styles.breakdownNum}>
+                <strong>{fmtCurrency(totalSalePrice)}</strong>
+              </td>
+              <td className={styles.breakdownNum}>
+                <strong>{fmtCurrency(totalAcq)}</strong>
+              </td>
+              <td className={styles.breakdownNum}>
+                <strong>{fmtCurrency(totalModRev)}</strong>
+              </td>
+              <td className={styles.breakdownNum}>
+                <strong>{fmtCurrency(totalModCost)}</strong>
+              </td>
+              <td className={styles.breakdownNum}>
+                <strong>{fmtCurrency(totalTrucking)}</strong>
+              </td>
+              <td
+                className={`${styles.breakdownNum} ${
+                  totalProfit >= 0 ? styles.profit : styles.loss
+                }`}
+              >
+                <strong>{fmtCurrency(totalProfit)}</strong>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {nullCost > 0 && (
+        <p className={styles.breakdownNote}>
+          {nullCost} container{nullCost === 1 ? '' : 's'} with no acquisition
+          price (shown as <code>NULL</code>) are excluded from the cost total.
+        </p>
+      )}
+      <p className={styles.breakdownNote}>
+        Sale price is per-container from <code>sold.sale_price</code>. The KPI
+        cards aggregate from invoice subtotals — these row totals should match
+        unless the container set spans multi-container invoices with rounding.
+        Trucking is informational and not in profit.
+      </p>
+    </>
   );
 }
 
@@ -729,15 +1106,23 @@ function KpiCard({
   value,
   subtle,
   tone,
+  onClick,
 }: {
   label: string;
   value: string;
   subtle: string;
   tone?: 'profit' | 'loss';
+  onClick?: () => void;
 }) {
-  return (
-    <div className={styles.card}>
-      <span className={styles.cardLabel}>{label}</span>
+  const className = `${styles.card} ${tone === 'profit' ? styles.cardProfit : ''} ${
+    tone === 'loss' ? styles.cardLoss : ''
+  } ${onClick ? styles.cardClickable : ''}`;
+  const content = (
+    <>
+      <span className={styles.cardLabel}>
+        {label}
+        {onClick && <span className={styles.cardChevron} aria-hidden="true">↗</span>}
+      </span>
       <span
         className={`${styles.cardValue} ${
           tone === 'profit' ? styles.profit : ''
@@ -746,8 +1131,16 @@ function KpiCard({
         {value}
       </span>
       <span className={styles.cardSubtle}>{subtle}</span>
-    </div>
+    </>
   );
+  if (onClick) {
+    return (
+      <button type="button" className={className} onClick={onClick}>
+        {content}
+      </button>
+    );
+  }
+  return <div className={className}>{content}</div>;
 }
 
 function Row({
