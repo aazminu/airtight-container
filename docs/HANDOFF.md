@@ -4,9 +4,9 @@
 
 ---
 
-## Phase 5 in flight — PR 5.1 landed, PR 5.2 next
+## Phase 5 in flight — PRs 5.1 + 5.2 landed, PR 5.3 next
 
-PR 5.1 (reports + mod_presets schema + API) is merged into `2.0` locally. **Next up is PR 5.2 — brand-consistent report templates.** Then 5.3 list/forms, 5.4 dashboard P&L panel, 5.5 dashboard mod-preset admin.
+PRs 5.1 (schema + API) and 5.2 (brand-consistent templates) are merged into `2.0` locally. **Next up is PR 5.3 — server resolvers + PDF endpoint + /reports list + generator forms + detail page.** Then 5.4 dashboard P&L panel, 5.5 dashboard mod-preset admin.
 
 ### Phase 5 design decisions (locked 2026-05-14)
 
@@ -31,34 +31,39 @@ PR 5.1 (reports + mod_presets schema + API) is merged into `2.0` locally. **Next
 - **UI copy rule (established mid-Phase-4):** user-facing strings must never reference Phase N / PR N / PLAN.md / branch names / commit shas. Comments in source are fine. See `feedback_ui_language_no_plan_refs.md` in user memory.
 - **Yard view:** Units by Type on top, Releases below, S&H last. Per-state columns (Available/Hold = days onsite; Sold = outbound + release#). Outbound boxes don't appear in yard view (state filter is `=== 'sold'`, not `IN ('sold','outbound')` — different semantic than /inventory's Sold tab). Time format pinned to America/New_York via `Intl.DateTimeFormat`.
 
-### PR 5.2 — brand-consistent report templates (next)
+### PR 5.3 — server resolvers + PDF + /reports user surface (next)
 
 Spec:
 
-- Extract shared brand atoms from `client/src/components/templates/invoice/InvoiceTemplate.tsx` into a reusable layer (probably `templates/shared/*` — header strip, accent bar, FROM/TO connector, summary block, paper-cream sheet wrapper). InvoiceTemplate keeps working without changes; shared atoms back both it and the new report templates.
-- Build four templates: `DeliveryTemplate.tsx`, `IOReportTemplate.tsx`, `PnLTemplate.tsx`, `ShStatementTemplate.tsx`. Each drives both on-screen detail page + the Puppeteer PDF (mirror `server/lib/pdf.ts` from PR 3.2).
-- Replace the legacy `client/src/components/templates/Delivery.jsx` and `client/src/components/reports/DeliverySheet.jsx` with the new template-driven flow.
-- Extend the dev-only `/admin/invoice-templates` preview route into `/admin/templates` (or similar) so each report renders with realistic seed data for visual review during development. Same pattern as PR 3.1.
-- PDF rendering endpoint: `POST /api/v2/report/:id/pdf` mirrors `POST /api/v2/invoice/:id/pdf` — runs the template through Puppeteer, uploads to S3, sets `pdf_s3_key`.
+- Server resolvers per report_type in `server/lib/report-resolvers.ts` (new file): given `{report_type, parameters}`, produce the typed data shape that the matching template renders. Each resolver runs the SQL and returns a `DeliveryData` / `IOReportData` / `PnLData` / `ShStatementData`.
+- `POST /api/v2/report/:id/pdf` mirrors `POST /api/v2/invoice/:id/pdf` from PR 3.2: load the report row, dispatch on `report_type` to the right resolver, render the template via the existing `server/lib/pdf.ts` Puppeteer pipeline, upload to `reports/{report_id}.pdf`, set `pdf_s3_key`.
+- `POST /api/v2/report/:id/email` mirrors the invoice email endpoint: load PDF bytes from S3, attach to Resend, ship to whatever lives in `emailed_to`. **Decision (5.2 kickoff)**: email is a separate user action — POST `/` does not auto-send even when `emailed_to` is on the body.
+- New `/reports` route: `ReportsGrid.tsx` mirroring `InvoicesGrid.tsx` (PR 3.3) — tile grid + sidebar facet by `report_type` (delivery / io / pnl / sh statement). Each tile shows type icon + generated_at + params summary + generated_by name.
+- `/reports/new/:type` generator forms — one component per type. Probably `DeliveryForm`, `IOReportForm`, `PnLForm`, `ShStatementForm`; each posts to `POST /api/v2/report` and then optionally `POST /:id/pdf`. The submit flow returns the new report id; redirect to `/reports/:id`.
+- `/reports/:id` detail page: read-only render of the matching template using server-fetched data + admin actions (Regenerate PDF / Email / Delete). Mirror `InvoiceDetail.tsx` (PR 3.4).
+- Retire the legacy `client/src/components/reports/DeliverySheet.jsx` + `client/src/components/templates/Delivery.jsx` + `client/src/routes/Reports.jsx` + the old `/reports/form` printout route when the new flow lands.
 
-### Pre-PR-5.2 reading
+### Pre-PR-5.3 reading
 
-1. **`client/src/components/templates/invoice/InvoiceTemplate.tsx`** + its CSS module — this is the brand reference. Match it exactly.
-2. **`server/lib/pdf.ts`** (PR 3.2) — the SSR + Puppeteer pipeline. Reports route through the same.
-3. **`server/routes/v2/invoice.js`** `/pdf` + `/email` endpoints — copy-pasta starting point for `/report/:id/pdf` and `/report/:id/email`.
-4. **`docs/PLAN.md` §3.3** — `reports` table shape (already matches the migration shipped in 5.1).
+1. **`server/lib/pdf.ts`** (PR 3.2) — the SSR + Puppeteer pipeline. Reports route through the same `renderToString` + `page.setContent` + `document.fonts.ready` dance. Extend with `renderReportPdf({reportType, data})` next to the existing invoice renderer.
+2. **`server/routes/v2/invoice.js`** `/pdf` + `/email` endpoints — copy-pasta starting point for `/report/:id/pdf` and `/report/:id/email`.
+3. **`client/src/components/lists/InvoicesGrid.tsx`** (PR 3.3) — sidebar + tile pattern to mirror at `/reports`.
+4. **`client/src/routes/InvoiceDetail.tsx`** (PR 3.4) — read-only template + admin actions pattern.
+5. **`client/src/routes/CreateInvoice.tsx`** (PR 3.9) — Flow primitive + Stepper usage; the per-type generator forms can use the same shape if they get multi-step.
+6. **`client/src/components/templates/{delivery,io-report,pnl,sh-statement}/types.ts`** — the data shapes the resolvers must return. Already shipped in 5.2.
 
-### Open conversations before PR 5.2 work goes deep
+### Open conversations before PR 5.3 work goes deep
 
-- **Logo asset choice** for non-invoice docs — same airtight logo as invoices? (Default: yes, full brand consistency.)
-- **PDF naming convention in S3** — `reports/{type}/{id}.pdf` or `reports/{id}.pdf`? (PR 3.2 used `invoices/{invoice_id}.pdf`.)
-- **Email-on-generate flow** — auto-email if `emailed_to` was supplied in the POST, or always a separate user action via `/email`? (PR 3.4 has the invoice precedent.)
+- **P&L month/quarter/year aggregation SQL** — single query per granularity, or one shared SQL with a `date_trunc` parameter? Need to handle both sales (sold + invoices joined to inventory) and S&H (sh_invoices + lines) in the same period.
+- **Report deletion semantics** — DELETE the row + the S3 PDF, or just orphan the S3 object? Invoices kept the S3 PDF on delete; reports can probably follow the same.
+- **Generator forms layout** — single page with all fields, or Stepper (matching CreateInvoice)? P&L is dead simple (granularity + period), Delivery needs a container picker, I/O is a date range, S&H statement is client + date range. Probably no Stepper for any of them.
 
 ### Phase 5 status
 
 | PR | Contents |
 |---|---|
 | 5.1 | Schema + API plumbing for reports + mod_presets. Drizzle migration `0005_phase5_reports_modpresets.sql` creates the `reports` table (per PLAN §3.3) and the `mod_presets` table (id, label UNIQUE, position, created_at). FK from `reports.generated_by → user.id` ON DELETE SET NULL so report history survives a user delete. Migration is idempotent — re-applying on top of a stub table from an earlier drizzle-push tidies the duplicate FK and enforces NOT NULL on generated_at. Seeded mod_presets with the four entries from `client/src/components/forms/modificationPresets.ts`. Routes: `/api/v2/report` (GET list w/ ?report_type filter, GET :id, POST admin create + persist parameters jsonb, DELETE admin) — PDF rendering deferred to PR 5.2 once templates land; `pdf_s3_key` stays null until then. `/api/v2/mod-presets` (GET employee, POST/PUT/DELETE admin; 23505 unique-violations → 409 friendly). Validation: `createReportSchema` is a discriminatedUnion on report_type with per-type parameters shapes; modPresetSchema trims labels + bounds position. 11 + 9 new validation tests bring the server suite from 98 → 118. No client work yet — that starts in 5.2 with templates and 5.3 with the list + generator UI. |
+| 5.2 | Brand-consistent report templates. New `client/src/components/templates/shared/` holds the brand atoms (`BrandSheet`, `BrandHeader`, `PartiesBlock`, `Divider`, `Banner`, `DocFooter`, `SectionTitle` + the `AIRTIGHT_PARTY` sender constant) backed by a single `sheet.module.css` that owns the Google Fonts `@import`, the paper-cream sheet, the slim header strip with logo + Archivo Black title + meta dl, the FROM/TO connector word, the inline banner, the bottom address footer, the base body-table styles, and the `@page` + structural `@media print` rules. `InvoiceTemplate.tsx` refactored to consume the shared atoms; its own module CSS shrinks to invoice-specific bits only (items table, summary block, terms, totals, grand-total) — visual parity verified, `.sheet` still resolves to IBM Plex Sans body + Archivo Black title on `#fdfcf8` cream. Four new templates land: `DeliveryTemplate` (per-container delivery sheet with Deliver-to banner, 4-up container strip, modifications table, notes block, two signature lines), `IOReportTemplate` (Inbound + Outbound stacked tables over a date window with count banners + empty-state copy), `PnLTemplate` (three summary cards with profit/loss tinting + Sales line table + S&H line table + grand net-profit row), `ShStatementTemplate` (per-client S&H over a date window with monthly activity table + tfoot column sums + right-aligned summary box). Preview route renamed: `/admin/invoice-templates` → `/admin/templates` (`TemplatesPreview.tsx` + `.module.css`), with a top dropdown that swaps between all five. Invoice + Delivery pull from real local-DB invoices; I/O, P&L, S&H Statement use synthesized fixtures (PR 5.3 will swap fixtures for server resolvers). No PDF endpoint or server data resolvers in this PR — both land in 5.3 alongside the user-facing /reports surface. |
 
 ### Follow-up items carried over from Phases 3 + 4
 
