@@ -4,45 +4,47 @@
 
 ---
 
-## Phase 4 in flight — PR 4.1 landed, PR 4.2 next
+## Phase 4 in flight — PRs 4.1 + 4.2 landed, PR 4.3 next
 
-PR 4.1 (tabbed inventory list) is merged into `2.0` locally. **Next up is PR 4.2 — popup edit modal with two-pane diff preview.** PR 4.3 is yard view polish.
+PRs 4.1 (tabbed inventory list) and 4.2 (two-pane edit modal) are merged into `2.0` locally. **Next up is PR 4.3 — Yard view polish.**
 
 ### Phase 4 design decisions (locked 2026-05-14)
 
 - **Inventory split:** three tabs — `available` / `pending` / `sold`. Hold rows nest inside `available` with a "Held" badge; `outbound` nests inside `sold` with an "Outbound" badge until Phase 7's printer flow gives `outbound` its own state-flipping path.
 - **Mark Outbound is gone.** PR 4.1 deleted `OutboundForm.jsx` + the drawer button. The driver-receipt print in Phase 7 will be what stamps `outbound_date` and flips state to `outbound`.
-- **Search/sort:** header search box + per-column header-click sort. No sidebar facet (the invoices-grid sidebar pattern was not adopted here — too few sale companies to justify).
+- **Search/sort:** header search box + per-column header-click sort. No sidebar facet.
+- **Editor scope (PR 4.2):** unit#, size, damage, trucking_co, acq.price, notes editable. sale_company + release# read-only (reassignment via Releases page). Sold-row fields read-only with a deep link to /invoices/{n}. Photo strip = PhotoLightbox, read-only. Diff style = per-field background tint with old → new strip.
 - **Yard view facelift = polish only** in PR 4.3 (same three sections, restyle into tokens, fix the manual TZ math in YardRow.jsx). No new groupings.
 
-### PR 4.2 — popup edit modal (next)
+### PR 4.3 — yard view polish (next)
 
 Spec from the kickoff:
 
-- New `client/src/components/forms/InventoryEditor.tsx`. Two-pane inside `<Modal>`: edit form left, **live before/after diff right** highlighting changed fields. Footer "Save changes" → reveals "Confirm" with a change summary; commit only on Confirm.
-- Fields editable: all intake fields (unit#, size, damage, sale_company, release#, acq.price, trucking_co, notes). Read-only photo strip at top — reuse `<PhotoLightbox>`; presign GETs server-side and surface in the list response when needed (PR 4.1's GET already returns `photos: string[]`).
-- **When `state === 'sold'`** (rows in the Sold tab): also surface sale_price, modification_price, destination, outbound_date — these write through `/api/v1/inventory/sold/:id` (the same legacy POST the new invoice flow uses) or a v2 equivalent if added.
-- The stopgap modal in `Inventory.tsx` (`InventoryEditModal`) is what gets replaced. It currently edits unit#/size/damage/trucking_co/acq.price (via `PUT /api/v1/inventory/:id`) + notes (via `PUT /notes/:id`). State and sold-row fields are out of scope for the stopgap.
-- `is_pending_audit` toggle was **not** included — audit screen at `/audit` stays the canonical workflow.
+- `client/src/routes/YardView.jsx` → `.tsx` lazy migration. Switch to a CSS Module (`YardView.module.css`) or keep `yardview.css` global — yardview already has its own stylesheet and is the only consumer of `.invHeader` etc., so a CSS Module is the cleaner cut.
+- **Fix the manual TZ math in `client/src/components/rows/YardRow.jsx`**: replace the offset arithmetic at `YardRow.jsx:6-22` with `Intl.DateTimeFormat` or `toLocaleString` with `timeZone: 'America/New_York'`. Lazy-migrate the file to `.tsx` while you're in there.
+- Restyle into the global tokens from `client/src/styles/tokens.css`. The yardview CSS already references most of these correctly after the PR 4.1 migration; do a polish pass on padding/spacing/typography.
+- Latent bug: `YardRow.jsx` renders `{container.release_number}` but the `inventory` table no longer has that text column (Phase 1 cutover). Yard view's release # cells currently render blank. The list response yard view consumes is `/api/v1/inventory` (un-enriched in `UpcomingOutbounds.jsx`) — switch to consume `release_number_value` from PR 4.1's JOIN. (`UpcomingOutbounds` doesn't pass a query flag, so it gets the same enriched rows as `/inventory`.)
+- `Header.jsx` was removed in PR 4.1; nothing else used it, but if any future yard chrome wants a shared page-header element it should live in `components/ui/`.
 
-### Pre-PR-4.2 reading
+### Pre-PR-4.3 reading
 
-1. **Read PLAN.md §5 (UI rework — Inventory section).**
-2. **Read `client/src/routes/Inventory.tsx`** — particularly the `InventoryEditModal` component at the bottom (the stopgap PR 4.2 replaces). Reuse the `<Modal>` mount, the field-mapping pattern, and the `set()` helper.
-3. **Skim `client/src/components/forms/InvoiceEditor.tsx`** (PR 3.4) — closest reference for an edit-form-with-server-reconciliation pattern. Its container-add/remove + per-mod reorder logic isn't relevant, but the "controlled draft → diff vs original → POST" shape is.
-4. **`client/src/components/ui/PhotoLightbox.tsx`** — already in the UI library. Used by Audit (`Audit.tsx:307` PhotoStrip). Reuse for the photo strip in the editor.
+1. **Read `client/src/routes/YardView.jsx`** (27 lines) and **`client/src/components/lists/UpcomingOutbounds.jsx`** + **`client/src/components/rows/YardRow.jsx`**. Those three files are the entire yardview surface area.
+2. **Skim `client/src/styles/yardview.css`** — already has the `.invHeader` and `tbody tr:hover` rules pulled in from `inventorylist.css` during PR 4.1.
+3. **Skim `client/src/components/lists/ReleaseNumbers.jsx`** for the third yardview section (Valid Release Numbers).
+4. **`client/src/components/yard/ShYardSection.tsx`** for the S&H section yardview already includes.
 
-### Open conversations before PR 4.2 work goes deep
+### Open conversations before PR 4.3 work goes deep
 
-- **Sold-row writes** — `/api/v1/inventory/sold/:id` POST today *creates* a sold row (it's the legacy "mark sold" insert called by the invoice create flow). For editing an existing sold row we need an UPDATE path. Options: (a) PUT to a new endpoint, (b) reuse `/api/v2/invoice/:id` PUT (which already reconciles sold fields per PR 3.4) by invoice-id reverse lookup. Probably (a); resolve at kickoff.
-- **Photos** — do we ship a re-upload path in the editor, or stay read-only with "add photos via re-intake"? Read-only is the easier scope.
-- **Diff highlighting fidelity** — per-field background tint, or a summary list ("Acq.Price 213 → 425")? Pick one at kickoff; both are simple.
+- **Section ordering** — today: Valid Release Numbers → Units by Type (available/sold/hold cards) → S&H section. Keep as-is, or surface more frequently-needed data higher?
+- **State icon column on YardRow** — yardview's `available` rows hide the date columns but `sold` rows show outbound date + release. Polish here = column tidying or full rebuild of the per-card table?
+- **Days-onsite badge in yard view** — PLAN §7 mentions "S&H inventory section on `/` with days-onsite badge + check-out shortcut" but PR 4.1 didn't add Days Onsite to the sales-side yardview tiles. Should it land here?
 
 ### Phase 4 status
 
 | PR | Contents |
 |---|---|
 | 4.1 | Tabbed `/inventory` rewrite. New `client/src/routes/Inventory.tsx` + `.module.css`. Three tabs (Available / Pending / Sold) with live counts; Hold rows in Available with a "Held" badge; Outbound rows in Sold with an "Outbound" badge. Header search (full-text against unit#, sale co., release#, damage, notes, trucking co., invoice#, acq.price). Per-column header-click sort with asc/desc toggle + indicators; empties last. Common columns: Unit#, Size, Sale Co., Date Added, Days Onsite, Acq. Price, Release#; Sold tab adds Outbound + Invoice#. Pagination fixed (legacy `+= 1` phantom-page bug removed); 25/50/100 per-page. Stopgap edit modal (replaced in PR 4.2). Server: `GET /api/v1/inventory` LEFT JOINs sale_companies + release_numbers + sold + invoice_containers + invoices to surface `sale_company_name` / `release_number_value` / `outbound_date` / `invoice_number` per row. Legacy retired: `lists/InventoryList.jsx`, `rows/Row.jsx`, `forms/OutboundForm.jsx`, `forms/UpdateForm.jsx`, `SearchContainers.jsx`, `Header.jsx`, `styles/inventorylist.css` (yardview's two depended-on rules moved into `yardview.css`). |
+| 4.2 | Inventory edit modal — two-pane diff + confirm. New `client/src/components/forms/InventoryEditor.tsx` + `.module.css`. Replaces the 4.1 stopgap. Two-pane layout inside `<Modal size="lg">`: edit form left, live before→after diff right with per-field accent tint on changed fields. Edit → "Review changes" → confirmation banner + Back/Confirm pair; the PUT only fires on Confirm. Editable fields: unit_number, size, damage, trucking_company, acquisition_price, notes (matching what `PUT /api/v1/inventory/:id` + `PUT /notes/:id` already accept). Read-only display: sale_company_name, release_number_value, intake date, state. Sold-tab rows: outbound_date + invoice_number rendered read-only with an "Edit on invoice page →" deep link to `/invoices/{n}`. Photo strip via `<PhotoLightbox>`; URLs fetched per-row from `GET /api/v1/inventory/:id` (now attaches presigned URLs via `attachPhotoUrls`). `<Modal>` gained a `size` prop (`'md'` default = 520px / `'lg'` = 920px) so the two-pane layout has room without widening the default modal. |
 
 ### Follow-up items that didn't fit cleanly into Phase 3
 
