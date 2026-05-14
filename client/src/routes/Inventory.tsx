@@ -5,7 +5,8 @@ import {
   useState,
   type ChangeEvent,
 } from 'react';
-import { Badge, Button, Modal } from '../components/ui';
+import { Badge } from '../components/ui';
+import { InventoryEditor } from '../components/forms/InventoryEditor';
 import { userContext } from '../context/restaurantcontext';
 import styles from './Inventory.module.css';
 
@@ -406,7 +407,7 @@ export default function Inventory() {
         </span>
       </div>
 
-      <InventoryEditModal
+      <InventoryEditor
         row={editing}
         onClose={() => setEditing(null)}
         onSaved={handleSaved}
@@ -440,147 +441,3 @@ function Th({ label, sortKey, sort, onSort }: ThProps) {
   );
 }
 
-// Stopgap edit modal — PR 4.2 replaces this with the two-pane diff editor.
-// Edits unit#, size, damage, trucking_co, acq_price (PUT /:id) and notes
-// (PUT /notes/:id); state stays untouched. Sold-row fields are out of
-// scope for the stopgap.
-interface EditModalProps {
-  row: InventoryRow | null;
-  onClose: () => void;
-  onSaved: (updated: InventoryRow) => void;
-  onError: (msg: string) => void;
-}
-
-function InventoryEditModal({ row, onClose, onSaved, onError }: EditModalProps) {
-  const [draft, setDraft] = useState<InventoryRow | null>(row);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setDraft(row);
-  }, [row]);
-
-  if (!row || !draft) return null;
-
-  const set =
-    <K extends keyof InventoryRow>(key: K) =>
-    (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      const v = e.target.value;
-      setDraft((prev) =>
-        prev ? { ...prev, [key]: v === '' ? null : (v as InventoryRow[K]) } : prev,
-      );
-    };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!draft) return;
-    setSaving(true);
-    try {
-      const putRes = await fetch(`/api/v1/inventory/${row.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          unit_number: draft.unit_number,
-          size: draft.size,
-          damage: draft.damage,
-          trucking_company: draft.trucking_company,
-          state: draft.state,
-          acquisition_price: draft.acquisition_price,
-        }),
-      });
-      if (!putRes.ok) throw new Error(`update failed (${putRes.status})`);
-      if (draft.notes !== row.notes) {
-        const notesRes = await fetch(`/api/v1/inventory/notes/${row.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ notes: draft.notes ?? '' }),
-        });
-        if (!notesRes.ok) throw new Error(`notes update failed (${notesRes.status})`);
-      }
-      onSaved(draft);
-    } catch (err) {
-      onError(`ERROR ${err instanceof Error ? err.message : 'Update failed'}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal
-      open={true}
-      onClose={onClose}
-      title={`Edit ${row.unit_number.trim()}`}
-      closeOnBackdropClick={!saving}
-      closeOnEscape={!saving}
-    >
-      <form onSubmit={submit}>
-        <div className={styles.editForm}>
-          <div className={styles.editField}>
-            <label className={styles.editLabel}>Unit Number</label>
-            <input
-              className={styles.editInput}
-              value={draft.unit_number}
-              onChange={set('unit_number')}
-              maxLength={15}
-            />
-          </div>
-          <div className={styles.editField}>
-            <label className={styles.editLabel}>Size</label>
-            <input
-              className={styles.editInput}
-              value={draft.size}
-              onChange={set('size')}
-              maxLength={10}
-            />
-          </div>
-          <div className={styles.editField}>
-            <label className={styles.editLabel}>Damage</label>
-            <input
-              className={styles.editInput}
-              value={draft.damage ?? ''}
-              onChange={set('damage')}
-              maxLength={120}
-            />
-          </div>
-          <div className={styles.editField}>
-            <label className={styles.editLabel}>Trucking Co.</label>
-            <input
-              className={styles.editInput}
-              value={draft.trucking_company ?? ''}
-              onChange={set('trucking_company')}
-              maxLength={60}
-            />
-          </div>
-          <div className={styles.editField}>
-            <label className={styles.editLabel}>Acq. Price</label>
-            <input
-              className={styles.editInput}
-              type="number"
-              step="0.01"
-              value={draft.acquisition_price ?? ''}
-              onChange={set('acquisition_price')}
-            />
-          </div>
-          <div className={`${styles.editField} ${styles.editFieldWide}`}>
-            <label className={styles.editLabel}>Notes</label>
-            <input
-              className={styles.editInput}
-              value={draft.notes ?? ''}
-              onChange={set('notes')}
-              maxLength={255}
-            />
-          </div>
-        </div>
-        <div className={styles.editActions}>
-          <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={saving}>
-            {saving ? 'Saving…' : 'Save'}
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
