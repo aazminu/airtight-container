@@ -188,7 +188,7 @@ export default function ReportDetail() {
   const handleDelete = async () => {
     if (!report) return;
     const ok = window.confirm(
-      `Delete report #${report.id}? The S3 PDF will be left in place but the row will be removed.`,
+      `Delete report #${report.id}? The row and the stored PDF will both be removed. This cannot be undone.`,
     );
     if (!ok) return;
     setAction({ kind: 'busy', label: 'Deleting…' });
