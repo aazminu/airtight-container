@@ -4,7 +4,7 @@
 
 ---
 
-## Phase 5 complete on `2.0`. Phase 6 partial — yard i18n + mobile audit done; Help content + Spanish review pending.
+## Phase 5 complete on `2.0`. Phase 6 partial (yard i18n + mobile audit done; Help content + Spanish review pending). New Phase 9 queued — standardization + admin presets + OCR hardening (added 2026-05-16, unblocked).
 
 **Phase 5** — PRs 5.1 (schema + API), 5.2 (brand-consistent templates), 5.3 (resolvers + PDF/email + UI), 5.4 (Dashboard P&L panel), and 5.5 (release_summary report + /releases page rework) are merged into `2.0` locally. Direct follow-ups on `2.0`:
 - Dialog refactor (replace native confirm/prompt with styled dialogs).
@@ -24,6 +24,11 @@
 **Next** (need user direction):
 - Spanish translation review — native pass over `client/src/i18n/locales/es.json` (~100 strings).
 - Help page content — user-authored FAQs to flesh out the stub.
+- **Phase 9 — standardization & admin presets (NEW, added 2026-05-16).** Four PRs, all unblocked, can run in parallel with 7/8. See PLAN §7 Phase 9 for the full spec.
+  - 9.1: `size_presets` + `damage_presets` tables → admin Dashboard tabs → intake/inventory dropdown swap → backfill of existing freetext. Seed: size `10'DV / 10'HC / 20'DV / 20'HC / 40'DV / 40'HC`, damage `New / WWT / As-is`.
+  - 9.2: `mod_presets.default_price` column → admin price-column edit → `CreateInvoice` + `InvoiceEditor` autofill on pick (only when field is empty).
+  - 9.3: invoice line description becomes `[Size] [Damage] [Unit#]`; per-container notes/description field on invoice is dropped (template + UI). `inventory.notes` retained for yard use.
+  - 9.4: OCR character-disambiguation in `server/lib/textract.ts` — candidate expansion for digit positions (O→0, I/L→1, S→5, B→8, Z→2, G→6, T→7) + enforce position-4 = `U` on the alpha prefix. Needs a regression-fixture set from user's failing images first (see Open threads).
 - Then Phase 7 (driver-receipt thermal printer, needs A80 spec conversation) and/or Phase 8 (QuickBooks integration, needs QB Online vs Desktop decision).
 - Staging environment before the `2.0` → `main` cutover is still unscheduled.
 
@@ -180,6 +185,7 @@ None block Phase 4.
 - **Help page content** — stub shipped; real FAQs pending.
 - **Staging environment** — none today. Probably worth standing up before `2.0` → `main` cutover.
 - **Vite 8 / vitest 4 bumps** — dev-tooling-only esbuild advisories (GHSA-67mh-4wv8-2f99).
+- **OCR regression sample set** — user reports Textract misreads (`0` ↔ `O` etc.) on some grimy container plates. Before opening PR 9.4, collect the failing raw Textract responses + source images into `server/scripts/textract-fixtures/` (gitignored) so the disambiguation pass has fixtures to lock against. Phase 9.4 is otherwise specced and ready to start.
 
 ---
 
