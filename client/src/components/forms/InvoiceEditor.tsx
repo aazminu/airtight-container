@@ -9,6 +9,7 @@ import { fmtCurrency } from '../templates/invoice/format';
 import {
   MODIFICATION_DATALIST_ID,
   useModPresetLabels,
+  useModPresets,
 } from './modificationPresets';
 import styles from './InvoiceEditor.module.css';
 
@@ -65,6 +66,7 @@ export default function InvoiceEditor({
   const [pickerValue, setPickerValue] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const modPresetLabels = useModPresetLabels();
+  const modPresets = useModPresets();
 
   useEffect(() => {
     let cancelled = false;
@@ -207,7 +209,24 @@ export default function InvoiceEditor({
     setDraft((d) => {
       const containers = d.containers.slice();
       const mods = containers[ctIdx].modifications.slice();
-      mods[modIdx] = { ...mods[modIdx], ...patch };
+      const next = { ...mods[modIdx], ...patch };
+      // Autofill the price when the user picks (or types) a description
+      // matching a preset, but only when the current price is empty/0 —
+      // a typed value wins.
+      if (patch.description !== undefined) {
+        const match = modPresets.find(
+          (p) => p.label === patch.description?.trim(),
+        );
+        const currentPrice = Number(next.price);
+        const priceEmpty =
+          next.price === '' ||
+          next.price == null ||
+          (Number.isFinite(currentPrice) && currentPrice === 0);
+        if (match && match.default_price != null && priceEmpty) {
+          next.price = String(match.default_price);
+        }
+      }
+      mods[modIdx] = next;
       containers[ctIdx] = { ...containers[ctIdx], modifications: mods };
       return { ...d, containers };
     });
@@ -440,14 +459,6 @@ export default function InvoiceEditor({
                   className={styles.input}
                   value={c.destination ?? ''}
                   onChange={(e) => updateContainer(ctIdx, { destination: e.target.value })}
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Notes</span>
-                <input
-                  className={styles.input}
-                  value={c.invoice_notes ?? ''}
-                  onChange={(e) => updateContainer(ctIdx, { invoice_notes: e.target.value })}
                 />
               </label>
               <label className={styles.field}>
