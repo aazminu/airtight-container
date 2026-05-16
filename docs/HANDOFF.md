@@ -4,7 +4,7 @@
 
 ---
 
-## Phase 5 complete on `2.0`. Phase 6 partial (yard i18n + mobile audit done; Help content + Spanish review pending). Phase 9 started — PR 9.1 (size + damage admin presets) ready to merge on `phase-9/size-damage-presets`; 9.2 / 9.3 / 9.4 still queued.
+## Phases 1–5 complete on `2.0`. Phase 6 partial (yard i18n + mobile audit done; Help content + Spanish review pending). Phase 9.1–9.3 merged into `2.0` 2026-05-16; 9.4 blocked on user-supplied OCR fixtures. Phase 7 (printer) + Phase 8 (QB) blocked on pre-conversations.
 
 **Phase 5** — PRs 5.1 (schema + API), 5.2 (brand-consistent templates), 5.3 (resolvers + PDF/email + UI), 5.4 (Dashboard P&L panel), and 5.5 (release_summary report + /releases page rework) are merged into `2.0` locally. Direct follow-ups on `2.0`:
 - Dialog refactor (replace native confirm/prompt with styled dialogs).
@@ -21,16 +21,28 @@
 - **Navbar polish:** new `UserAvatar` monogram component (palette-hashed initial), logo gets a real height, profile dropdown gains role line + click-outside / ESC-to-close + danger-tint logout. Old `profile.png` and the `onMouseOver` width-swell are gone.
 - **`/help` route stub** — minimal contact-Michelle card so the navbar link doesn't 404. Real content per the PLAN §8 follow-up ("does the user author the FAQs?") is still pending.
 
+**Phase 9 — standardization & admin presets** (added 2026-05-16). Four PRs, all unblocked from upstream phases; merged in order via `--no-ff` on 2026-05-16:
+- **9.1 MERGED** (b78cbc3). Migration 0008 added `size_presets` (10'/20'/40'DV+HC + 45'HC) and `damage_presets` (New/WWT/As-is); 23 inventory rows folded `NA → As-is`. Generic `<PresetsAdmin>` extracted from `ModPresetsAdmin.tsx`; size + damage land as wrappers in two new Dashboard admin tabs. `useSizePresetLabels()` + `useDamagePresetLabels()` mirror `useModPresetLabels()`. `SalesDetailsStep`, `ShDetailsStep`, `InventoryEditor` swap size + damage inputs to `<input list>` + shared `<datalist>`. Drive-by fix: Drizzle wraps pg errors in `DrizzleQueryError`, so `err.code === "23505"` was never matching on `mod_presets` (pre-existing) and would have on the new routes — patched all three to fall through to `err.cause?.code`.
+- **9.2 MERGED** (9e30285). Migration 0009 adds `mod_presets.default_price numeric` nullable. Route + Zod accept the new field; `useModPresets()` hook returns full records alongside `useModPresetLabels()`. `<PresetsAdmin>` gained a `showPrice` prop that surfaces a "Default Price" column + price input on the add form; `ModPresetsAdmin` sets it. `InvoiceEditor` + `CreateInvoice` autofill `modification_price` when the user picks a preset description — only when the price input is `''` or `0` so typed values aren't clobbered.
+- **9.3 MERGED** (06fb5fd). `format.ts:buildLineGroups` parent-line description now reads `[Size] [Damage] [Unit#]` (joined live from inventory); legacy `invoice_notes` prefix is gone. New `buildContainerDesc()` helper handles missing size/damage gracefully. Per-container `Notes` input dropped from both `InvoiceEditor.tsx` and `CreateInvoice.tsx`. `sold.invoice_notes` column stays for backward-compat; client just stops writing/reading it. Followup commit `6a0240d` fixed a tsc-strict regression in the test (damage: null → '').
+- **9.4 BLOCKED** on user-supplied OCR fixtures. Plan: candidate-expansion pass in `server/lib/textract.ts` — for ISO 6346 digit positions, substitute O→0, I/L→1, S→5, B→8, Z→2, G→6, T→7 and accept the first candidate that check-digit-validates; for the alpha prefix, enforce position-4 = `U`. Need a regression set of raw Textract responses from prod failures first; drop into `server/scripts/textract-fixtures/` (gitignored).
+
+Server suite 125 → 146; client 31 → 33.
+
 **Next** (need user direction):
+- **9.4 OCR fixtures** — share the raw Textract responses + source images for the 0/O misreads you mentioned so 9.4 has a regression set to lock against.
 - Spanish translation review — native pass over `client/src/i18n/locales/es.json` (~100 strings).
-- Help page content — user-authored FAQs to flesh out the stub.
-- **Phase 9 — standardization & admin presets** (added 2026-05-16). Four PRs, all unblocked, can run in parallel with 7/8. See PLAN §7 Phase 9 for the full spec.
-  - **9.1 DONE** (2026-05-16, branch `phase-9/size-damage-presets`, ready to merge to `2.0`). Migration 0008 added `size_presets` (7 seeds: 10'/20'/40'DV+HC + 45'HC) and `damage_presets` (New/WWT/As-is). 23 inventory rows folded `NA → As-is`. Generic `<PresetsAdmin>` extracted from `ModPresetsAdmin.tsx`; size + damage land as wrappers in two new Dashboard admin tabs. `useSizePresetLabels()` + `useDamagePresetLabels()` mirror `useModPresetLabels()`. `SalesDetailsStep`, `ShDetailsStep`, `InventoryEditor` swap size + damage inputs to `<input list>` + shared `<datalist>`. Server suite 125 → 143. Drive-by fix: Drizzle wraps pg errors in `DrizzleQueryError`, so `err.code === "23505"` was never matching on `mod_presets` (pre-existing) and would have on the new routes — patched all three to fall through to `err.cause?.code`.
-  - **9.2 DONE** (2026-05-16, branch `phase-9/mod-preset-prices` stacked on `phase-9/size-damage-presets`). Migration 0009 adds `mod_presets.default_price numeric` nullable. Route + Zod accept the new field; `useModPresets()` hook returns full records alongside `useModPresetLabels()`. `<PresetsAdmin>` gained a `showPrice` prop that surfaces a "Default Price" column + price input on the add form; `ModPresetsAdmin` sets it. `InvoiceEditor` + `CreateInvoice` autofill `modification_price` when the user picks a preset description — only when the price input is `''` or `0` so typed values aren't clobbered. Server suite 143 → 146. Smoke verified end-to-end on InvoiceEditor against a 250 default price on Paint Job (autofill fires; 99.99 typed value survives).
-  - **9.3 DONE** (2026-05-16, branch `phase-9/invoice-line-description` stacked on `phase-9/mod-preset-prices`). `format.ts:buildLineGroups` now reads parent-line description from `[Size] [Damage] [Unit#]` (joined live from the inventory join on the container record); legacy `invoice_notes` prefix is gone. New `buildContainerDesc()` helper handles missing size/damage gracefully (skips empties). Per-container `Notes` input dropped from both `InvoiceEditor.tsx` and `CreateInvoice.tsx` Details step. `sold.invoice_notes` column stays (no schema change) and is still accepted on PUT for backward-compat — the client just stops writing/reading it. Client tests 31 → 33 (legacy notes-prefix assertion replaced by size/damage prefix + missing-parts case + a negative test that invoice_notes is ignored). Smoke verified: invoice 317 now renders rows like `20'DV WWT TRHU244765‑6` instead of bare unit numbers; editor labels confirmed sans Notes.
-  - 9.4: OCR character-disambiguation in `server/lib/textract.ts` — candidate expansion for digit positions (O→0, I/L→1, S→5, B→8, Z→2, G→6, T→7) + enforce position-4 = `U` on the alpha prefix. Needs a regression-fixture set from user's failing images first (see Open threads).
-- Then Phase 7 (driver-receipt thermal printer, needs A80 spec conversation) and/or Phase 8 (QuickBooks integration, needs QB Online vs Desktop decision).
+- Help page content — user-authored FAQs to flesh out the stub at `/help`.
+- Phase 7 (driver-receipt thermal printer) — needs A80 spec conversation + hardware swap discussion.
+- Phase 8 (QuickBooks integration) — needs QB Online vs Desktop decision.
 - Staging environment before the `2.0` → `main` cutover is still unscheduled.
+
+**Unblocked if user is busy:**
+- Spanish translation review using a service (DeepL / Google Translate) as a second-pass refinement.
+- Help page content drafted from observed app behavior for user review.
+- Historical re-render bulk run — `server/scripts/rerender-all-invoices.ts` is ready (`--dry-run` → `--limit 5` → full).
+- UI-level tests — InvoicesGrid + InvoiceEditor have server-side coverage but no React component tests. RTL/snapshot pass per the carried-over Phase 3 follow-up.
+- Dashboard P&L refinements — year-over-year overlay on trend chart; container-size filter; top-clients drill-down (click bar → that client's invoices).
 
 ### Phase 5 design decisions (locked 2026-05-14)
 
