@@ -4,7 +4,7 @@
 
 ---
 
-## Phase 5 complete on `2.0`. Phase 6 partial (yard i18n + mobile audit done; Help content + Spanish review pending). New Phase 9 queued — standardization + admin presets + OCR hardening (added 2026-05-16, unblocked).
+## Phase 5 complete on `2.0`. Phase 6 partial (yard i18n + mobile audit done; Help content + Spanish review pending). Phase 9 started — PR 9.1 (size + damage admin presets) ready to merge on `phase-9/size-damage-presets`; 9.2 / 9.3 / 9.4 still queued.
 
 **Phase 5** — PRs 5.1 (schema + API), 5.2 (brand-consistent templates), 5.3 (resolvers + PDF/email + UI), 5.4 (Dashboard P&L panel), and 5.5 (release_summary report + /releases page rework) are merged into `2.0` locally. Direct follow-ups on `2.0`:
 - Dialog refactor (replace native confirm/prompt with styled dialogs).
@@ -24,8 +24,8 @@
 **Next** (need user direction):
 - Spanish translation review — native pass over `client/src/i18n/locales/es.json` (~100 strings).
 - Help page content — user-authored FAQs to flesh out the stub.
-- **Phase 9 — standardization & admin presets (NEW, added 2026-05-16).** Four PRs, all unblocked, can run in parallel with 7/8. See PLAN §7 Phase 9 for the full spec.
-  - 9.1: `size_presets` + `damage_presets` tables → admin Dashboard tabs → intake/inventory dropdown swap → backfill of existing freetext. Seed: size `10'DV / 10'HC / 20'DV / 20'HC / 40'DV / 40'HC`, damage `New / WWT / As-is`.
+- **Phase 9 — standardization & admin presets** (added 2026-05-16). Four PRs, all unblocked, can run in parallel with 7/8. See PLAN §7 Phase 9 for the full spec.
+  - **9.1 DONE** (2026-05-16, branch `phase-9/size-damage-presets`, ready to merge to `2.0`). Migration 0008 added `size_presets` (7 seeds: 10'/20'/40'DV+HC + 45'HC) and `damage_presets` (New/WWT/As-is). 23 inventory rows folded `NA → As-is`. Generic `<PresetsAdmin>` extracted from `ModPresetsAdmin.tsx`; size + damage land as wrappers in two new Dashboard admin tabs. `useSizePresetLabels()` + `useDamagePresetLabels()` mirror `useModPresetLabels()`. `SalesDetailsStep`, `ShDetailsStep`, `InventoryEditor` swap size + damage inputs to `<input list>` + shared `<datalist>`. Server suite 125 → 143. Drive-by fix: Drizzle wraps pg errors in `DrizzleQueryError`, so `err.code === "23505"` was never matching on `mod_presets` (pre-existing) and would have on the new routes — patched all three to fall through to `err.cause?.code`.
   - 9.2: `mod_presets.default_price` column → admin price-column edit → `CreateInvoice` + `InvoiceEditor` autofill on pick (only when field is empty).
   - 9.3: invoice line description becomes `[Size] [Damage] [Unit#]`; per-container notes/description field on invoice is dropped (template + UI). `inventory.notes` retained for yard use.
   - 9.4: OCR character-disambiguation in `server/lib/textract.ts` — candidate expansion for digit positions (O→0, I/L→1, S→5, B→8, Z→2, G→6, T→7) + enforce position-4 = `U` on the alpha prefix. Needs a regression-fixture set from user's failing images first (see Open threads).

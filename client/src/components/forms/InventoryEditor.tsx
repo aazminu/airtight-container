@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { Button, Modal, PhotoLightbox } from '../ui';
 import styles from './InventoryEditor.module.css';
+import { SIZE_DATALIST_ID, useSizePresetLabels } from './sizePresets';
+import { DAMAGE_DATALIST_ID, useDamagePresetLabels } from './damagePresets';
 
 // Shape matches the row format produced by GET /api/v1/inventory (the
 // route's JOIN-enriched response). photo_urls is fetched separately on
@@ -87,6 +89,8 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
   const [photoSrc, setPhotoSrc] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
+  const sizeLabels = useSizePresetLabels();
+  const damageLabels = useDamagePresetLabels();
   // Passive read-only hint banner. Set when the user clicks a
   // non-editable field (sale_co, release#, intake date, state,
   // sold-row block); dismissed by the X. Doesn't steal focus or
@@ -240,6 +244,12 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
             {EDITABLE_FIELDS.map((key) => {
               const changed = fieldChanged(draft, row, key);
               const wide = key === 'damage' || key === 'notes' || key === 'trucking_company';
+              const listId =
+                key === 'size'
+                  ? SIZE_DATALIST_ID
+                  : key === 'damage'
+                  ? DAMAGE_DATALIST_ID
+                  : undefined;
               return (
                 <div
                   key={key}
@@ -255,10 +265,21 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
                     type={key === 'acquisition_price' ? 'number' : 'text'}
                     step={key === 'acquisition_price' ? '0.01' : undefined}
                     maxLength={key === 'notes' ? 255 : key === 'damage' ? 120 : 60}
+                    list={listId}
                   />
                 </div>
               );
             })}
+            <datalist id={SIZE_DATALIST_ID}>
+              {sizeLabels.map((l) => (
+                <option key={l} value={l} />
+              ))}
+            </datalist>
+            <datalist id={DAMAGE_DATALIST_ID}>
+              {damageLabels.map((l) => (
+                <option key={l} value={l} />
+              ))}
+            </datalist>
 
             {/* read-only display fields. Clicking surfaces a passive
                 hint banner at the top explaining where to make the
