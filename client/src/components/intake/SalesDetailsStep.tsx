@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from './IntakeForm.module.css';
+import {
+  SIZE_DATALIST_ID,
+  useSizePresetLabels,
+} from '../forms/sizePresets';
+import {
+  DAMAGE_DATALIST_ID,
+  useDamagePresetLabels,
+} from '../forms/damagePresets';
 
 export interface SalesIntakeForm {
   unit_number: string;
@@ -34,6 +42,8 @@ export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }
   const { t } = useTranslation();
   const [releases, setReleases] = useState<ReleaseOption[]>([]);
   const [loadingReleases, setLoadingReleases] = useState(true);
+  const sizeLabels = useSizePresetLabels();
+  const damageLabels = useDamagePresetLabels();
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +79,7 @@ export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }
         <span className={styles.label}>{t('sales_details.size')}</span>
         <input
           type="text"
+          list={SIZE_DATALIST_ID}
           value={value.size}
           onChange={(e) => onChange({ size: e.target.value })}
           placeholder={t('sales_details.size_placeholder')}
@@ -81,6 +92,7 @@ export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }
         <span className={styles.label}>{t('sales_details.damage')}</span>
         <input
           type="text"
+          list={DAMAGE_DATALIST_ID}
           value={value.damage}
           onChange={(e) => onChange({ damage: e.target.value })}
           placeholder={t('sales_details.damage_placeholder')}
@@ -88,6 +100,17 @@ export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }
           required
         />
       </label>
+
+      <datalist id={SIZE_DATALIST_ID}>
+        {sizeLabels.map((l) => (
+          <option key={l} value={l} />
+        ))}
+      </datalist>
+      <datalist id={DAMAGE_DATALIST_ID}>
+        {damageLabels.map((l) => (
+          <option key={l} value={l} />
+        ))}
+      </datalist>
 
       {lockedRelease ? (
         <div className={styles.readonlyLine}>

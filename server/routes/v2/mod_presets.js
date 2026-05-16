@@ -50,7 +50,7 @@ router.post(
 				.json({ status: "success", data: { preset: inserted[0] } });
 		} catch (err) {
 			// PK + unique label violations surface as 23505.
-			if (err && err.code === "23505") {
+			if (err && (err.code === "23505" || err.cause?.code === "23505")) {
 				return res.status(409).json({
 					status: "conflict",
 					message: "A preset with that label already exists.",
@@ -88,7 +88,7 @@ router.put(
 			}
 			res.status(200).json({ status: "success", data: { preset: updated[0] } });
 		} catch (err) {
-			if (err && err.code === "23505") {
+			if (err && (err.code === "23505" || err.cause?.code === "23505")) {
 				return res.status(409).json({
 					status: "conflict",
 					message: "A preset with that label already exists.",

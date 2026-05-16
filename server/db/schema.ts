@@ -342,3 +342,38 @@ export const mod_presets = pgTable(
     positionIdx: index('mod_presets_position_idx').on(table.position),
   }),
 );
+
+// Admin-editable container-size presets. Intake + InventoryEditor render
+// these as a <datalist> behind the size input. Label-only; no FK from
+// `inventory.size` / `sh_inventory.size` so a deleted preset doesn't
+// strand historical rows.
+export const size_presets = pgTable(
+  'size_presets',
+  {
+    id: serial('id').primaryKey(),
+    label: text('label').notNull().unique(),
+    position: integer('position').notNull().default(0),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    positionIdx: index('size_presets_position_idx').on(table.position),
+  }),
+);
+
+// Admin-editable container-damage presets. Same pattern as size_presets.
+export const damage_presets = pgTable(
+  'damage_presets',
+  {
+    id: serial('id').primaryKey(),
+    label: text('label').notNull().unique(),
+    position: integer('position').notNull().default(0),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    positionIdx: index('damage_presets_position_idx').on(table.position),
+  }),
+);

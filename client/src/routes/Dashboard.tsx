@@ -2,13 +2,17 @@ import { useState } from 'react';
 import '../styles/dashboard.css';
 import UserList from '../components/lists/UserList';
 import ModPresetsAdmin from '../components/lists/ModPresetsAdmin';
+import SizePresetsAdmin from '../components/lists/SizePresetsAdmin';
+import DamagePresetsAdmin from '../components/lists/DamagePresetsAdmin';
 import PnLPanel from '../components/PnLPanel';
 
-type Tab = 'pnl' | 'mods' | 'acct';
+type Tab = 'pnl' | 'mods' | 'sizes' | 'damages' | 'acct';
 
 const TABS: Array<{ key: Tab; label: string }> = [
   { key: 'pnl', label: 'P&L' },
   { key: 'mods', label: 'Modification Presets' },
+  { key: 'sizes', label: 'Container Sizes' },
+  { key: 'damages', label: 'Damage Types' },
   { key: 'acct', label: 'Account Management' },
 ];
 
@@ -38,6 +42,12 @@ export default function Dashboard() {
       </div>
       <div className={currTab === 'mods' ? '' : 'hidden'}>
         <ModPresetsAdmin />
+      </div>
+      <div className={currTab === 'sizes' ? '' : 'hidden'}>
+        <SizePresetsAdmin />
+      </div>
+      <div className={currTab === 'damages' ? '' : 'hidden'}>
+        <DamagePresetsAdmin />
       </div>
       <div className={currTab === 'acct' ? '' : 'hidden'}>
         <UserList />

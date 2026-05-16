@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from './IntakeForm.module.css';
+import {
+  SIZE_DATALIST_ID,
+  useSizePresetLabels,
+} from '../forms/sizePresets';
+import {
+  DAMAGE_DATALIST_ID,
+  useDamagePresetLabels,
+} from '../forms/damagePresets';
 
 export interface ShIntakeForm {
   client_id: number | null;
@@ -29,6 +37,8 @@ export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
   const { t } = useTranslation();
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
+  const sizeLabels = useSizePresetLabels();
+  const damageLabels = useDamagePresetLabels();
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +95,7 @@ export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
           <span className={styles.label}>{t('sh_details.size')}</span>
           <input
             type="text"
+            list={SIZE_DATALIST_ID}
             value={value.size}
             onChange={(e) => onChange({ size: e.target.value })}
             placeholder={t('sh_details.size_placeholder')}
@@ -96,6 +107,7 @@ export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
           <span className={styles.label}>{t('sh_details.damage')}</span>
           <input
             type="text"
+            list={DAMAGE_DATALIST_ID}
             value={value.damage}
             onChange={(e) => onChange({ damage: e.target.value })}
             placeholder={t('sh_details.damage_placeholder')}
@@ -103,6 +115,17 @@ export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
           />
         </label>
       </div>
+
+      <datalist id={SIZE_DATALIST_ID}>
+        {sizeLabels.map((l) => (
+          <option key={l} value={l} />
+        ))}
+      </datalist>
+      <datalist id={DAMAGE_DATALIST_ID}>
+        {damageLabels.map((l) => (
+          <option key={l} value={l} />
+        ))}
+      </datalist>
 
       <label className={styles.field}>
         <span className={styles.label}>{t('sh_details.notes')}</span>
