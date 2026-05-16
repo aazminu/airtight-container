@@ -62,11 +62,26 @@ describe('buildLineGroups', () => {
     expect(groups[0].primary.description.includes('‑')).toBe(true);
   });
 
-  it('prepends invoice_notes to the description when present', () => {
+  it('prepends [Size] [Damage] to the unit number on the parent line', () => {
+    const groups = buildLineGroups(baseInvoice([baseContainer()]));
+    // base container is 40HC / WWT / TCKU287291-3 → '40HC WWT TCKU…'
+    expect(groups[0].primary.description.startsWith('40HC WWT ')).toBe(true);
+  });
+
+  it('skips missing size/damage parts cleanly', () => {
+    const groups = buildLineGroups(
+      baseInvoice([baseContainer({ size: '', damage: null })]),
+    );
+    // No size + no damage → just the unit number (no leading spaces)
+    expect(groups[0].primary.description.startsWith(' ')).toBe(false);
+    expect(groups[0].primary.description.includes('TCKU')).toBe(true);
+  });
+
+  it('ignores invoice_notes on the parent line (dropped in PR 9.3)', () => {
     const groups = buildLineGroups(
       baseInvoice([baseContainer({ invoice_notes: 'Custom paint job' })]),
     );
-    expect(groups[0].primary.description.startsWith('Custom paint job')).toBe(true);
+    expect(groups[0].primary.description.includes('Custom paint job')).toBe(false);
   });
 
   it('uses per-modification line items when present, ignoring legacy scalar', () => {

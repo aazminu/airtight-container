@@ -711,14 +711,6 @@ export default function CreateInvoice() {
                       />
                     </label>
                     <label className={styles.field}>
-                      <span className={styles.fieldLabel}>Notes</span>
-                      <input
-                        className={styles.input}
-                        value={d.invoice_notes}
-                        onChange={(e) => updateDraft(id, { invoice_notes: e.target.value })}
-                      />
-                    </label>
-                    <label className={styles.field}>
                       <span className={styles.fieldLabel}>Outbound date</span>
                       <input
                         className={styles.input}

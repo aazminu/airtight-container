@@ -64,12 +64,29 @@ export interface InvoiceLineGroup {
 
 // Container numbers contain hyphens (ISO 6346 check-digit separator,
 // e.g. TCKU287291-3). The default browser line-breaking algorithm
-// treats hyphens as wrap points, so a long invoice_notes + container
-// number can wrap such that the trailing check digit ends up alone on
-// its own line. Swap ASCII hyphens for U+2011 NON-BREAKING HYPHEN to
-// keep the unit number visually intact.
+// treats hyphens as wrap points, so a long line can wrap such that the
+// trailing check digit ends up alone on its own line. Swap ASCII
+// hyphens for U+2011 NON-BREAKING HYPHEN to keep the unit number
+// visually intact.
 const NB_HYPHEN = '‑';
 const protectUnitNumber = (un: string) => un.replace(/-/g, NB_HYPHEN);
+
+// Parent-line description = `[Size] [Damage] [Unit#]`. Missing parts
+// are skipped so legacy rows with no size/damage still render a clean
+// unit number on its own.
+const buildContainerDesc = (
+  size: string | null | undefined,
+  damage: string | null | undefined,
+  safeUnit: string,
+): string => {
+  const parts: string[] = [];
+  const s = (size ?? '').trim();
+  if (s) parts.push(s);
+  const d = (damage ?? '').trim();
+  if (d) parts.push(d);
+  parts.push(safeUnit);
+  return parts.join(' ');
+};
 
 // One group per container. Primary = the container sale row; subs =
 // optional modification and delivery rows. Templates render subs as
@@ -82,9 +99,8 @@ const protectUnitNumber = (un: string) => un.replace(/-/g, NB_HYPHEN);
 export const buildLineGroups = (data: InvoiceData): InvoiceLineGroup[] => {
   const groups: InvoiceLineGroup[] = [];
   for (const c of data.containers) {
-    const notes = (c.invoice_notes ?? '').trim();
     const safeUnit = protectUnitNumber(c.unit_number);
-    const containerDesc = notes ? `${notes} ${safeUnit}` : safeUnit;
+    const containerDesc = buildContainerDesc(c.size, c.damage, safeUnit);
     const primary: InvoiceLine = {
       qty: 1,
       description: containerDesc,
