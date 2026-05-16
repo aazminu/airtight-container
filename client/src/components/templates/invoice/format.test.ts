@@ -70,7 +70,7 @@ describe('buildLineGroups', () => {
 
   it('skips missing size/damage parts cleanly', () => {
     const groups = buildLineGroups(
-      baseInvoice([baseContainer({ size: '', damage: null })]),
+      baseInvoice([baseContainer({ size: '', damage: '' })]),
     );
     // No size + no damage → just the unit number (no leading spaces)
     expect(groups[0].primary.description.startsWith(' ')).toBe(false);
