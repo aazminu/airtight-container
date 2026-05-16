@@ -14,6 +14,9 @@ export interface ModPreset {
   id: number;
   label: string;
   position: number;
+  // numeric in Postgres → string at the JSON boundary. May be null when
+  // the admin hasn't set a default.
+  default_price: string | null;
   created_at: string;
 }
 
@@ -62,4 +65,29 @@ export function useModPresetLabels(): string[] {
     };
   }, []);
   return labels;
+}
+
+// Returns the full preset records. Used by the invoice flows to look up
+// `default_price` for autofill when the user picks a preset description.
+export function useModPresets(): ModPreset[] {
+  const [presets, setPresets] = useState<ModPreset[]>([]);
+  useEffect(() => {
+    let active = true;
+    loadFull()
+      .then((p) => {
+        if (active) setPresets(p);
+      })
+      .catch(() => {
+        if (active) setPresets([]);
+      });
+    const sub = (p: ModPreset[]) => {
+      if (active) setPresets(p);
+    };
+    subscribers.add(sub);
+    return () => {
+      active = false;
+      subscribers.delete(sub);
+    };
+  }, []);
+  return presets;
 }

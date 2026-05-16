@@ -334,6 +334,7 @@ export const mod_presets = pgTable(
     id: serial('id').primaryKey(),
     label: text('label').notNull().unique(),
     position: integer('position').notNull().default(0),
+    default_price: numeric('default_price'),
     created_at: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

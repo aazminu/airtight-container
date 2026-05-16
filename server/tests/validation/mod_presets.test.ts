@@ -37,6 +37,23 @@ describe('modPresetSchema (create)', () => {
       modPresetSchema.safeParse({ label: 'OK', position: -1 }).success,
     ).toBe(false);
   });
+
+  it('accepts a default_price', () => {
+    const r = modPresetSchema.safeParse({ label: 'Paint Job', default_price: 250 });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.default_price).toBe(250);
+  });
+
+  it('accepts null default_price (clearing)', () => {
+    const r = modPresetSchema.safeParse({ label: 'Paint Job', default_price: null });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects a negative default_price', () => {
+    expect(
+      modPresetSchema.safeParse({ label: 'Paint Job', default_price: -1 }).success,
+    ).toBe(false);
+  });
 });
 
 describe('modPresetUpdateSchema (partial)', () => {
