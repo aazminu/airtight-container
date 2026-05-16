@@ -11,6 +11,7 @@ import type {
 import {
   MODIFICATION_DATALIST_ID,
   useModPresetLabels,
+  useModPresets,
 } from '../components/forms/modificationPresets';
 import styles from './CreateInvoice.module.css';
 
@@ -115,6 +116,7 @@ export default function CreateInvoice() {
   const ccFeeRate = pctToDecimal(ccFeePct);
   const [invoiceDate, setInvoiceDate] = useState<string>(todayISO);
   const modPresetLabels = useModPresetLabels();
+  const modPresets = useModPresets();
   const [submitState, setSubmitState] = useState<
     | { kind: 'idle' }
     | { kind: 'submitting' }
@@ -328,7 +330,23 @@ export default function CreateInvoice() {
       const d = prev[id];
       if (!d) return prev;
       const mods = d.modifications.slice();
-      mods[modIdx] = { ...mods[modIdx], ...patch };
+      const next = { ...mods[modIdx], ...patch };
+      // Autofill the price when the description matches a preset and
+      // the price field is empty / 0 — a typed value wins.
+      if (patch.description !== undefined) {
+        const match = modPresets.find(
+          (p) => p.label === patch.description?.trim(),
+        );
+        const currentPrice = Number(next.price);
+        const priceEmpty =
+          next.price === '' ||
+          next.price == null ||
+          (Number.isFinite(currentPrice) && currentPrice === 0);
+        if (match && match.default_price != null && priceEmpty) {
+          next.price = String(match.default_price);
+        }
+      }
+      mods[modIdx] = next;
       return { ...prev, [id]: { ...d, modifications: mods } };
     });
   };

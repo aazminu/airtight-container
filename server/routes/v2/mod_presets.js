@@ -43,7 +43,14 @@ router.post(
 		try {
 			const inserted = await drizzleDb
 				.insert(mod_presets)
-				.values({ label: req.body.label, position: req.body.position ?? 0 })
+				.values({
+					label: req.body.label,
+					position: req.body.position ?? 0,
+					default_price:
+						req.body.default_price === undefined
+							? null
+							: req.body.default_price,
+				})
 				.returning();
 			res
 				.status(201)
@@ -75,6 +82,8 @@ router.put(
 			const patch = {};
 			if (req.body.label !== undefined) patch.label = req.body.label;
 			if (req.body.position !== undefined) patch.position = req.body.position;
+			if (req.body.default_price !== undefined)
+				patch.default_price = req.body.default_price;
 			if (Object.keys(patch).length === 0) {
 				return res.status(400).json({ message: "No editable fields supplied" });
 			}
