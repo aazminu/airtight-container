@@ -68,18 +68,9 @@ Server suite 125 → 146; client 31 → 33.
 - **UI copy rule (established mid-Phase-4):** user-facing strings must never reference Phase N / PR N / PLAN.md / branch names / commit shas. Comments in source are fine. See `feedback_ui_language_no_plan_refs.md` in user memory.
 - **Yard view:** Units by Type on top, Releases below, S&H last. Per-state columns (Available/Hold = days onsite; Sold = outbound + release#). Outbound boxes don't appear in yard view (state filter is `=== 'sold'`, not `IN ('sold','outbound')` — different semantic than /inventory's Sold tab). Time format pinned to America/New_York via `Intl.DateTimeFormat`.
 
-### Tomorrow's pickup
+### Smoke caveat
 
-**Blocked on user decisions:**
-1. **Spanish review** — pass over `client/src/i18n/locales/es.json` (~100 strings, machine-translated first pass) for native correctness before prod. Yard-staff-facing copy quality matters.
-2. **Help page content** — `/help` is currently a contact-Michelle stub at `client/src/routes/Help.tsx`. User authors FAQs OR signs off on me drafting from observed app behavior.
-
-**Unblocked if user is busy:**
-- **Dashboard P&L refinements** — year-over-year overlay on trend chart; container-size filter; top-clients drill-down (click bar → that client's invoices).
-- **UI-level tests** — InvoicesGrid + InvoiceEditor have server-side coverage but no React component tests. RTL/snapshot pass per the carried-over Phase 3 follow-up.
-- **Historical re-render bulk run** — `server/scripts/rerender-all-invoices.ts` is ready. Recommended dance: `--dry-run` → `--limit 5` + S3 sample → full.
-
-**Smoke caveat from last session:** auth rate-limit is 20 req / 15 min on `/api/auth/*`. Heavy Playwright iteration burns through it fast; wait ~15min between aggressive smoke sessions or you'll start seeing 429s and the page kicks to `/auth`. The /intake page in Spanish has NOT been end-to-end smoked because of this — first thing to verify if you log in tomorrow: navigate /intake, toggle ES via the navbar pill, walk both Sales and S&H paths to check no English leaks through.
+Auth rate-limit is 20 req / 15 min on `/api/auth/*`. Heavy Playwright iteration burns through it fast; wait ~15min between aggressive smoke sessions or you'll start seeing 429s and the page kicks to `/auth`. The /intake page in Spanish has NOT been end-to-end smoked — when an i18n pass happens, first thing to verify is navigating /intake, toggling ES via the navbar pill, and walking both Sales and S&H paths to confirm no English leaks through. Same risk-area for PR 9.1's size/damage datalist: it's wired into both SalesDetailsStep + ShDetailsStep but only InventoryEditor was smoked end-to-end.
 
 ### Phase 5 design decisions locked during PR 5.3 (2026-05-14)
 
@@ -124,7 +115,7 @@ Server suite 125 → 146; client 31 → 33.
 - **Don't run anything against prod.** Local DB only.
 - **Don't change snapshot totals on existing invoices.** Re-renders consume the snapshot.
 - **Don't bypass lazy migration.** Convert `.jsx` → `.tsx` only when touching a file for real work.
-- **Don't `git push` `2.0` to origin without an ask.** Local-only since PR 1.1 (currently 117 commits ahead).
+- **Don't `git push` `2.0` to origin without an ask.** Local-only since PR 1.1; many commits ahead.
 - **Don't backfill per-modification line items on legacy invoices.** Owner ruled it out; legacy stays single-line.
 - **Don't translate admin flows.** Yard scope only (Intake, YardView, /help, Add A Box, navbar items the yard worker sees). Inventory / Invoices / Reports / Dashboard / Clients / Releases / Audit stay English.
 - **Don't add new keys directly to `es.json`** without a matching English key — they'll never render. Add to both bundles together.
@@ -184,9 +175,8 @@ Phase 2 complete on `2.0` (local-only). Eight feature PRs + four follow-ups:
 
 ## Open threads / blockers
 
-None block Phase 4.
+Nothing blocks the next pickup; the items below are pending owner decisions or schedulable when convenient.
 
-- **Legacy `inventorylist.css` still defines its own `:root` token block** — PR 3.11 moved the canonical tokens to `client/src/styles/tokens.css` (loaded globally), but `inventorylist.css` retains the old definitions for backwards compat with the not-yet-rewritten Inventory page. When Phase 4 deletes `InventoryList.jsx`, delete `inventorylist.css` too — tokens are no longer needed there.
 - **40 orphan invoices with no `invoice_containers`** — flagged in PR 1.3 backfill. User to decide before prod cutover.
 - **A80 thermal printer** spec — needed before Phase 7.
 - **QuickBooks Online vs Desktop** — resolve before Phase 8.
