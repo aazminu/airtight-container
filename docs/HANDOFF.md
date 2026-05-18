@@ -50,22 +50,21 @@ Server suite 125 → 151; client 31 → 33.
 - Spanish translation review — deferred per user.
 - Staging environment before the `2.0` → `main` cutover is still unscheduled.
 
-**Triple-channel driver receipt — direction locked 2026-05-18.** Email + SMS + AirPrint, all three channels, single "Send to driver" action on delivery-sheet ReportDetail. Plan landed in [PLAN.md §7 + §7 Phase 9 PR 9.6–9.8](PLAN.md) on 2026-05-18.
+**Triple-channel driver receipt — direction locked 2026-05-18.** Email + SMS + AirPrint, all three channels, single "Send to driver" action on delivery-sheet ReportDetail. Plan landed in [PLAN.md §7 + §7 Phase 9 PR 9.6–9.8](PLAN.md) on 2026-05-18. **PR 9.6 merged 2026-05-18** (`43f9fc2`). Twilio config + 10DLC approval are the only thing blocking live SMS delivery — code is in place, returns 503 with a clear message until env vars are set.
 
 - **Hardware path:** original A80 is the wrong product (FCC ID `2A6FW-A80` = Xiamen Print Future A4 portable, not 80mm POS). Replacement: **Star TSP654II AirPrint-24** (part `39481870`; new ~$440 from Beagle Hardware, used refurb ~$190 on eBay) + **GL.iNet GL-MT300N-V2 Mango** ($30 from gl-inet.com) as a local-WiFi-only bridge. iPad keeps cellular for internet; AirPrint runs over the local LAN only. Faraday-cage caveat: router has to be where the iPad and printer both live at print time — steel walls block WiFi cleanly.
 - **Software PRs (Phase 9 follow-on, can stack independently):**
-  - **9.6** — Twilio SMS + public `/r/:token` receipt-link route + driver-contact step in delivery-sheet creation + "Send to driver" modal on ReportDetail (email + SMS now, print stub for 9.8). Migrations 0011 (`report_receipt_links`) + 0012 (`reports.sms_sent_at`). Each send generates a fresh token (30-day expiry, manual revoke). SMS body is PII-free.
+  - **9.6 MERGED** (`43f9fc2`). Twilio SMS + public `/r/:token` route landed. Twilio client wrapper supports messaging-service SID (preferred for A2P) or From number; returns "not configured" when env is missing. Server suite 151 → 163 (+12 tests: 8 SMS unit + 4 validation). CreateReport delivery flow gains an optional 4th "Driver" step (Container → Customer → Details → **Driver** → Preview → Done); ReportDetail (delivery_sheet only) gains an SMS button + "SMS sent" badge. Each send mints a fresh 128-bit token, 30-day expiry, manual revoke via `POST /api/v2/report/:id/revoke-receipt-link`. SMS body is PII-free: `Airtight Container: Delivery sheet for {unit} is ready. View: ${PUBLIC_BASE_URL}/r/{token} Reply STOP to opt out, HELP for help.`
   - **9.7** — outbound state-flip from `delivery_sheet.outbound_date` (eager on create/update + daily cron for future-dated; one-way). One-shot backfill in the migration flips existing `'sold'` rows with past-dated delivery sheets. Removes the long-standing "Mark Outbound is gone" gap from Phase 4.
   - **9.8** — AirPrint print channel; blocked on Star printer + Mango arriving + being deployed.
 
-**What's needed from operator before 9.6 can ship to prod:**
-- Twilio account at twilio.com (free signup, ~$15 trial credit).
-- Buy a US phone number from Twilio (~$1.15/mo).
-- **A2P 10DLC brand + campaign registration** through Twilio's wizard — sole-prop tier is fine. Submission takes ~10 minutes; carrier approval takes 2–5 business days. Without this, US carriers (T-Mobile especially) filter messages into the void.
-- Brand info needed for 10DLC: legal business name (Airtight Storage Systems Inc), EIN/tax ID, business address, website (airtightshippingcontainer.com), owner contact email/phone.
-- Campaign use case: "Customer Care" or "Account Notification" (transactional, low volume).
-- Sample messages: paste the SMS-body template from PLAN PR 9.6.
-- When approved, drop creds into `server/.env`: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`. Twilio trial mode works for local dev until then (limited to verified numbers).
+**What's needed from operator to flip SMS live (code is merged):**
+- ✅ Twilio account — done, brand `Airtight Container` registered as sole-prop 2026-05-18.
+- ✅ Phone number — done.
+- ✅ Messaging Service SID — done (`MGde4ad37ed70fb2bd1bd9330c009ced23`).
+- ⏳ A2P 10DLC campaign approval — submitted 2026-05-18, awaiting carrier review (1–3 business days typical).
+- ⏳ Drop creds into `server/.env` (local) + `~/airtight-container/.env` (EC2): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID` (preferred for A2P; falls back to `TWILIO_FROM_NUMBER`). `PUBLIC_BASE_URL` defaults to `https://airtightshippingcontainer.com`; override if the prod host changes.
+- ⏳ While trial mode is active (until 10DLC clears): verify your personal phone (and any test recipient) in the Twilio console (Console → Phone Numbers → Verified Caller IDs) so dev/smoke can deliver to real handsets.
 
 **What's needed from operator before 9.8 can ship:**
 - Buy hardware (Star printer + Mango router + paper).
