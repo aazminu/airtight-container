@@ -81,3 +81,27 @@
   padding: 3rem;
   color: var(--muted, #6e7781);
 }
+
+.tombstone {
+  background: var(--bg-surface, #fff);
+  border: 1px dashed var(--border, #d0d7de);
+  border-radius: 10px;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  color: var(--muted, #6e7781);
+}
+
+.tombstone h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text, #1f2328);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.tombstone p {
+  margin: 0 auto;
+  max-width: 38rem;
+  line-height: 1.55;
+}

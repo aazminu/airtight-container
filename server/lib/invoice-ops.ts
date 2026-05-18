@@ -285,9 +285,13 @@ export async function updateInvoiceFull(
 }
 
 /**
- * Delete an invoice and release all its containers back to
- * 'available' inventory. Sold rows + invoice_containers + cascaded
- * sold_modifications all go away.
+ * Tombstone an invoice: keep the row (so the YYYYMM sequence stays
+ * contiguous and the gap shows up in the list) but mark it deleted_at
+ * and release every container back to 'available' inventory. The sold
+ * rows + invoice_containers + cascaded sold_modifications all go away
+ * because the boxes weren't actually sold. The cached PDF key is
+ * cleared since the PDF no longer reflects truth (the S3 object
+ * orphans — cheap, can be swept later).
  *
  * Caller owns the transaction.
  */
@@ -308,9 +312,14 @@ export async function deleteInvoiceCascade(
       [r.container_id],
     );
   }
-  await client.query('DELETE FROM invoices WHERE invoice_id = $1', [
-    invoiceId,
-  ]);
+  await client.query(
+    'DELETE FROM invoice_containers WHERE invoice_id = $1',
+    [invoiceId],
+  );
+  await client.query(
+    "UPDATE invoices SET deleted_at = NOW(), pdf_s3_key = NULL WHERE invoice_id = $1",
+    [invoiceId],
+  );
 }
 
 /**

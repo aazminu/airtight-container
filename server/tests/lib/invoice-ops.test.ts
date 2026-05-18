@@ -465,8 +465,8 @@ describe('recomputeTotals', () => {
 });
 
 describe('deleteInvoiceCascade', () => {
-  it('removes invoice + sold rows + frees inventory back to available', async () => {
-    const { id } = await createInvoice(client, {
+  it('tombstones the invoice and frees its containers back to available', async () => {
+    const { id, invoice_number } = await createInvoice(client, {
       client_id: fx.clientId,
       containers: [{ id: fx.inventoryA }, { id: fx.inventoryB }],
     });
@@ -485,10 +485,39 @@ describe('deleteInvoiceCascade', () => {
     expect(await inventoryState(fx.inventoryB)).toBe('available');
     expect(await soldRowExists(fx.inventoryA)).toBe(false);
     expect(await soldRowExists(fx.inventoryB)).toBe(false);
+    // Row stays so the invoice_number keeps its slot in the month's
+    // sequence; deleted_at is stamped, pdf_s3_key is cleared, and the
+    // container links are gone.
     const { rows } = await client.query(
-      'SELECT 1 FROM invoices WHERE invoice_id = $1',
+      'SELECT invoice_number, deleted_at, pdf_s3_key FROM invoices WHERE invoice_id = $1',
       [id],
     );
-    expect(rows.length).toBe(0);
+    expect(rows.length).toBe(1);
+    expect(rows[0].invoice_number).toBe(invoice_number);
+    expect(rows[0].deleted_at).not.toBeNull();
+    expect(rows[0].pdf_s3_key).toBeNull();
+    const links = await client.query(
+      'SELECT 1 FROM invoice_containers WHERE invoice_id = $1',
+      [id],
+    );
+    expect(links.rows.length).toBe(0);
+  });
+
+  it('keeps the YYYYMM sequence contiguous: next invoice after a tombstone gets the next number', async () => {
+    const { invoice_number: n1 } = await createInvoice(client, {
+      client_id: fx.clientId,
+      containers: [],
+    });
+    const { id: id2, invoice_number: n2 } = await createInvoice(client, {
+      client_id: fx.clientId,
+      containers: [],
+    });
+    expect(n2).toBe(n1 + 1);
+    await deleteInvoiceCascade(client, id2);
+    const { invoice_number: n3 } = await createInvoice(client, {
+      client_id: fx.clientId,
+      containers: [],
+    });
+    expect(n3).toBe(n2 + 1);
   });
 });

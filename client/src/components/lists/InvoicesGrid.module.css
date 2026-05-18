@@ -217,6 +217,22 @@
   outline-offset: 2px;
 }
 
+.tileDeleted {
+  opacity: 0.55;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      var(--surface, #fff),
+      var(--surface, #fff) 8px,
+      var(--border, #d0d7de) 8px,
+      var(--border, #d0d7de) 9px
+    );
+}
+
+.tileDeleted:hover {
+  opacity: 0.8;
+}
+
 /* Decorative banner styled to evoke the actual invoice template's
  * header (cream paper, slim logo on the left, "Invoice" wordmark on
  * the right). Purely visual — no real invoice data here. */

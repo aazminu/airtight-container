@@ -126,7 +126,7 @@ export default function InvoiceDetail() {
     if (!invoice) return;
     const ok = await confirm({
       title: 'Delete invoice?',
-      message: `Invoice #${invoice.invoice_number}: sold rows for its containers will be removed and the containers will return to "available". This cannot be undone.`,
+      message: `Invoice #${invoice.invoice_number}: containers will return to "available" and the invoice will be marked deleted. The invoice number stays in the month's sequence (it won't be reused). This can't be undone.`,
       confirmLabel: 'Delete',
       danger: true,
     });
@@ -214,6 +214,8 @@ export default function InvoiceDetail() {
     );
   }
 
+  const isDeleted = invoice.deleted_at != null;
+
   return (
     <div className={styles.page}>
       <div className={styles.toolbar}>
@@ -234,7 +236,7 @@ export default function InvoiceDetail() {
             })}
           </h1>
         </div>
-        {!editing && (
+        {!editing && !isDeleted && (
           <div className={styles.actions}>
             {isAdmin && (
               <Button variant="secondary" onClick={() => setEditing(true)}>
@@ -266,7 +268,21 @@ export default function InvoiceDetail() {
         <div className={styles.error}>{action.message}</div>
       )}
 
-      {editing ? (
+      {isDeleted ? (
+        <div className={styles.tombstone}>
+          <h2>Invoice deleted</h2>
+          <p>
+            Invoice #{invoice.invoice_number} was deleted on{' '}
+            {fmtDate(invoice.deleted_at, {
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric',
+            })}
+            . Its containers were returned to inventory. The invoice number
+            is preserved so the month's sequence stays contiguous.
+          </p>
+        </div>
+      ) : editing ? (
         <InvoiceEditor
           initial={invoice}
           onCancel={() => setEditing(false)}

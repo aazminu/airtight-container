@@ -263,6 +263,7 @@ export default function CreateInvoice() {
         : new Date().toISOString(),
       sent_at: null,
       pdf_s3_key: null,
+      deleted_at: null,
       subtotal: totalsPreview.subtotal.toFixed(2),
       tax_rate: taxRate || null,
       tax_amount: totalsPreview.tax.toFixed(2),
