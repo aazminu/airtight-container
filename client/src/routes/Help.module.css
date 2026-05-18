@@ -27,6 +27,11 @@
   border-radius: var(--radius-md);
   padding: 16px 20px;
   box-shadow: var(--shadow-sm);
+  margin-bottom: 12px;
+}
+
+.contactCard:last-child {
+  margin-bottom: 0;
 }
 
 .sectionTitle {
