@@ -46,11 +46,35 @@ Server suite 125 → 151; client 31 → 33.
 - **Hardware path forward (recommended):** keep the iPad as office/admin device; buy a sub-$500 rugged Android (CAT S75, Ulefone Armor 24) for yard use; pair with a 80mm Bluetooth ESC/POS receipt printer (or upgrade iPad → network ESC/POS if a wired LAN drop exists at the gate). PWA itself needs no migration to run on Android Chrome — it's just a browser.
 
 **Next** (need user direction):
-- Decide printer/handheld path (return the A80, pick replacement; or wire A80 for A4 driver sheets via Android+SDK).
 - Phase 8 (QuickBooks integration) — deferred per user.
 - Spanish translation review — deferred per user.
 - Staging environment before the `2.0` → `main` cutover is still unscheduled.
-- Want to commit the 9.4 + Help + tombstone work as a stack of feature branches merged to `2.0` (same `--no-ff` pattern as 9.1–9.3)? Currently sitting in the working tree.
+
+**Triple-channel driver receipt — direction locked 2026-05-18.** Email + SMS + AirPrint, all three channels, single "Send to driver" action on delivery-sheet ReportDetail. Plan landed in [PLAN.md §7 + §7 Phase 9 PR 9.6–9.8](PLAN.md) on 2026-05-18.
+
+- **Hardware path:** original A80 is the wrong product (FCC ID `2A6FW-A80` = Xiamen Print Future A4 portable, not 80mm POS). Replacement: **Star TSP654II AirPrint-24** (part `39481870`; new ~$440 from Beagle Hardware, used refurb ~$190 on eBay) + **GL.iNet GL-MT300N-V2 Mango** ($30 from gl-inet.com) as a local-WiFi-only bridge. iPad keeps cellular for internet; AirPrint runs over the local LAN only. Faraday-cage caveat: router has to be where the iPad and printer both live at print time — steel walls block WiFi cleanly.
+- **Software PRs (Phase 9 follow-on, can stack independently):**
+  - **9.6** — Twilio SMS + public `/r/:token` receipt-link route + driver-contact step in delivery-sheet creation + "Send to driver" modal on ReportDetail (email + SMS now, print stub for 9.8). Migrations 0011 (`report_receipt_links`) + 0012 (`reports.sms_sent_at`). Each send generates a fresh token (30-day expiry, manual revoke). SMS body is PII-free.
+  - **9.7** — outbound state-flip from `delivery_sheet.outbound_date` (eager on create/update + daily cron for future-dated; one-way). One-shot backfill in the migration flips existing `'sold'` rows with past-dated delivery sheets. Removes the long-standing "Mark Outbound is gone" gap from Phase 4.
+  - **9.8** — AirPrint print channel; blocked on Star printer + Mango arriving + being deployed.
+
+**What's needed from operator before 9.6 can ship to prod:**
+- Twilio account at twilio.com (free signup, ~$15 trial credit).
+- Buy a US phone number from Twilio (~$1.15/mo).
+- **A2P 10DLC brand + campaign registration** through Twilio's wizard — sole-prop tier is fine. Submission takes ~10 minutes; carrier approval takes 2–5 business days. Without this, US carriers (T-Mobile especially) filter messages into the void.
+- Brand info needed for 10DLC: legal business name (Airtight Storage Systems Inc), EIN/tax ID, business address, website (airtightshippingcontainer.com), owner contact email/phone.
+- Campaign use case: "Customer Care" or "Account Notification" (transactional, low volume).
+- Sample messages: paste the SMS-body template from PLAN PR 9.6.
+- When approved, drop creds into `server/.env`: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`. Twilio trial mode works for local dev until then (limited to verified numbers).
+
+**What's needed from operator before 9.8 can ship:**
+- Buy hardware (Star printer + Mango router + paper).
+- Decide physical placement (router has to reach both iPad and printer; through-container walls = dead WiFi).
+- Provision local-WiFi SSID (operator picks a name in the Mango admin UI; iPad joins it once).
+
+**Unblocked code work I can land independently (no operator gating):**
+- The schema + public `/r/:token` route + ReportDetail UI changes for 9.6 work without Twilio creds — the SMS send call just returns "Twilio not configured" until creds arrive. Lands as a clean PR; second small commit turns SMS live when env is set.
+- 9.7 has no hardware/3rd-party dependency — can ship anytime.
 
 **Unblocked if user is busy:**
 - Spanish translation review using a service (DeepL / Google Translate) as a second-pass refinement.
