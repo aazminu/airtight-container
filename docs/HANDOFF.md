@@ -4,7 +4,7 @@
 
 ---
 
-## Phases 1–5 complete on `2.0`. Phase 6 partial (yard i18n + mobile audit done; Help content + Spanish review pending). Phase 9.1–9.3 merged into `2.0` 2026-05-16; 9.4 blocked on user-supplied OCR fixtures. Phase 7 (printer) + Phase 8 (QB) blocked on pre-conversations.
+## Phases 1–5 complete on `2.0`. Phase 6 partial (yard i18n + mobile audit done; Help content drafted 2026-05-18; Spanish review deferred). Phase 9.1–9.4 done; 9.4 + Help + invoice-tombstone are uncommitted on `2.0` working tree (2026-05-18). Phase 7 (printer): A80 hardware mismatch flagged. Phase 8 (QB) deferred.
 
 **Phase 5** — PRs 5.1 (schema + API), 5.2 (brand-consistent templates), 5.3 (resolvers + PDF/email + UI), 5.4 (Dashboard P&L panel), and 5.5 (release_summary report + /releases page rework) are merged into `2.0` locally. Direct follow-ups on `2.0`:
 - Dialog refactor (replace native confirm/prompt with styled dialogs).
@@ -25,17 +25,32 @@
 - **9.1 MERGED** (b78cbc3). Migration 0008 added `size_presets` (10'/20'/40'DV+HC + 45'HC) and `damage_presets` (New/WWT/As-is); 23 inventory rows folded `NA → As-is`. Generic `<PresetsAdmin>` extracted from `ModPresetsAdmin.tsx`; size + damage land as wrappers in two new Dashboard admin tabs. `useSizePresetLabels()` + `useDamagePresetLabels()` mirror `useModPresetLabels()`. `SalesDetailsStep`, `ShDetailsStep`, `InventoryEditor` swap size + damage inputs to `<input list>` + shared `<datalist>`. Drive-by fix: Drizzle wraps pg errors in `DrizzleQueryError`, so `err.code === "23505"` was never matching on `mod_presets` (pre-existing) and would have on the new routes — patched all three to fall through to `err.cause?.code`.
 - **9.2 MERGED** (9e30285). Migration 0009 adds `mod_presets.default_price numeric` nullable. Route + Zod accept the new field; `useModPresets()` hook returns full records alongside `useModPresetLabels()`. `<PresetsAdmin>` gained a `showPrice` prop that surfaces a "Default Price" column + price input on the add form; `ModPresetsAdmin` sets it. `InvoiceEditor` + `CreateInvoice` autofill `modification_price` when the user picks a preset description — only when the price input is `''` or `0` so typed values aren't clobbered.
 - **9.3 MERGED** (06fb5fd). `format.ts:buildLineGroups` parent-line description now reads `[Size] [Damage] [Unit#]` (joined live from inventory); legacy `invoice_notes` prefix is gone. New `buildContainerDesc()` helper handles missing size/damage gracefully. Per-container `Notes` input dropped from both `InvoiceEditor.tsx` and `CreateInvoice.tsx`. `sold.invoice_notes` column stays for backward-compat; client just stops writing/reading it. Followup commit `6a0240d` fixed a tsc-strict regression in the test (damage: null → '').
-- **9.4 BLOCKED** on user-supplied OCR fixtures. Plan: candidate-expansion pass in `server/lib/textract.ts` — for ISO 6346 digit positions, substitute O→0, I/L→1, S→5, B→8, Z→2, G→6, T→7 and accept the first candidate that check-digit-validates; for the alpha prefix, enforce position-4 = `U`. Need a regression set of raw Textract responses from prod failures first; drop into `server/scripts/textract-fixtures/` (gitignored).
+- **9.4 DONE (uncommitted).** User supplied 4 fixture images (`server/tests/fixtures/doors-{1..4}.jpg`) + ground truth (`doors.gt`). Of the 4, only `doors-4` (`SNPU600104-0`) was a real OCR fail — Textract returned the check digit as `O` instead of `0`; the other 3 were correctly extracted but the test was miscomparing on display-format hyphens. Fix: `extractFromBlocks` in `server/lib/textract.ts` now keeps a `LETTER_TO_DIGIT` substitution table (O/Q/D→0, I/L→1, Z→2, S→5, G→6, T→7, B→8) and treats digit-shaped letters as eligible in the serial + check-digit pools. The cross-product normalizes them to digits and ISO 6346 check-digit validation picks the winner. Single-token 11-char form generalized the same way. New script `server/scripts/capture-ocr-fixtures.ts` re-runs Textract and snapshots LINE blocks to `server/scripts/textract-fixtures/doors-N.lines.json` so the test runs offline. New regression test `server/tests/lib/textract.regression.test.ts` (4 cases) loads those snapshots; comparison is hyphen-insensitive since some DB rows store hyphenated display form. Existing 21 textract unit tests still pass.
 
-Server suite 125 → 146; client 31 → 33.
+Server suite 125 → 151; client 31 → 33.
+
+**Working-tree (uncommitted on `2.0` 2026-05-18):**
+- **9.4 OCR disambiguation** (see above).
+- **Help page content.** `client/src/routes/Help.tsx` now has a section-card writeup of every major screen (Intake, Yard view, Inventory, Invoices, S&H invoices, Releases, Reports, Dashboard, Language) plus the Michelle contact block. CSS module gained card spacing. Inline English copy (admin/internal scope); the two existing i18n keys (`help.title`, `help.contact_heading`) stay.
+- **Invoice tombstone on delete.** New behavior: `DELETE /api/v2/invoice/:id` keeps the invoice row, marks `deleted_at = NOW()`, clears `pdf_s3_key`, deletes invoice_containers, deletes sold rows, returns inventory to `available`. The invoice_number stays occupied so the YYYYMM sequence is contiguous and the operator sees the gap is intentional.
+  - Migration `server/db/migrations/0010_invoice_tombstone.sql` adds `invoices.deleted_at timestamptz` nullable (already applied to local DB).
+  - `server/lib/invoice-ops.ts:deleteInvoiceCascade` rewritten.
+  - GET routes use `LEFT JOIN invoice_containers` so tombstones appear in lists.
+  - PUT, POST /:id/pdf, POST /:id/email all 409 on tombstoned invoices.
+  - Client `InvoiceData` gains `deleted_at: string | null`. `InvoicesGrid` shows a `Deleted` danger badge + striped tile background. `InvoiceDetail` renders a tombstone notice and hides Edit/Regen/Email/Delete actions when deleted.
+  - 1 existing test updated (`deleteInvoiceCascade` now asserts row remains, `deleted_at` set, pdf_s3_key null, container links gone) + 1 new test ("sequence stays contiguous after tombstone"). S3 PDF objects orphan — cheap, sweep follow-up if storage cost matters.
+
+**Decisions made 2026-05-18:**
+- **A80 thermal printer = wrong hardware.** FCC ID `2A6FW-A80` resolves to Xiamen Print Future Technology's "A80 portable A4 thermal printer" — a 216mm-wide A4 mobile document printer, not a POS receipt printer. No 80mm receipt paper, no advertised ESC/POS, no published web SDK. Spec sheet: https://www.futureprt.com/products_details/138.html. Phase 7 needs either a hardware swap to a real ESC/POS receipt printer (Epson TM-m30III, Star mC-Print3, or rugged-Android-paired Bluetooth thermal) OR a redesign of "driver receipt" to fit A4 letter format.
+- **Web Bluetooth = hard blocker on iPad.** Safari/WebKit has zero Web Bluetooth support and no signal it's coming. From an iPad PWA, pairing *any* Bluetooth thermal printer is effectively impossible without a third-party browser shim (Bluefy/WebBLE) that the operator would resent every shift. Network-attached ESC/POS receipt printer (Epson TM-m30III LAN) is viable from iPad; Bluetooth is not.
+- **Hardware path forward (recommended):** keep the iPad as office/admin device; buy a sub-$500 rugged Android (CAT S75, Ulefone Armor 24) for yard use; pair with a 80mm Bluetooth ESC/POS receipt printer (or upgrade iPad → network ESC/POS if a wired LAN drop exists at the gate). PWA itself needs no migration to run on Android Chrome — it's just a browser.
 
 **Next** (need user direction):
-- **9.4 OCR fixtures** — share the raw Textract responses + source images for the 0/O misreads you mentioned so 9.4 has a regression set to lock against.
-- Spanish translation review — native pass over `client/src/i18n/locales/es.json` (~100 strings).
-- Help page content — user-authored FAQs to flesh out the stub at `/help`.
-- Phase 7 (driver-receipt thermal printer) — needs A80 spec conversation + hardware swap discussion.
-- Phase 8 (QuickBooks integration) — needs QB Online vs Desktop decision.
+- Decide printer/handheld path (return the A80, pick replacement; or wire A80 for A4 driver sheets via Android+SDK).
+- Phase 8 (QuickBooks integration) — deferred per user.
+- Spanish translation review — deferred per user.
 - Staging environment before the `2.0` → `main` cutover is still unscheduled.
+- Want to commit the 9.4 + Help + tombstone work as a stack of feature branches merged to `2.0` (same `--no-ff` pattern as 9.1–9.3)? Currently sitting in the working tree.
 
 **Unblocked if user is busy:**
 - Spanish translation review using a service (DeepL / Google Translate) as a second-pass refinement.
