@@ -26,6 +26,7 @@ import sizePresetsRoute from "./routes/v2/size_presets.js";
 import damagePresetsRoute from "./routes/v2/damage_presets.js";
 import publicReceiptRoute from "./routes/public/receipt.js";
 import { generateShMonthEnd, priorMonth } from "./lib/sh-month-end.js";
+import { applyOutboundFromDeliverySheets } from "./lib/outbound-from-delivery.js";
 
 const app = express();
 const port = process.env.PORT;
@@ -99,6 +100,33 @@ if (process.env.SH_MONTH_END_CRON !== "off") {
 			console.log("[sh-cron] done", summary);
 		} catch (err) {
 			console.error("[sh-cron] failed", err);
+		}
+	});
+}
+
+// PR 9.7: daily sweep that flips 'sold' containers to 'outbound' once
+// their delivery-sheet date is in the past. The eager hook in the
+// report-create + regenerate routes catches the common case (operator
+// creates the sheet on the day of pickup); this cron covers the rare
+// future-dated case where the operator schedules tomorrow's pickup
+// today. 05:00 ET = early enough that yard-view shows the right state
+// at the start of the work day, late enough that any cross-midnight
+// edits have settled.
+if (process.env.OUTBOUND_FLIP_CRON !== "off") {
+	cron.schedule("0 5 * * *", async () => {
+		console.log("[outbound-cron] sweep starting");
+		try {
+			const result = await applyOutboundFromDeliverySheets();
+			if (result.flipped > 0) {
+				console.log(
+					`[outbound-cron] flipped ${result.flipped} container(s) to outbound:`,
+					result.flipped_ids,
+				);
+			} else {
+				console.log("[outbound-cron] no containers due");
+			}
+		} catch (err) {
+			console.error("[outbound-cron] failed", err);
 		}
 	});
 }
