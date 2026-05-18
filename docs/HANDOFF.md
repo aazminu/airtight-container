@@ -4,7 +4,7 @@
 
 ---
 
-## Phases 1–5 complete on `2.0`. Phase 6 partial (yard i18n + mobile audit done; Help content drafted 2026-05-18; Spanish review deferred). Phase 9.1–9.4 done; 9.4 + Help + invoice-tombstone are uncommitted on `2.0` working tree (2026-05-18). Phase 7 (printer): A80 hardware mismatch flagged. Phase 8 (QB) deferred.
+## Phases 1–5 complete on `2.0`. Phase 6 partial (yard i18n + mobile audit done; Help content shipped). **Phase 9: PRs 9.1–9.8 all merged on `2.0`** as of 2026-05-18 (server 172 tests, client 33 tests, tsc clean). Triple-channel driver receipt (email + SMS + AirPrint) feature-complete in code. Live SMS gated on Twilio A2P 10DLC carrier approval (submitted, awaiting); AirPrint gated on hardware arrival (Star TSP654II + Mango router + UniFi U6-Mesh ordered). Phase 8 (QB) deferred.
 
 **Phase 5** — PRs 5.1 (schema + API), 5.2 (brand-consistent templates), 5.3 (resolvers + PDF/email + UI), 5.4 (Dashboard P&L panel), and 5.5 (release_summary report + /releases page rework) are merged into `2.0` locally. Direct follow-ups on `2.0`:
 - Dialog refactor (replace native confirm/prompt with styled dialogs).
@@ -54,9 +54,9 @@ Server suite 125 → 151; client 31 → 33.
 
 - **Hardware path:** original A80 is the wrong product (FCC ID `2A6FW-A80` = Xiamen Print Future A4 portable, not 80mm POS). Replacement: **Star TSP654II AirPrint-24** (part `39481870`; new ~$440 from Beagle Hardware, used refurb ~$190 on eBay) + **GL.iNet GL-MT300N-V2 Mango** ($30 from gl-inet.com) as a local-WiFi-only bridge. iPad keeps cellular for internet; AirPrint runs over the local LAN only. Faraday-cage caveat: router has to be where the iPad and printer both live at print time — steel walls block WiFi cleanly.
 - **Software PRs (Phase 9 follow-on, can stack independently):**
-  - **9.6 MERGED** (`43f9fc2`). Twilio SMS + public `/r/:token` route landed. Twilio client wrapper supports messaging-service SID (preferred for A2P) or From number; returns "not configured" when env is missing. Server suite 151 → 163 (+12 tests: 8 SMS unit + 4 validation). CreateReport delivery flow gains an optional 4th "Driver" step (Container → Customer → Details → **Driver** → Preview → Done); ReportDetail (delivery_sheet only) gains an SMS button + "SMS sent" badge. Each send mints a fresh 128-bit token, 30-day expiry, manual revoke via `POST /api/v2/report/:id/revoke-receipt-link`. SMS body is PII-free: `Airtight Container: Delivery sheet for {unit} is ready. View: ${PUBLIC_BASE_URL}/r/{token} Reply STOP to opt out, HELP for help.`
-  - **9.7** — outbound state-flip from `delivery_sheet.outbound_date` (eager on create/update + daily cron for future-dated; one-way). One-shot backfill in the migration flips existing `'sold'` rows with past-dated delivery sheets. Removes the long-standing "Mark Outbound is gone" gap from Phase 4.
-  - **9.8** — AirPrint print channel; blocked on Star printer + Mango arriving + being deployed.
+  - **9.6 MERGED** (`43f9fc2`). Twilio SMS + public `/r/:token` route + driver-contact step + Send-to-Driver modal. Server 151 → 163 tests. SMS body is PII-free, each send mints a fresh 128-bit token with 30-day expiry + manual revoke. Cred env: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID`; `PUBLIC_BASE_URL` defaults to `https://airtightshippingcontainer.com`. Returns 503 "not configured" until env is set — rest of system unaffected.
+  - **9.7 MERGED** (`dbb7872`). Outbound state-flip from `delivery_sheet.delivery_date`. Eager hook on POST `/api/v2/report` + POST `/:id/regenerate`, daily cron at 05:00 ET, one-shot backfill in migration `0013`. One-way (outbound stays outbound), idempotent, sales-only. Side-effect: keeps `sold.outbound_date` synced for the legacy `/api/v1/inventory` join. Server 163 → 172 tests. Cron toggle: `OUTBOUND_FLIP_CRON=off` in dev/CI. **Closes the "Mark Outbound is gone" gap from Phase 4** — no UI button needed; the delivery-sheet date is the trigger.
+  - **9.8 MERGED** (`60c5e7e`). AirPrint print channel. New `DeliveryReceiptTemplate` (80mm thermal layout — single column, 72mm content width, system fonts, dashed-rule dividers, monospace unit#). New `/reports/:id/print` route renders the template standalone, strips app chrome via body-class swap, auto-fires `window.print()` after a 250ms settle. ReportDetail (delivery_sheet only) gains "Print receipt" button that opens that route in a new tab → iPad Safari shows AirPrint picker → paper drops. No server changes. **Smoke deferred** until hardware lands; layout may need 80mm-paper tweaks after first physical print.
 
 **What's needed from operator to flip SMS live (code is merged):**
 - ✅ Twilio account — done, brand `Airtight Container` registered as sole-prop 2026-05-18.
@@ -66,14 +66,22 @@ Server suite 125 → 151; client 31 → 33.
 - ⏳ Drop creds into `server/.env` (local) + `~/airtight-container/.env` (EC2): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID` (preferred for A2P; falls back to `TWILIO_FROM_NUMBER`). `PUBLIC_BASE_URL` defaults to `https://airtightshippingcontainer.com`; override if the prod host changes.
 - ⏳ While trial mode is active (until 10DLC clears): verify your personal phone (and any test recipient) in the Twilio console (Console → Phone Numbers → Verified Caller IDs) so dev/smoke can deliver to real handsets.
 
-**What's needed from operator before 9.8 can ship:**
-- Buy hardware (Star printer + Mango router + paper).
-- Decide physical placement (router has to reach both iPad and printer; through-container walls = dead WiFi).
-- Provision local-WiFi SSID (operator picks a name in the Mango admin UI; iPad joins it once).
+**What's needed from operator to smoke 9.8 once hardware arrives:**
+- Plug Mango into wall outlet (USB). Leave WAN port empty.
+- Plug Star printer into a Mango LAN port via short ethernet cable.
+- Run outdoor CAT6 from a Mango LAN port → through a vent → to the pole-mounted U6-Mesh outside.
+- PoE injector sits inline between Mango LAN and the outdoor cable (included with the U6-Mesh bundle SKU).
+- iPad joins the U6-Mesh's WiFi (any SSID name; the Mango admin UI at `192.168.8.1` lets you pick). Accept the "no internet" warning, enable Auto-Join.
+- From ReportDetail on a delivery_sheet, hit **Print receipt** → new tab opens → AirPrint picker should list the Star printer → confirm → paper drops.
+- If layout doesn't fit the 80mm paper (text wraps, content overflows), poke me — `client/src/components/templates/delivery-receipt/DeliveryReceiptTemplate.module.css` is the one file to tweak.
 
-**Unblocked code work I can land independently (no operator gating):**
-- The schema + public `/r/:token` route + ReportDetail UI changes for 9.6 work without Twilio creds — the SMS send call just returns "Twilio not configured" until creds arrive. Lands as a clean PR; second small commit turns SMS live when env is set.
-- 9.7 has no hardware/3rd-party dependency — can ship anytime.
+**Hardware ordered 2026-05-18:**
+- Star TSP654II AirPrint-24 (eBay refurb $190 + PS60A PSU ~$40)
+- GL.iNet Mango (GL-MT300N-V2) $28
+- Ubiquiti UniFi U6-Mesh (PoE injector included SKU `B09YRZYB29`) $200
+- RiteAV Cat6 25ft Outdoor Direct Burial Pure Copper $25
+- 80mm thermal paper, 50-roll case $35
+- Amazon Basics 12W USB wall plug $8
 
 **Unblocked if user is busy:**
 - Spanish translation review using a service (DeepL / Google Translate) as a second-pass refinement.
