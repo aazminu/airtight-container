@@ -318,10 +318,36 @@ export const reports = pgTable(
     pdf_generated_at: timestamp('pdf_generated_at', { withTimezone: true }),
     emailed_to: text('emailed_to').array(),
     emailed_at: timestamp('emailed_at', { withTimezone: true }),
+    sms_sent_at: timestamp('sms_sent_at', { withTimezone: true }),
   },
   (table) => ({
     typeIdx: index('reports_type_idx').on(table.report_type),
     generatedAtIdx: index('reports_generated_at_idx').on(table.generated_at),
+  }),
+);
+
+// Public receipt-link tokens for delivery sheets. One row per "Send
+// to driver" SMS or email; the token in the URL is the access
+// credential, the row is its server-side bookkeeping. See migration
+// 0011 and the public /r/:token route.
+export const report_receipt_links = pgTable(
+  'report_receipt_links',
+  {
+    id: serial('id').primaryKey(),
+    token: text('token').notNull().unique(),
+    report_id: integer('report_id')
+      .notNull()
+      .references(() => reports.id, { onDelete: 'cascade' }),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expires_at: timestamp('expires_at', { withTimezone: true }).notNull(),
+    accessed_at: timestamp('accessed_at', { withTimezone: true }),
+    revoked_at: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (table) => ({
+    tokenIdx: index('report_receipt_links_token_idx').on(table.token),
+    reportIdIdx: index('report_receipt_links_report_id_idx').on(table.report_id),
   }),
 );
 

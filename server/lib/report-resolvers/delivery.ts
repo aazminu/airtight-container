@@ -35,6 +35,26 @@ export interface DeliverySheetParams {
     locality?: string | null;
   };
   notes?: string | null;
+  driver_contact?: {
+    name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+  };
+}
+
+// Snapshot the driver-contact form fields into resolved_data. Returns
+// null when nothing was provided (so the template / send-modal can
+// short-circuit to "operator will fill at send time"). Empty strings
+// normalize to null so the UI doesn't render them as data.
+function normalizeDriverContact(
+  v: DeliverySheetParams['driver_contact'],
+): { name: string | null; phone: string | null; email: string | null } | null {
+  if (!v) return null;
+  const name = v.name?.trim() || null;
+  const phone = v.phone?.trim() || null;
+  const email = v.email?.trim() || null;
+  if (!name && !phone && !email) return null;
+  return { name, phone, email };
 }
 
 interface ContainerRow {
@@ -196,6 +216,7 @@ async function resolveSalesDelivery(
     // stays off the page entirely.
     receipt_note: params.receipt_note ?? null,
     notes: params.notes ?? null,
+    driver_contact: normalizeDriverContact(params.driver_contact),
   };
 }
 
@@ -251,5 +272,6 @@ async function resolveShBoxDelivery(
     payment_details: params.payment_details ?? null,
     receipt_note: params.receipt_note ?? null,
     notes: params.notes ?? null,
+    driver_contact: normalizeDriverContact(params.driver_contact),
   };
 }

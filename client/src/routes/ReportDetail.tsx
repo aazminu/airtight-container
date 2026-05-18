@@ -32,7 +32,23 @@ interface ReportRow {
   pdf_generated_at: string | null;
   emailed_to: string[] | null;
   emailed_at: string | null;
+  sms_sent_at: string | null;
 }
+
+interface DriverContact {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+}
+
+const getDriverContact = (
+  resolved: Record<string, unknown> | null,
+): DriverContact | null => {
+  const dc = (resolved as { driver_contact?: DriverContact } | null)
+    ?.driver_contact;
+  if (!dc) return null;
+  return dc;
+};
 
 interface ApiResponse {
   status: string;
@@ -148,16 +164,26 @@ export default function ReportDetail() {
 
   const handleEmail = async () => {
     if (!report) return;
+    // For delivery sheets, prefer the driver email captured at create
+    // time over the customer's billing email — the receipt goes to the
+    // driver, not the customer of record.
+    const driverEmail = getDriverContact(report.resolved_data)?.email ?? '';
     const fallback =
+      driverEmail ||
       (report.resolved_data as { customer?: { contact_email?: string } })
-        ?.customer?.contact_email ??
+        ?.customer?.contact_email ||
       (report.resolved_data as { client?: { contact_email?: string } })?.client
-        ?.contact_email ??
+        ?.contact_email ||
       '';
+    const isDelivery = report.report_type === 'delivery_sheet';
     const to = await prompt({
-      title: 'Email report',
+      title: isDelivery ? 'Email receipt to driver' : 'Email report',
       label: 'Recipients',
-      message: 'Comma-separated for multiple addresses.',
+      message: isDelivery
+        ? driverEmail
+          ? 'Driver email captured at creation — confirm or override below. Comma-separated for multiple.'
+          : 'No driver email was captured. Enter one or more recipients (comma-separated).'
+        : 'Comma-separated for multiple addresses.',
       defaultValue: fallback,
       placeholder: 'name@example.com',
       confirmLabel: 'Send',
@@ -192,6 +218,60 @@ export default function ReportDetail() {
       setAction({
         kind: 'err',
         message: e instanceof Error ? e.message : 'Email failed',
+      });
+    }
+  };
+
+  // PR 9.6: send the delivery-sheet receipt link to the driver by SMS.
+  // If driver_contact.phone was captured at creation, we surface it for
+  // a one-tap confirm. Otherwise we prompt blank. Only enabled on
+  // delivery_sheet reports — the server rejects other types anyway.
+  const handleSendSms = async () => {
+    if (!report) return;
+    const dc = getDriverContact(report.resolved_data);
+    const driverPhone = dc?.phone ?? '';
+    const driverName = dc?.name;
+    const to = await prompt({
+      title: 'SMS receipt to driver',
+      label: 'Driver phone',
+      message: driverPhone
+        ? `Driver phone captured at creation${
+            driverName ? ` for ${driverName}` : ''
+          } — confirm or override below.`
+        : 'No driver phone was captured. Enter one (any US format works).',
+      defaultValue: driverPhone,
+      placeholder: '(732) 555-0142',
+      confirmLabel: 'Send SMS',
+      validate: (v) => {
+        const digits = v.replace(/\D/g, '');
+        if (!v.trim()) return 'A phone number is required.';
+        // Allow already-E.164 (with +), 10-digit US, or 11-digit with leading 1.
+        if (v.trim().startsWith('+')) return null;
+        if (digits.length === 10) return null;
+        if (digits.length === 11 && digits.startsWith('1')) return null;
+        return 'Enter a valid US phone number.';
+      },
+    });
+    if (to === null) return;
+    setAction({ kind: 'busy', label: 'Sending SMS…' });
+    try {
+      const res = await fetch(`/api/v2/report/${report.id}/sms`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`);
+      setAction({
+        kind: 'ok',
+        message: `SMS sent to ${body?.to ?? to}.`,
+      });
+      await load();
+    } catch (e) {
+      setAction({
+        kind: 'err',
+        message: e instanceof Error ? e.message : 'SMS send failed',
       });
     }
   };
@@ -270,6 +350,11 @@ export default function ReportDetail() {
           <Badge tone={report.emailed_at ? 'success' : 'neutral'}>
             {report.emailed_at ? 'Sent' : 'Unsent'}
           </Badge>
+          {report.report_type === 'delivery_sheet' && (
+            <Badge tone={report.sms_sent_at ? 'success' : 'neutral'}>
+              {report.sms_sent_at ? 'SMS sent' : 'No SMS'}
+            </Badge>
+          )}
         </div>
       </header>
 
@@ -321,6 +406,16 @@ export default function ReportDetail() {
             >
               Email…
             </button>
+            {report.report_type === 'delivery_sheet' && (
+              <button
+                type="button"
+                className={styles.btn}
+                onClick={handleSendSms}
+                disabled={!report.resolved_data}
+              >
+                SMS…
+              </button>
+            )}
             <button
               type="button"
               className={`${styles.btn} ${styles.btnDanger}`}

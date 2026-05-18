@@ -191,6 +191,7 @@ function buildDeliveryFixture(inv: InvoiceData | null): DeliveryData | null {
     payment_details: 'Cash on delivery',
     receipt_note: 'Standard delivery — call 30 minutes out.',
     notes: null,
+    driver_contact: null,
   };
 }
 

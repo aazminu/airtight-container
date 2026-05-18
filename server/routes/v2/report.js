@@ -6,11 +6,12 @@
 // rendering is a separate POST /:id/pdf call.
 
 import express from "express";
+import crypto from "crypto";
 import { desc, eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { db as drizzleDb } from "../../db/drizzle.js";
 import db from "../../db/index.js";
-import { reports } from "../../db/schema.js";
+import { reports, report_receipt_links } from "../../db/schema.js";
 import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
 import { createReportSchema } from "../../validation/report.js";
@@ -20,6 +21,7 @@ import {
 	getReportPdfBytes,
 } from "../../lib/report-pdf.js";
 import { deleteObject } from "../../lib/s3.js";
+import { isSmsConfigured, sendSms, toE164 } from "../../lib/sms.js";
 
 const router = express.Router();
 
@@ -428,6 +430,167 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 	} catch (err) {
 		console.error("reports.email error:", err);
 		res
+			.status(500)
+			.json({ message: err.message || "Internal server error" });
+	}
+});
+
+// PR 9.6: send the delivery-sheet receipt link to the driver by SMS.
+//
+// Gated to report_type='delivery_sheet' so a stray token can never
+// surface a P&L or other internal report via the public /r/:token
+// route. Each send mints a fresh token (old ones stay valid until
+// 30-day expiry) so a re-send to a corrected number doesn't accidentally
+// expose the receipt to the original wrong recipient.
+//
+// SMS body is kept PII-free — "Airtight Container: Delivery sheet
+// for {unit}. <link>" — so a wrong-number mis-send leaks only a
+// generic phrase, not the client name or address.
+//
+// Returns 503 when Twilio isn't configured (env vars missing) so the
+// UI can show a clear "Twilio not set up yet" message instead of a
+// generic 500.
+const PUBLIC_BASE_URL =
+	process.env.PUBLIC_BASE_URL || "https://airtightshippingcontainer.com";
+
+router.post("/:id/sms", checkAdmin, async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		if (!Number.isInteger(id)) {
+			return res.status(400).json({ message: "Invalid id" });
+		}
+
+		if (!isSmsConfigured()) {
+			return res.status(503).json({
+				message:
+					"SMS sending is not configured on this server. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and either TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM_NUMBER.",
+			});
+		}
+
+		const rows = await drizzleDb
+			.select()
+			.from(reports)
+			.where(eq(reports.id, id));
+		if (rows.length === 0) {
+			return res.status(404).json({ message: "Report not found" });
+		}
+		const row = rows[0];
+		if (row.report_type !== "delivery_sheet") {
+			return res
+				.status(409)
+				.json({ message: "SMS is only supported for delivery sheets" });
+		}
+		if (!row.resolved_data) {
+			return res
+				.status(400)
+				.json({ message: "Report has no resolved data" });
+		}
+		// PDF must already exist (or be regenerable) — the SMS body
+		// links to it. Lazy-render if missing, same pattern as /email.
+		let pdfKey = row.pdf_s3_key;
+		if (!pdfKey) {
+			const result = await renderAndStoreReportPdf(
+				row.id,
+				row.report_type,
+				row.resolved_data,
+			);
+			pdfKey = result.s3Key;
+			await drizzleDb
+				.update(reports)
+				.set({ pdf_s3_key: pdfKey, pdf_generated_at: new Date() })
+				.where(eq(reports.id, row.id));
+		}
+
+		// Pull phone from body (operator may override at send time) or
+		// fall back to the snapshot. Normalize to E.164 — Twilio rejects
+		// anything else.
+		const rawTo =
+			(typeof req.body?.to === "string" && req.body.to.trim()) ||
+			row.resolved_data?.driver_contact?.phone ||
+			null;
+		if (!rawTo) {
+			return res.status(400).json({
+				message:
+					"No driver phone on file. Provide one in the request body or capture it on the delivery sheet.",
+			});
+		}
+		const to = toE164(rawTo);
+
+		// 16 bytes = 128 bits of entropy = brute-force-proof against
+		// rate-limited token enumeration. base64url so the token is
+		// URL-safe without escaping.
+		const token = crypto.randomBytes(16).toString("base64url");
+		await drizzleDb.insert(report_receipt_links).values({
+			token,
+			report_id: row.id,
+			// expires_at defaults to NOW() + 30 days at the DB level
+			// via the column default; insert nothing here so it
+			// applies.
+			expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+		});
+
+		const unitNumber =
+			row.resolved_data?.container?.unit_number?.trim?.() || "your container";
+		const body =
+			`Airtight Container: Delivery sheet for ${unitNumber} is ready. ` +
+			`View: ${PUBLIC_BASE_URL}/r/${token} ` +
+			`Reply STOP to opt out, HELP for help.`;
+
+		const sendResult = await sendSms({ to, body });
+
+		await drizzleDb
+			.update(reports)
+			.set({ sms_sent_at: new Date() })
+			.where(eq(reports.id, row.id));
+
+		return res.status(200).json({
+			status: "success",
+			to,
+			token,
+			sms_sid: sendResult.sid,
+			sms_status: sendResult.status,
+		});
+	} catch (err) {
+		// Twilio surfaces friendly messages on .message — surface them
+		// to the operator UI (so "this number isn't in your verified
+		// list" reaches the user during trial mode).
+		console.error("reports.sms error:", err);
+		return res
+			.status(502)
+			.json({ message: err.message || "SMS send failed" });
+	}
+});
+
+// PR 9.6: manually revoke an outstanding receipt link. Admin can use
+// this from the ReportDetail UI when a wrong number was used; the link
+// stays in the DB for the audit trail but stops resolving immediately.
+router.post("/:id/revoke-receipt-link", checkAdmin, async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		if (!Number.isInteger(id)) {
+			return res.status(400).json({ message: "Invalid id" });
+		}
+		const token =
+			typeof req.body?.token === "string" && req.body.token.trim();
+		if (!token) {
+			return res.status(400).json({ message: "token is required" });
+		}
+		const result = await db.query(
+			`UPDATE report_receipt_links
+			    SET revoked_at = NOW()
+			  WHERE token = $1 AND report_id = $2 AND revoked_at IS NULL
+			  RETURNING token, revoked_at`,
+			[token, id],
+		);
+		if (result.rows.length === 0) {
+			return res
+				.status(404)
+				.json({ message: "Token not found or already revoked" });
+		}
+		return res.status(200).json({ status: "success", data: result.rows[0] });
+	} catch (err) {
+		console.error("reports.revoke-receipt-link error:", err);
+		return res
 			.status(500)
 			.json({ message: err.message || "Internal server error" });
 	}

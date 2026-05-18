@@ -66,4 +66,13 @@ export interface DeliveryData {
 
   /** Extra free-text notes section below the form fields. */
   notes: string | null;
+
+  /** Driver contact captured at creation time (PR 9.6). All fields
+   *  optional. Drives the Send-to-Driver SMS/email modal on
+   *  ReportDetail; null when nothing was captured. */
+  driver_contact: {
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+  } | null;
 }

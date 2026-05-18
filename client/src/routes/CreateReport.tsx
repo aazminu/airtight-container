@@ -188,6 +188,11 @@ interface DeliveryParamState {
   addr_street: string;
   addr_locality: string;
   notes: string;
+  // Driver-receipt contact (PR 9.6). Optional — operator can skip
+  // this step and get prompted at Send-to-Driver time on ReportDetail.
+  driver_name: string;
+  driver_phone: string;
+  driver_email: string;
 }
 
 const EMPTY_DELIVERY: DeliveryParamState = {
@@ -206,9 +211,12 @@ const EMPTY_DELIVERY: DeliveryParamState = {
   addr_street: '',
   addr_locality: '',
   notes: '',
+  driver_name: '',
+  driver_phone: '',
+  driver_email: '',
 };
 
-const STEP_NAMES = ['Container', 'Customer', 'Details', 'Preview', 'Done'] as const;
+const STEP_NAMES = ['Container', 'Customer', 'Details', 'Driver', 'Preview', 'Done'] as const;
 
 function buildDeliveryParams(s: DeliveryParamState): Record<string, unknown> {
   const params: Record<string, unknown> = {};
@@ -241,6 +249,16 @@ function buildDeliveryParams(s: DeliveryParamState): Record<string, unknown> {
   if (s.addr_street.trim()) addr.street = s.addr_street.trim();
   if (s.addr_locality.trim()) addr.locality = s.addr_locality.trim();
   if (Object.keys(addr).length > 0) params.delivery_address = addr;
+
+  // Driver contact — only emit the sub-object when at least one field
+  // is filled, so an empty step submits as no driver-contact at all
+  // (and the Send-to-Driver modal prompts at send time).
+  const dc: Record<string, string> = {};
+  if (s.driver_name.trim()) dc.name = s.driver_name.trim();
+  if (s.driver_phone.trim()) dc.phone = s.driver_phone.trim();
+  if (s.driver_email.trim()) dc.email = s.driver_email.trim();
+  if (Object.keys(dc).length > 0) params.driver_contact = dc;
+
   return params;
 }
 
@@ -414,7 +432,11 @@ function DeliveryFlow() {
 
   const goNext = async () => {
     const next = Math.min(STEP_NAMES.length - 1, step + 1);
-    if (next === 1 || next === 3) {
+    // Preview slot moved from step 3 → step 4 after the Driver step
+    // was inserted. Step 1 (Customer) also runs the resolver so the
+    // customer-resolution check can short-circuit before the operator
+    // fills in form data.
+    if (next === 1 || next === 4) {
       await fetchPreview();
     }
     setStep(next);
@@ -714,7 +736,53 @@ function DeliveryFlow() {
             />
           </FlowStep>
 
-          {/* Step 3 — Preview */}
+          {/* Step 3 — Driver contact (optional) */}
+          <FlowStep>
+            <p className={styles.hint}>
+              <strong>Optional.</strong> Capture the driver's contact info now
+              and the Send-to-Driver button on the next page will be ready to
+              go. Leave blank and you'll be prompted when you hit Send.
+              Drivers must consent verbally at pickup before you record their
+              number.
+            </p>
+            <div className={styles.fieldGrid}>
+              <Field label="Driver name">
+                <input
+                  className={styles.input}
+                  value={params.driver_name}
+                  onChange={(e) => updateField('driver_name', e.target.value)}
+                  placeholder="John Smith"
+                />
+              </Field>
+              <Field
+                label="Driver phone"
+                hint="For SMS receipt — any US format works"
+              >
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="off"
+                  className={styles.input}
+                  value={params.driver_phone}
+                  onChange={(e) => updateField('driver_phone', e.target.value)}
+                  placeholder="(732) 555-0142"
+                />
+              </Field>
+              <Field label="Driver email" wide hint="For email receipt — optional">
+                <input
+                  type="email"
+                  inputMode="email"
+                  autoComplete="off"
+                  className={styles.input}
+                  value={params.driver_email}
+                  onChange={(e) => updateField('driver_email', e.target.value)}
+                  placeholder="driver@example.com"
+                />
+              </Field>
+            </div>
+          </FlowStep>
+
+          {/* Step 4 — Preview */}
           <FlowStep>
             <p className={styles.hint}>
               Review the delivery sheet as it will print. Click "Create delivery
@@ -743,7 +811,7 @@ function DeliveryFlow() {
             </div>
           </FlowStep>
 
-          {/* Step 4 — Done */}
+          {/* Step 5 — Done */}
           <FlowStep>
             <div className={styles.doneCard}>
               <Badge tone="success">Created</Badge>
