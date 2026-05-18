@@ -39,6 +39,7 @@ const groupInvoices = (data) => {
 				invoice_date: row.invoice_date,
 				sent_at: row.sent_at,
 				pdf_s3_key: row.pdf_s3_key,
+				deleted_at: row.deleted_at,
 				subtotal: row.subtotal,
 				tax_rate: row.tax_rate,
 				tax_amount: row.tax_amount,
@@ -63,21 +64,26 @@ const groupInvoices = (data) => {
 			};
 			acc.push(invoice);
 		}
-		invoice.containers.push({
-			inventory_id: row.container_id,
-			sold_id: row.sold_id,
-			unit_number: row.unit_number,
-			state: row.inventory_state,
-			size: row.size,
-			damage: row.damage,
-			destination: row.destination,
-			trucking_rate: row.trucking_rate,
-			sale_price: row.sale_price,
-			modification_price: row.modification_price,
-			outbound_date: row.outbound_date,
-			invoice_notes: row.invoice_notes,
-			modifications: [],
-		});
+		// Tombstoned invoices have no invoice_containers — the LEFT JOIN
+		// produces one row with container_id = null. Don't fabricate an
+		// empty container slot.
+		if (row.container_id != null) {
+			invoice.containers.push({
+				inventory_id: row.container_id,
+				sold_id: row.sold_id,
+				unit_number: row.unit_number,
+				state: row.inventory_state,
+				size: row.size,
+				damage: row.damage,
+				destination: row.destination,
+				trucking_rate: row.trucking_rate,
+				sale_price: row.sale_price,
+				modification_price: row.modification_price,
+				outbound_date: row.outbound_date,
+				invoice_notes: row.invoice_notes,
+				modifications: [],
+			});
+		}
 		return acc;
 	}, []);
 };
@@ -112,7 +118,7 @@ const attachModifications = async (invoices) => {
 const INVOICE_SELECT_COLS = `
 	i.invoice_id, i.invoice_number, i.invoice_taxed, i.invoice_credit, i.invoice_date,
 	i.subtotal, i.tax_rate, i.tax_amount, i.cc_fee_rate, i.cc_fee_amount, i.total,
-	i.pdf_s3_key, i.sent_at, i.client_id,
+	i.pdf_s3_key, i.sent_at, i.deleted_at, i.client_id,
 	cl.client_name, cl.business_name, cl.contact_email, cl.contact_phone,
 	cl.street, cl.city, cl.state AS client_state, cl.zip,
 	ct.id AS container_id, ct.unit_number, ct.size, ct.damage, ct.state AS inventory_state,
@@ -120,14 +126,17 @@ const INVOICE_SELECT_COLS = `
 	sc.modification_price, sc.invoice_notes
 `;
 
+// LEFT JOINs throughout: tombstoned invoices have their invoice_containers
+// rows removed, so an INNER JOIN would hide them from the list entirely
+// — which defeats the point of leaving the invoice_number occupied.
 router.get("/", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
 			`SELECT ${INVOICE_SELECT_COLS}
 			 FROM invoices i
 			 JOIN clients cl ON i.client_id = cl.id
-			 JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id
-			 JOIN inventory ct ON ci.container_id = ct.id
+			 LEFT JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id
+			 LEFT JOIN inventory ct ON ci.container_id = ct.id
 			 LEFT JOIN sold sc ON ct.id = sc.inventory_id
 			 ORDER BY i.invoice_id DESC`,
 		);
@@ -150,8 +159,8 @@ router.get("/:id", checkEmployee, async (req, res) => {
 			`SELECT ${INVOICE_SELECT_COLS}
 			 FROM invoices i
 			 JOIN clients cl ON i.client_id = cl.id
-			 JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id
-			 JOIN inventory ct ON ci.container_id = ct.id
+			 LEFT JOIN invoice_containers ci ON i.invoice_id = ci.invoice_id
+			 LEFT JOIN inventory ct ON ci.container_id = ct.id
 			 LEFT JOIN sold sc ON ct.id = sc.inventory_id
 			 WHERE i.invoice_id = $1
 			 ORDER BY ci.container_id`,
@@ -197,10 +206,29 @@ router.post("/", checkEmployee, async (req, res) => {
 	}
 });
 
+// Look up an invoice's deleted_at without pulling the full join. Returns
+// `undefined` when the row doesn't exist so callers can disambiguate 404
+// from "tombstoned".
+const getDeletedAt = async (invoiceId) => {
+	const { rows } = await db.query(
+		"SELECT deleted_at FROM invoices WHERE invoice_id = $1",
+		[invoiceId],
+	);
+	if (rows.length === 0) return undefined;
+	return rows[0].deleted_at;
+};
+
 router.put("/:id", checkAdmin, async (req, res) => {
 	const invoiceId = parseInt(req.params.id, 10);
 	if (!Number.isFinite(invoiceId)) {
 		return res.status(400).json({ message: "Invalid invoice id" });
+	}
+	const deletedAt = await getDeletedAt(invoiceId);
+	if (deletedAt === undefined) {
+		return res.status(404).json({ message: "Not found" });
+	}
+	if (deletedAt !== null) {
+		return res.status(409).json({ message: "Invoice is deleted" });
 	}
 	const client = await pool.connect();
 	try {
@@ -245,6 +273,13 @@ router.post("/:id/pdf", checkAdmin, async (req, res) => {
 		if (!Number.isFinite(id)) {
 			return res.status(400).json({ message: "Invalid invoice id" });
 		}
+		const deletedAt = await getDeletedAt(id);
+		if (deletedAt === undefined) {
+			return res.status(404).json({ message: "Not found" });
+		}
+		if (deletedAt !== null) {
+			return res.status(409).json({ message: "Invoice is deleted" });
+		}
 		const result = await renderAndStoreInvoicePdf(id);
 		await db.query(
 			"UPDATE invoices SET pdf_s3_key = $1 WHERE invoice_id = $2",
@@ -269,7 +304,7 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 	}
 	try {
 		const { rows } = await db.query(
-			`SELECT i.invoice_number, i.pdf_s3_key, cl.contact_email, cl.client_name
+			`SELECT i.invoice_number, i.pdf_s3_key, i.deleted_at, cl.contact_email, cl.client_name
 			 FROM invoices i
 			 JOIN clients cl ON i.client_id = cl.id
 			 WHERE i.invoice_id = $1`,
@@ -277,6 +312,9 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 		);
 		const inv = rows[0];
 		if (!inv) return res.status(404).json({ message: "Not found" });
+		if (inv.deleted_at !== null) {
+			return res.status(409).json({ message: "Invoice is deleted" });
+		}
 		const to = req.body?.to ?? inv.contact_email;
 		if (!to)
 			return res.status(400).json({ message: "No recipient email on file" });

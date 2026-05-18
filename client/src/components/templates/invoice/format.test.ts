@@ -27,6 +27,7 @@ const baseInvoice = (containers: InvoiceLineContainer[]): InvoiceData => ({
   invoice_date: '2026-05-01',
   sent_at: null,
   pdf_s3_key: null,
+  deleted_at: null,
   subtotal: null,
   tax_rate: null,
   tax_amount: null,

@@ -49,6 +49,11 @@ export interface InvoiceData {
   invoice_date: string;
   sent_at: string | null;
   pdf_s3_key: string | null;
+  // Soft-delete marker. Non-null = the invoice was deleted; its number
+  // is retained so the YYYYMM sequence stays contiguous. The list page
+  // surfaces these with a "Deleted" badge; the detail page renders a
+  // tombstone view and hides edit/email/regenerate actions.
+  deleted_at: string | null;
   subtotal: string | null;
   tax_rate: string | null;
   tax_amount: string | null;

@@ -245,8 +245,13 @@ interface InvoiceTileProps {
 }
 
 function InvoiceTile({ data, onClick }: InvoiceTileProps) {
+  const isDeleted = data.deleted_at != null;
   return (
-    <button type="button" className={styles.tile} onClick={onClick}>
+    <button
+      type="button"
+      className={`${styles.tile}${isDeleted ? ` ${styles.tileDeleted}` : ''}`}
+      onClick={onClick}
+    >
       <div className={styles.thumb} aria-hidden="true">
         <img className={styles.thumbLogo} src={logoSrc} alt="" />
         <div className={styles.thumbWord}>Invoice</div>
@@ -263,13 +268,20 @@ function InvoiceTile({ data, onClick }: InvoiceTileProps) {
         </div>
         <div className={styles.captionTotalRow}>
           <span className={styles.total}>{fmtCurrency(data.total)}</span>
-          <Badge tone={data.sent_at ? 'success' : 'neutral'}>
-            {data.sent_at ? 'Sent' : 'Unsent'}
-          </Badge>
+          {isDeleted ? (
+            <Badge tone="danger">Deleted</Badge>
+          ) : (
+            <Badge tone={data.sent_at ? 'success' : 'neutral'}>
+              {data.sent_at ? 'Sent' : 'Unsent'}
+            </Badge>
+          )}
         </div>
         <div className={styles.containerCount}>
-          {data.containers.length}{' '}
-          {data.containers.length === 1 ? 'container' : 'containers'}
+          {isDeleted
+            ? 'No containers'
+            : `${data.containers.length} ${
+                data.containers.length === 1 ? 'container' : 'containers'
+              }`}
         </div>
       </div>
     </button>

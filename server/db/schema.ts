@@ -199,6 +199,7 @@ export const invoices = pgTable(
     total: numeric('total'),
     pdf_s3_key: text('pdf_s3_key'),
     sent_at: timestamp('sent_at', { withTimezone: true }),
+    deleted_at: timestamp('deleted_at', { withTimezone: true }),
   },
   (table) => ({
     invoiceDateIdx: index('invoices_invoice_date_idx').on(table.invoice_date),
