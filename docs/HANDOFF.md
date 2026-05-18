@@ -85,9 +85,8 @@ Server suite 125 → 151; client 31 → 33.
 
 **Unblocked if user is busy:**
 - Spanish translation review using a service (DeepL / Google Translate) as a second-pass refinement.
-- Help page content drafted from observed app behavior for user review.
 - Historical re-render bulk run — `server/scripts/rerender-all-invoices.ts` is ready (`--dry-run` → `--limit 5` → full).
-- UI-level tests — InvoicesGrid + InvoiceEditor have server-side coverage but no React component tests. RTL/snapshot pass per the carried-over Phase 3 follow-up.
+- ~~UI-level tests for InvoicesGrid + InvoiceEditor~~ — **DONE** 2026-05-18 (`0c9a1c7`). Client suite 33 → 52. Covers tile rendering, search-narrows-tiles-and-sidebar, active-client snap-back, deleted-tile badge, pagination thresholds, mod reorder/add/remove, totals-preview live recompute, save/cancel callbacks. Pattern for future component tests is in place.
 - Dashboard P&L refinements — year-over-year overlay on trend chart; container-size filter; top-clients drill-down (click bar → that client's invoices).
 
 ### Phase 5 design decisions (locked 2026-05-14)
