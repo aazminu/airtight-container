@@ -1,0 +1,138 @@
+/* 80mm thermal receipt layout. CSS mm units render correctly under
+ * the @page size declared in the print page. Screen preview uses the
+ * same dimensions so the operator sees the actual ~3" slip width. */
+
+.receipt {
+  width: 72mm;        /* 80mm paper - 4mm margin each side */
+  margin: 0 auto;
+  padding: 4mm 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+    Arial, sans-serif;
+  font-size: 9pt;
+  line-height: 1.35;
+  color: #000;
+  background: #fff;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 3mm;
+}
+
+.brand {
+  font-size: 12pt;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.tagline {
+  font-size: 8pt;
+  letter-spacing: 0.04em;
+}
+
+.docTitle {
+  margin-top: 2mm;
+  font-size: 10pt;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
+
+.rule {
+  border: 0;
+  border-top: 1px dashed #000;
+  margin: 3mm 0;
+}
+
+.metaRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+  margin: 1mm 0;
+}
+
+.block {
+  margin: 2mm 0;
+}
+
+.label {
+  font-size: 7.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.value {
+  font-size: 10pt;
+  font-weight: 600;
+}
+
+.valueSm {
+  font-size: 9pt;
+}
+
+.unitBlock {
+  text-align: center;
+  margin: 3mm 0;
+}
+
+.unitNumber {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 16pt;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: 1mm 0;
+}
+
+.unitSpec {
+  font-size: 9pt;
+}
+
+.note {
+  font-style: italic;
+  font-size: 8.5pt;
+  padding: 1mm 2mm;
+  border-left: 2px solid #000;
+}
+
+.sigBlock {
+  margin: 6mm 0 2mm;
+}
+
+.sigLine {
+  border-bottom: 1px solid #000;
+  height: 10mm;
+  margin-bottom: 1mm;
+}
+
+.footer {
+  margin-top: 4mm;
+  font-size: 7.5pt;
+  text-align: center;
+  font-style: italic;
+}
+
+/* Print rules: hide everything outside the receipt, set page size to
+ * 80mm thermal (continuous roll), kill all margins so the print
+ * engine doesn't add letterhead-style blank space. */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  /* Page-level reset so the receipt isn't fighting body/html
+   * margins inherited from the rest of the app. The PrintReceipt
+   * route applies the .receiptPrintWrap class to the body. */
+  :global(body.receiptPrintWrap),
+  :global(body.receiptPrintWrap) :global(#root) {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .receipt {
+    width: 72mm;
+    padding: 4mm 0;
+    margin: 0 auto;
+  }
+}
