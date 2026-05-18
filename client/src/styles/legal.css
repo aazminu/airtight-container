@@ -1,0 +1,183 @@
+/* Public-facing pages: privacy policy, terms of service, sample
+ * delivery receipt. Standalone styles so the look doesn't depend on
+ * the inventory app's theme tokens. */
+
+.legalPage {
+	min-height: 100vh;
+	padding: 32px 16px;
+	background: #f4f4f0;
+	color: #1f2328;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+		"Helvetica Neue", Arial, sans-serif;
+	line-height: 1.6;
+}
+
+.legalSheet {
+	max-width: 720px;
+	margin: 0 auto;
+	background: #fff;
+	border: 1px solid #d0d7de;
+	border-radius: 8px;
+	padding: 40px 48px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.legalSheet h1 {
+	margin: 0 0 8px;
+	font-size: 1.75rem;
+	letter-spacing: 0.01em;
+}
+
+.legalSheet h2 {
+	margin: 32px 0 8px;
+	font-size: 1rem;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: #57606a;
+}
+
+.legalSheet p,
+.legalSheet ul {
+	margin: 0 0 16px;
+}
+
+.legalSheet ul {
+	padding-left: 1.25rem;
+}
+
+.legalSheet a {
+	color: #0969da;
+	text-decoration: none;
+}
+
+.legalSheet a:hover {
+	text-decoration: underline;
+}
+
+.legalLastUpdated {
+	color: #6e7781;
+	font-size: 0.875rem;
+	margin-bottom: 24px !important;
+}
+
+/* Sample receipt — paper-cream sheet with SAMPLE watermark. */
+
+.receiptSheet {
+	position: relative;
+	max-width: 720px;
+	margin: 0 auto;
+	background: #fdfcf8;
+	border: 1px solid #d4c8a8;
+	border-radius: 8px;
+	padding: 48px 56px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	overflow: hidden;
+	font-family: "Helvetica Neue", Arial, sans-serif;
+}
+
+.receiptWatermark {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%) rotate(-22deg);
+	font-size: 8rem;
+	font-weight: 900;
+	color: rgba(180, 30, 30, 0.08);
+	letter-spacing: 0.2em;
+	pointer-events: none;
+	user-select: none;
+	white-space: nowrap;
+}
+
+.receiptHeader {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-end;
+	padding-bottom: 16px;
+	border-bottom: 2px solid #1f2328;
+	margin-bottom: 24px;
+	position: relative;
+}
+
+.receiptBrand {
+	font-size: 1.75rem;
+	font-weight: 900;
+	letter-spacing: 0.04em;
+}
+
+.receiptTagline {
+	font-size: 0.875rem;
+	color: #57606a;
+}
+
+.receiptDocTitle {
+	font-size: 1.25rem;
+	font-weight: 900;
+	letter-spacing: 0.15em;
+}
+
+.receiptMeta {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 24px;
+	margin-bottom: 32px;
+	position: relative;
+}
+
+.receiptLabel {
+	font-size: 0.75rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: #6e7781;
+	margin-bottom: 4px;
+}
+
+.receiptValue {
+	font-size: 1rem;
+}
+
+.receiptContainer,
+.receiptDeliverTo {
+	margin-bottom: 24px;
+	position: relative;
+}
+
+.receiptUnitNumber {
+	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-size: 1.5rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+}
+
+.receiptContainerLine {
+	font-size: 0.95rem;
+	color: #57606a;
+	margin-top: 4px;
+}
+
+.receiptSignatures {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 48px;
+	margin-top: 64px;
+	margin-bottom: 32px;
+	position: relative;
+}
+
+.receiptSigLine {
+	border-bottom: 1px solid #1f2328;
+	height: 32px;
+	margin-bottom: 4px;
+}
+
+.receiptFooter {
+	border-top: 1px solid #d4c8a8;
+	padding-top: 16px;
+	color: #6e7781;
+	font-size: 0.8rem;
+	font-style: italic;
+	text-align: center;
+	position: relative;
+}
