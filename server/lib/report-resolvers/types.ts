@@ -39,6 +39,14 @@ export interface DeliveryData {
   payment_details: string | null;
   receipt_note: string | null;
   notes: string | null;
+  // Driver contact captured at create time (PR 9.6). Drives the
+  // "Send to driver" SMS/email modal on ReportDetail. All fields
+  // optional; missing values get prompted at send time.
+  driver_contact: {
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+  } | null;
 }
 
 export type IOReportSource = 'sales' | 'sh';

@@ -77,6 +77,25 @@ const deliverySheetParams = z
 
     // Free-text notes block rendered below the form fields.
     notes: z.string().trim().max(1000).nullable().optional(),
+
+    // Driver contact captured at intake-form time (PR 9.6 — for the
+    // "Send to driver" SMS/email modal on ReportDetail). All fields
+    // optional — operator can skip this step and fill it in at send
+    // time. Snapshotted into reports.resolved_data.driver_contact.
+    driver_contact: z
+      .object({
+        name: z.string().trim().max(120).nullable().optional(),
+        phone: z.string().trim().max(40).nullable().optional(),
+        email: z
+          .string()
+          .trim()
+          .email({ message: 'Invalid email' })
+          .max(200)
+          .nullable()
+          .optional()
+          .or(z.literal('').transform(() => null)),
+      })
+      .optional(),
   })
   .refine(
     (v) => (v.container_id != null) !== (v.sh_box_id != null),

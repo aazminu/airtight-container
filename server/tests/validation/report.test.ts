@@ -97,6 +97,57 @@ describe('createReportSchema', () => {
     expect(r.success).toBe(true);
   });
 
+  it('accepts a delivery_sheet with driver_contact captured at create time', () => {
+    const r = createReportSchema.safeParse({
+      report_type: 'delivery_sheet',
+      parameters: {
+        container_id: 42,
+        driver_contact: {
+          name: 'John Smith',
+          phone: '(732) 861-4011',
+          email: 'john@example.com',
+        },
+      },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('accepts a delivery_sheet with partial driver_contact (phone only)', () => {
+    const r = createReportSchema.safeParse({
+      report_type: 'delivery_sheet',
+      parameters: {
+        container_id: 42,
+        driver_contact: { phone: '732-861-4011' },
+      },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('treats an empty driver_contact email as null (operator typed nothing)', () => {
+    const r = createReportSchema.safeParse({
+      report_type: 'delivery_sheet',
+      parameters: {
+        container_id: 42,
+        driver_contact: { phone: '732-861-4011', email: '' },
+      },
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.parameters.driver_contact?.email).toBe(null);
+    }
+  });
+
+  it('rejects a delivery_sheet with a malformed driver_contact.email', () => {
+    const r = createReportSchema.safeParse({
+      report_type: 'delivery_sheet',
+      parameters: {
+        container_id: 42,
+        driver_contact: { email: 'not-an-email' },
+      },
+    });
+    expect(r.success).toBe(false);
+  });
+
   it('rejects a delivery_sheet with a malformed delivery_address subfield', () => {
     const r = createReportSchema.safeParse({
       report_type: 'delivery_sheet',

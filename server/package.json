@@ -35,6 +35,7 @@
     "react-dom": "^19.2.6",
     "resend": "^3.4.0",
     "tsx": "^4.19.0",
+    "twilio": "^6.0.2",
     "zod": "^3.23.0"
   },
   "devDependencies": {

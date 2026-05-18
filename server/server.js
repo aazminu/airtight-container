@@ -24,6 +24,7 @@ import pnlRoute from "./routes/v2/pnl.js";
 import modPresetsRoute from "./routes/v2/mod_presets.js";
 import sizePresetsRoute from "./routes/v2/size_presets.js";
 import damagePresetsRoute from "./routes/v2/damage_presets.js";
+import publicReceiptRoute from "./routes/public/receipt.js";
 import { generateShMonthEnd, priorMonth } from "./lib/sh-month-end.js";
 
 const app = express();
@@ -61,6 +62,11 @@ app.use("/api/v2/pnl", pnlRoute);
 app.use("/api/v2/mod-presets", modPresetsRoute);
 app.use("/api/v2/size-presets", sizePresetsRoute);
 app.use("/api/v2/damage-presets", damagePresetsRoute);
+
+// Public-facing receipt-link route. Unauthenticated by design — the
+// 128-bit token in the URL is the access credential. Mounted at /r,
+// outside the /api/* auth tree.
+app.use("/r", publicReceiptRoute);
 
 app.post("/api/v1/send", emailLimiter, checkAuth, async (req, res) => {
 	const resend = new Resend(process.env.RESEND);
