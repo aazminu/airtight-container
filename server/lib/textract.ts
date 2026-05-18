@@ -95,6 +95,26 @@ export function parseTypeCode(token: string): string | null {
 
 // ---- extraction ---------------------------------------------------------
 
+// Letters that visually substitute for digits on weathered/dirty container
+// plates — OCR commonly confuses these pairs. We normalize them in the
+// numeric slots of candidate unit numbers and let the ISO 6346 check-digit
+// filter sort the winners from the noise.
+const LETTER_TO_DIGIT: Record<string, string> = {
+  O: '0', Q: '0', D: '0',
+  I: '1', L: '1',
+  Z: '2',
+  S: '5',
+  G: '6',
+  T: '7',
+  B: '8',
+};
+
+const isDigitShaped = (s: string): boolean =>
+  s.length > 0 && [...s].every((c) => /\d/.test(c) || c in LETTER_TO_DIGIT);
+
+const toDigits = (s: string): string =>
+  [...s].map((c) => (/\d/.test(c) ? c : LETTER_TO_DIGIT[c] ?? c)).join('');
+
 // Pulls a container unit number out of Textract's LINE blocks. Designed
 // for real container photos where Textract often emits the four-letter
 // owner code, six-digit serial, and boxed check digit as separate LINE
@@ -103,10 +123,11 @@ export function parseTypeCode(token: string): string | null {
 //
 // Strategy:
 //   1. Tokenize every LINE on whitespace.
-//   2. Bucket tokens into pools: 4-letter owner codes, 6-digit serials,
-//      single-digit check candidates. Also catch the rare case where the
-//      whole 11-char number is one token.
-//   3. Take the cross-product as candidate unit numbers.
+//   2. Bucket tokens into pools: 4-letter owner codes, 6-char digit-shaped
+//      serials (digits + letters that visually substitute for digits),
+//      1-char digit-shaped checks. Also catch the single-token 11-char form.
+//   3. Take the cross-product as candidate unit numbers, normalizing
+//      digit-shaped letters → digits in the numeric slots.
 //   4. Prefer any candidate that passes the ISO 6346 check-digit test;
 //      fall back to the first candidate otherwise. The Confirm step in
 //      the UI is the user-facing safety net for either path.
@@ -122,16 +143,21 @@ export function extractFromBlocks(blocks: Block[]): ExtractResult {
 
   const candidates: string[] = [];
 
-  // Concatenated single-token form: "TRHU2174232".
+  // Concatenated single-token form: "TRHU2174232" — plus the smudged-OCR
+  // variants like "TRHU217423O" where the check digit came back as a letter.
   for (const t of tokens) {
-    const m = t.match(/^([A-Z]{4})(\d{6})(\d)$/);
-    if (m) candidates.push(m[1] + m[2] + m[3]);
+    if (t.length === 11 && /^[A-Z]{4}/.test(t)) {
+      const owner = t.slice(0, 4);
+      const rest = t.slice(4);
+      if (isDigitShaped(rest)) candidates.push(owner + toDigits(rest));
+    }
   }
 
-  // Cross-product of owner / serial / check token pools.
+  // Cross-product of owner / serial / check token pools. Serial + check
+  // pools accept digit-shaped letters; the cross-product normalizes them.
   const owners = tokens.filter((t) => /^[A-Z]{4}$/.test(t));
-  const serials = tokens.filter((t) => /^\d{6}$/.test(t));
-  const checks = tokens.filter((t) => /^\d$/.test(t));
+  const serials = tokens.filter((t) => t.length === 6 && isDigitShaped(t)).map(toDigits);
+  const checks = tokens.filter((t) => t.length === 1 && isDigitShaped(t)).map(toDigits);
   for (const o of owners) {
     for (const s of serials) {
       for (const c of checks) {
