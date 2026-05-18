@@ -29,6 +29,7 @@ import InvoiceDetail from "./routes/InvoiceDetail";
 import ShInvoices from "./routes/ShInvoices";
 import ShInvoiceDetail from "./routes/ShInvoiceDetail";
 import Help from "./routes/Help";
+import PrintReceipt from "./routes/PrintReceipt";
 
 const App = () => {
 	const router = createBrowserRouter(
@@ -48,6 +49,7 @@ const App = () => {
 				<Route path="/reports/new" element={<CreateReport />} />
 				<Route path="/reports/new/:type" element={<CreateReport />} />
 				<Route path="/reports/:id" element={<ReportDetail />} />
+				<Route path="/reports/:id/print" element={<PrintReceipt />} />
 				<Route path="/yardview" element={<YardView />} />
 				<Route path="/dashboard" element={<Dashboard />} />
 				<Route path="/clients" element={<Clients />} />
@@ -72,7 +74,8 @@ const App = () => {
 					<ConfirmProvider>
 						<PromptProvider>
 							{path !== "/auth" &&
-								!path.startsWith("/admin/templates") && <Navbar />}
+								!path.startsWith("/admin/templates") &&
+								!/^\/reports\/[^/]+\/print$/.test(path) && <Navbar />}
 							<PopupContainer />
 							<div className="container">
 								<RouterProvider router={router} />

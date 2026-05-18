@@ -416,6 +416,19 @@ export default function ReportDetail() {
                 SMS…
               </button>
             )}
+            {report.report_type === 'delivery_sheet' && (
+              <button
+                type="button"
+                className={styles.btn}
+                onClick={() =>
+                  window.open(`/reports/${report.id}/print`, '_blank')
+                }
+                disabled={!report.resolved_data}
+                title="Opens the receipt-format slip in a new tab and fires the AirPrint dialog. Requires the iPad be on the local yard WiFi where the printer lives."
+              >
+                Print receipt
+              </button>
+            )}
             <button
               type="button"
               className={`${styles.btn} ${styles.btnDanger}`}
