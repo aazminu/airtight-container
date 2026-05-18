@@ -22,6 +22,7 @@ import {
 } from "../../lib/report-pdf.js";
 import { deleteObject } from "../../lib/s3.js";
 import { isSmsConfigured, sendSms, toE164 } from "../../lib/sms.js";
+import { applyOutboundFromDeliverySheets } from "../../lib/outbound-from-delivery.js";
 
 const router = express.Router();
 
@@ -170,6 +171,21 @@ router.post(
 					.set({ resolved_data: resolved.data })
 					.where(eq(reports.id, row.id))
 					.returning();
+				// PR 9.7: if this is a delivery sheet whose date is now
+				// in the past, flip the linked container to 'outbound'.
+				// Sales path only — sh_box_id reports are skipped by the
+				// helper. Non-fatal — log and continue; the daily cron
+				// catches anything this missed.
+				if (row.report_type === "delivery_sheet") {
+					const cid = row.parameters?.container_id;
+					if (Number.isInteger(cid)) {
+						try {
+							await applyOutboundFromDeliverySheets({ containerId: cid });
+						} catch (e) {
+							console.error("reports.create outbound-flip error:", e);
+						}
+					}
+				}
 				return res
 					.status(201)
 					.json({ status: "success", data: { report: updated[0] } });
@@ -225,6 +241,22 @@ router.post("/:id/regenerate", checkAdmin, async (req, res) => {
 			})
 			.where(eq(reports.id, row.id))
 			.returning();
+		// PR 9.7: re-check outbound state after a regenerate. The
+		// operator may have edited the delivery_date forward or
+		// backward; we only flip sold → outbound (one-way), so a
+		// forward edit that moves the date past today still triggers
+		// correctly, and a date pushed into the future on an already-
+		// outbound row stays outbound.
+		if (row.report_type === "delivery_sheet") {
+			const cid = row.parameters?.container_id;
+			if (Number.isInteger(cid)) {
+				try {
+					await applyOutboundFromDeliverySheets({ containerId: cid });
+				} catch (e) {
+					console.error("reports.regenerate outbound-flip error:", e);
+				}
+			}
+		}
 		res.status(200).json({ status: "success", data: { report: updated[0] } });
 	} catch (err) {
 		console.error("reports.regenerate error:", err);
