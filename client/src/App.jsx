@@ -31,6 +31,7 @@ import ShInvoiceDetail from "./routes/ShInvoiceDetail";
 import Help from "./routes/Help";
 import PrintReceipt from "./routes/PrintReceipt";
 import SmsTerms from "./routes/SmsTerms";
+import PrivacyPolicy from "./routes/PrivacyPolicy";
 
 const App = () => {
 	const router = createBrowserRouter(
@@ -52,6 +53,7 @@ const App = () => {
 				<Route path="/reports/:id" element={<ReportDetail />} />
 				<Route path="/reports/:id/print" element={<PrintReceipt />} />
 				<Route path="/sms-terms" element={<SmsTerms />} />
+				<Route path="/privacy-policy" element={<PrivacyPolicy />} />
 				<Route path="/yardview" element={<YardView />} />
 				<Route path="/dashboard" element={<Dashboard />} />
 				<Route path="/clients" element={<Clients />} />
@@ -77,6 +79,7 @@ const App = () => {
 						<PromptProvider>
 							{path !== "/auth" &&
 								path !== "/sms-terms" &&
+								path !== "/privacy-policy" &&
 								!path.startsWith("/admin/templates") &&
 								!/^\/reports\/[^/]+\/print$/.test(path) && <Navbar />}
 							<PopupContainer />

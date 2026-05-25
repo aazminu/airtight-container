@@ -13,7 +13,7 @@ export const Provider = (props) => {
 		// Paths reachable without auth (the auth page itself plus any
 		// public compliance pages). Bail out of the session probe so we
 		// don't bounce unauthenticated visitors back to /auth.
-		const publicPaths = ["/sms-terms"];
+		const publicPaths = ["/sms-terms", "/privacy-policy"];
 		const pathname = window.location.pathname;
 		const isPublic =
 			pathname.includes("auth") || publicPaths.includes(pathname);

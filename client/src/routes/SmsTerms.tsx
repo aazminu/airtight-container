@@ -59,6 +59,10 @@ export default function SmsTerms() {
             </a>
             . You may also reply STOP to any message to opt out.
           </p>
+          <p>
+            See our <a href="/privacy-policy">privacy policy</a> for how
+            we collect, use, and protect contact information.
+          </p>
           <p className={styles.version}>
             Disclosure version: {SMS_CONSENT_VERSION}
           </p>
