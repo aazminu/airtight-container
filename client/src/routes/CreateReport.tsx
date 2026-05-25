@@ -742,8 +742,16 @@ function DeliveryFlow() {
               <strong>Optional.</strong> Capture the driver's contact info now
               and the Send-to-Driver button on the next page will be ready to
               go. Leave blank and you'll be prompted when you hit Send.
-              Drivers must consent verbally at pickup before you record their
-              number.
+            </p>
+            <p className={styles.hint}>
+              <strong>SMS consent:</strong> capturing a phone number here does
+              not authorize an SMS — the Send-to-Driver dialog walks you
+              through the disclosure and the required attestation at the
+              moment the message goes out. Full policy at{' '}
+              <a href="/sms-terms" target="_blank" rel="noreferrer">
+                /sms-terms
+              </a>
+              .
             </p>
             <div className={styles.fieldGrid}>
               <Field label="Driver name">

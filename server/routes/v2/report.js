@@ -22,6 +22,7 @@ import {
 } from "../../lib/report-pdf.js";
 import { deleteObject } from "../../lib/s3.js";
 import { isSmsConfigured, sendSms, toE164 } from "../../lib/sms.js";
+import { validateSmsConsent } from "../../lib/sms-consent.js";
 import { applyOutboundFromDeliverySheets } from "../../lib/outbound-from-delivery.js";
 
 const router = express.Router();
@@ -492,6 +493,16 @@ router.post("/:id/sms", checkAdmin, async (req, res) => {
 			return res.status(400).json({ message: "Invalid id" });
 		}
 
+		// A2P 10DLC compliance: refuse before any side-effects if the
+		// operator hasn't attested to the driver's consent. Checked
+		// here, before isSmsConfigured() / DB lookup, so a missing
+		// attestation always surfaces the same clear 400 regardless of
+		// environment state.
+		const consentCheck = validateSmsConsent(req.body?.consent);
+		if (!consentCheck.ok) {
+			return res.status(400).json({ message: consentCheck.message });
+		}
+
 		if (!isSmsConfigured()) {
 			return res.status(503).json({
 				message:
@@ -572,7 +583,12 @@ router.post("/:id/sms", checkAdmin, async (req, res) => {
 
 		await drizzleDb
 			.update(reports)
-			.set({ sms_sent_at: new Date() })
+			.set({
+				sms_sent_at: new Date(),
+				sms_consent_at: new Date(),
+				sms_consent_by_user_id: req.user?.id ?? null,
+				sms_consent_text_version: req.body.consent.text_version,
+			})
 			.where(eq(reports.id, row.id));
 
 		return res.status(200).json({

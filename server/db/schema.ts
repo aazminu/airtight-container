@@ -319,6 +319,11 @@ export const reports = pgTable(
     emailed_to: text('emailed_to').array(),
     emailed_at: timestamp('emailed_at', { withTimezone: true }),
     sms_sent_at: timestamp('sms_sent_at', { withTimezone: true }),
+    // A2P 10DLC consent audit. Populated by the SMS send route on the
+    // same write that fires the Twilio dispatch — see migration 0014.
+    sms_consent_at: timestamp('sms_consent_at', { withTimezone: true }),
+    sms_consent_by_user_id: text('sms_consent_by_user_id'),
+    sms_consent_text_version: text('sms_consent_text_version'),
   },
   (table) => ({
     typeIdx: index('reports_type_idx').on(table.report_type),

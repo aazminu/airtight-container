@@ -10,13 +10,20 @@ export const Provider = (props) => {
 	);
 
 	useEffect(() => {
+		// Paths reachable without auth (the auth page itself plus any
+		// public compliance pages). Bail out of the session probe so we
+		// don't bounce unauthenticated visitors back to /auth.
+		const publicPaths = ["/sms-terms"];
+		const pathname = window.location.pathname;
+		const isPublic =
+			pathname.includes("auth") || publicPaths.includes(pathname);
+		if (isPublic) return;
+
 		fetch("/api/auth/get-session", { credentials: "include" })
 			.then((res) => res.json())
 			.then((data) => {
 				if (!data || !data.user) {
-					if (!window.location.pathname.includes("auth")) {
-						window.location.href = "/auth";
-					}
+					window.location.href = "/auth";
 					return;
 				}
 				setUser({
@@ -25,9 +32,7 @@ export const Provider = (props) => {
 				});
 			})
 			.catch(() => {
-				if (!window.location.pathname.includes("auth")) {
-					window.location.href = "/auth";
-				}
+				window.location.href = "/auth";
 			});
 	}, []);
 

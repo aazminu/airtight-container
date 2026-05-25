@@ -11,6 +11,8 @@ import type { PnLData } from '../components/templates/pnl/types';
 import type { ReleaseSummaryData } from '../components/templates/release-summary/types';
 import type { ShStatementData } from '../components/templates/sh-statement/types';
 import { Badge, useConfirm, usePrompt } from '../components/ui';
+import { SendSmsDialog } from '../components/forms/SendSmsDialog';
+import type { SendSmsResult } from '../components/forms/SendSmsDialog';
 import { userContext } from '../context/restaurantcontext';
 import styles from './ReportDetail.module.css';
 
@@ -94,6 +96,7 @@ export default function ReportDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<ActionState>({ kind: 'idle' });
+  const [smsDialogOpen, setSmsDialogOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -222,50 +225,27 @@ export default function ReportDetail() {
     }
   };
 
-  // PR 9.6: send the delivery-sheet receipt link to the driver by SMS.
-  // If driver_contact.phone was captured at creation, we surface it for
-  // a one-tap confirm. Otherwise we prompt blank. Only enabled on
-  // delivery_sheet reports — the server rejects other types anyway.
-  const handleSendSms = async () => {
+  // Send the delivery-sheet receipt link to the driver by SMS.
+  // A2P 10DLC requires that we show the driver the consent disclosure
+  // at the point their phone is captured and log the attestation; the
+  // dialog handles both. Server refuses dispatch without a valid
+  // attestation payload — see server/lib/sms-consent.ts.
+  const handleSendSmsConfirm = async (result: SendSmsResult) => {
     if (!report) return;
-    const dc = getDriverContact(report.resolved_data);
-    const driverPhone = dc?.phone ?? '';
-    const driverName = dc?.name;
-    const to = await prompt({
-      title: 'SMS receipt to driver',
-      label: 'Driver phone',
-      message: driverPhone
-        ? `Driver phone captured at creation${
-            driverName ? ` for ${driverName}` : ''
-          } — confirm or override below.`
-        : 'No driver phone was captured. Enter one (any US format works).',
-      defaultValue: driverPhone,
-      placeholder: '(732) 555-0142',
-      confirmLabel: 'Send SMS',
-      validate: (v) => {
-        const digits = v.replace(/\D/g, '');
-        if (!v.trim()) return 'A phone number is required.';
-        // Allow already-E.164 (with +), 10-digit US, or 11-digit with leading 1.
-        if (v.trim().startsWith('+')) return null;
-        if (digits.length === 10) return null;
-        if (digits.length === 11 && digits.startsWith('1')) return null;
-        return 'Enter a valid US phone number.';
-      },
-    });
-    if (to === null) return;
+    setSmsDialogOpen(false);
     setAction({ kind: 'busy', label: 'Sending SMS…' });
     try {
       const res = await fetch(`/api/v2/report/${report.id}/sms`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to }),
+        body: JSON.stringify({ to: result.to, consent: result.consent }),
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`);
       setAction({
         kind: 'ok',
-        message: `SMS sent to ${body?.to ?? to}.`,
+        message: `SMS sent to ${body?.to ?? result.to}.`,
       });
       await load();
     } catch (e) {
@@ -410,7 +390,7 @@ export default function ReportDetail() {
               <button
                 type="button"
                 className={styles.btn}
-                onClick={handleSendSms}
+                onClick={() => setSmsDialogOpen(true)}
                 disabled={!report.resolved_data}
               >
                 SMS…
@@ -453,6 +433,16 @@ export default function ReportDetail() {
           <ReportInline row={report} />
         </div>
       </div>
+
+      {report.report_type === 'delivery_sheet' && (
+        <SendSmsDialog
+          open={smsDialogOpen}
+          defaultPhone={getDriverContact(report.resolved_data)?.phone ?? ''}
+          driverName={getDriverContact(report.resolved_data)?.name ?? null}
+          onCancel={() => setSmsDialogOpen(false)}
+          onConfirm={handleSendSmsConfirm}
+        />
+      )}
     </div>
   );
 }

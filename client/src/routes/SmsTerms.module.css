@@ -1,0 +1,97 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg-page, #f5f4ef);
+  padding: 3rem 1.25rem;
+  display: flex;
+  justify-content: center;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 760px;
+  background: var(--bg-surface, #fff);
+  border: 1px solid var(--border, #d8d6cd);
+  border-radius: 12px;
+  padding: 2.5rem 2.25rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.head {
+  border-bottom: 2px solid var(--accent, #c81e2a);
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.subtitle {
+  margin: 0.3rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.intro p {
+  margin: 0 0 0.9rem;
+  font-size: 0.95rem;
+}
+
+.terms {
+  display: grid;
+  gap: 1rem;
+  margin: 1.5rem 0;
+  padding: 1.25rem 1.4rem;
+  background: var(--bg-page, #faf9f5);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.termsItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.termsHeading {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.termsBody {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.foot {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.foot p {
+  margin: 0 0 0.6rem;
+}
+
+.foot a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.version {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
