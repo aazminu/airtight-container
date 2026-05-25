@@ -131,6 +131,7 @@ export default function Clients() {
         open={creating}
         onClose={() => setCreating(false)}
         title="Add a client"
+        size="lg"
       >
         <ClientForm onSubmit={handleCreate} onCancel={() => setCreating(false)} />
       </Modal>
@@ -139,6 +140,7 @@ export default function Clients() {
         open={editing !== null}
         onClose={() => setEditing(null)}
         title={editing ? `Edit ${editing.client_name}` : ''}
+        size="lg"
       >
         <ClientForm
           initial={editing}

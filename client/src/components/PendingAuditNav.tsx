@@ -94,6 +94,7 @@ export function PendingAuditNav() {
       </a>
       {open && (
         <div className={styles.menu} role="menu">
+          <div className={styles.menuHeader}>Pending audits</div>
           {counts === null ? (
             <div className={styles.menuEmpty}>Loading…</div>
           ) : total === 0 ? (
