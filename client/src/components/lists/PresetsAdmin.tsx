@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
-import { userContext } from '../../context/restaurantcontext';
+import { userContext } from '../../context/userContext';
 import { useConfirm } from '../ui';
 
 // Shared label/position CRUD table used by ModPresetsAdmin,

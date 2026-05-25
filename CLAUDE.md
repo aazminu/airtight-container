@@ -44,7 +44,7 @@ Other docs you may need:
 - `client/` — frontend. Proxies `/api/*` → `:3001` in dev.
   - `src/routes/` — top-level pages
   - `src/components/{forms,lists,reports,rows,templates}/` — components grouped by role
-  - `src/context/restaurantcontext.js` — global user/popup/theme context (legacy filename from a prior project, don't read into the name)
+  - `src/context/userContext.jsx` — global user/popup/theme context
 - `server/`
   - `routes/v1/` — legacy routes (`inventory`, `sold`, `release`)
   - `routes/v2/` — newer routes (`invoice`, `dashboard`, `contact`, `release`)
@@ -64,7 +64,7 @@ Other docs you may need:
 - **Live production system.** No destructive ops without explicit ask. Schema changes go through drizzle-kit migrations and the cutover plan in [PLAN.md §3](docs/PLAN.md#3-schema-20). Always confirm before running anything against prod.
 - **Mobile/iPad compliance** is required only for yard-facing flows (intake, yard view, add box). Admin views stay desktop-only.
 - **Spanish localization** is required only for yard-facing flows.
-- **The existing code is "cursed"** (user's word). Refactor, dedup, and replace as you go. The legacy `restaurantcontext.js` name, the giant invoice template literal, the broken pagination math — fix them when they're in your path; don't preserve them.
+- **The existing code is "cursed"** (user's word). Refactor, dedup, and replace as you go. The giant invoice template literal, the broken pagination math — fix them when they're in your path; don't preserve them.
 - **No new files unless needed.** Prefer editing.
 - **No comments unless they explain non-obvious *why*.** Don't narrate what code does.
 

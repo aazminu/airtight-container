@@ -15,7 +15,7 @@ import {
   daysSince,
 } from '../components/lists/invoiceStatus';
 import { fmtDate } from '../components/templates/invoice/format';
-import { userContext } from '../context/restaurantcontext';
+import { userContext } from '../context/userContext';
 import InvoiceEditor from '../components/forms/InvoiceEditor';
 import styles from './InvoiceDetail.module.css';
 

@@ -3,7 +3,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "../styles/navbar.css";
 import logo from "../assets/images/airtightfixed.png";
-import { userContext } from "../context/restaurantcontext";
+import { userContext } from "../context/userContext";
 import { PendingAuditNav } from "./PendingAuditNav";
 import UserAvatar from "./UserAvatar";
 import { setLanguage } from "../i18n";

@@ -1,6 +1,6 @@
 import React, { useState, useContext } from "react";
 import "../styles/auth.css";
-import { userContext } from "../context/restaurantcontext";
+import { userContext } from "../context/userContext";
 
 function Auth() {
 	const { setPopup } = useContext(userContext);

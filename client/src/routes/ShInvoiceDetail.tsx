@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Badge, Button, useConfirm } from '../components/ui';
 import { fmtCurrency, fmtDate } from '../components/templates/invoice/format';
-import { userContext } from '../context/restaurantcontext';
+import { userContext } from '../context/userContext';
 import styles from './ShInvoiceDetail.module.css';
 
 interface ShInvoiceLine {

@@ -1,7 +1,7 @@
 import React from "react";
 import { useState, useEffect, useContext } from "react";
 import ReleaseForm from "./ReleaseForm";
-import { userContext } from "../../context/restaurantcontext";
+import { userContext } from "../../context/userContext";
 import { useConfirm } from "../ui";
 function SetReleases() {
 	const { setPopup } = useContext(userContext);

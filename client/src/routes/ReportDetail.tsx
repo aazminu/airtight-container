@@ -13,7 +13,7 @@ import type { ShStatementData } from '../components/templates/sh-statement/types
 import { Badge, useConfirm, usePrompt } from '../components/ui';
 import { SendSmsDialog } from '../components/forms/SendSmsDialog';
 import type { SendSmsResult } from '../components/forms/SendSmsDialog';
-import { userContext } from '../context/restaurantcontext';
+import { userContext } from '../context/userContext';
 import styles from './ReportDetail.module.css';
 
 type ReportType =

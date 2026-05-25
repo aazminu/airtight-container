@@ -8,7 +8,7 @@ import {
 } from "react-router-dom";
 import Detail from "./routes/Detail";
 import Home from "./routes/Home";
-import { Provider } from "./context/restaurantcontext";
+import { Provider } from "./context/userContext";
 import Navbar from "./components/Navbar";
 import { ToastProvider, ConfirmProvider, PromptProvider } from "./components/ui";
 import Reports from "./routes/Reports";

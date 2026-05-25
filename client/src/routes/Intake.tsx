@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Flow, FlowStep } from '../components/ui';
-import { userContext } from '../context/restaurantcontext';
+import { userContext } from '../context/userContext';
 import {
   SalesDetailsStep,
   type ReleaseOption,

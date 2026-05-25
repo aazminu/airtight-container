@@ -2,7 +2,7 @@ import React from 'react';
 import Inventory from './Inventory';
 import { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { userContext } from '../context/restaurantcontext';
+import { userContext } from '../context/userContext';
 const Home = () => {
   const navigate = useNavigate();
   const { permissions } = useContext(userContext);

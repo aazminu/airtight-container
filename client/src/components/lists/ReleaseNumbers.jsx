@@ -1,7 +1,7 @@
 import React from "react";
 import { useState, useEffect, useContext } from "react";
 import { useTranslation } from "react-i18next";
-import { userContext } from "../../context/restaurantcontext";
+import { userContext } from "../../context/userContext";
 
 const PAGE_SIZE = 8;
 

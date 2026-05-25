@@ -1,7 +1,7 @@
 import React from "react";
 import { useState, useContext } from "react";
 import ContactForm from "../forms/ContactForm";
-import { userContext } from "../../context/restaurantcontext";
+import { userContext } from "../../context/userContext";
 
 function CustomerRow({ customer, sendContactUpstream, sendSelected }) {
 	const { setPopup } = useContext(userContext);

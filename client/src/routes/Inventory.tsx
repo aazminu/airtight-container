@@ -8,7 +8,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '../components/ui';
 import { InventoryEditor } from '../components/forms/InventoryEditor';
-import { userContext } from '../context/restaurantcontext';
+import { userContext } from '../context/userContext';
 import styles from './Inventory.module.css';
 
 type InventoryState = 'pending' | 'available' | 'hold' | 'sold' | 'outbound';
