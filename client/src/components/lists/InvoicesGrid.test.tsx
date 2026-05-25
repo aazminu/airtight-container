@@ -19,6 +19,9 @@ const makeInvoice = (over: Partial<InvoiceData> & { customer_id?: number }): Inv
     sent_at: null,
     pdf_s3_key: null,
     deleted_at: null,
+    status: 'draft',
+    status_changed_at: null,
+    status_changed_by_user_id: null,
     subtotal: '0',
     tax_rate: null,
     tax_amount: null,
@@ -127,7 +130,7 @@ describe('InvoicesGrid', () => {
       makeInvoice({ invoice_id: 2, invoice_number: 202605002, customer_id: 2 }),
     ]);
     renderGrid();
-    const sidebar = await screen.findByLabelText('Filter by client');
+    const sidebar = await screen.findByLabelText('Filter invoices');
     expect(within(sidebar).getByText('Client 1')).toBeInTheDocument();
     expect(within(sidebar).getByText('Client 2')).toBeInTheDocument();
 
@@ -148,7 +151,7 @@ describe('InvoicesGrid', () => {
       makeInvoice({ invoice_id: 3, invoice_number: 202605003, customer_id: 1 }),
     ]);
     renderGrid();
-    const sidebar = await screen.findByLabelText('Filter by client');
+    const sidebar = await screen.findByLabelText('Filter invoices');
     await userEvent.click(within(sidebar).getByText('Client 1'));
     await waitFor(() =>
       expect(screen.getByText(/2 of 3 invoices/)).toBeInTheDocument(),
@@ -164,7 +167,7 @@ describe('InvoicesGrid', () => {
       makeInvoice({ invoice_id: 2, invoice_number: 202605002, customer_id: 2 }),
     ]);
     renderGrid();
-    const sidebar = await screen.findByLabelText('Filter by client');
+    const sidebar = await screen.findByLabelText('Filter invoices');
     await userEvent.click(within(sidebar).getByText('Client 2'));
     await waitFor(() =>
       expect(screen.getByText(/1 of 2 invoice/)).toBeInTheDocument(),

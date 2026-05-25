@@ -46,6 +46,15 @@ export const shInvoiceStatus = pgEnum('sh_invoice_status', [
   'paid',
 ]);
 
+// Sales-invoice lifecycle status. See migration 0015.
+export const invoiceStatus = pgEnum('invoice_status', [
+  'draft',
+  'awaiting',
+  'paid',
+  'delinquent',
+  'cancelled',
+]);
+
 export const shLineType = pgEnum('sh_line_type', [
   'in_fee',
   'out_fee',
@@ -200,9 +209,16 @@ export const invoices = pgTable(
     pdf_s3_key: text('pdf_s3_key'),
     sent_at: timestamp('sent_at', { withTimezone: true }),
     deleted_at: timestamp('deleted_at', { withTimezone: true }),
+    // Lifecycle status (PR 10.1). Default 'draft' on creation; flips
+    // to 'awaiting' when the invoice is emailed. Operator clicks
+    // drive the rest (awaiting → paid / delinquent / cancelled).
+    status: invoiceStatus('status').notNull().default('draft'),
+    status_changed_at: timestamp('status_changed_at', { withTimezone: true }),
+    status_changed_by_user_id: text('status_changed_by_user_id'),
   },
   (table) => ({
     invoiceDateIdx: index('invoices_invoice_date_idx').on(table.invoice_date),
+    statusIdx: index('invoices_status_idx').on(table.status),
   }),
 );
 

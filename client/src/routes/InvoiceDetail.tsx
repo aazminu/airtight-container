@@ -1,8 +1,19 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import InvoiceTemplate from '../components/templates/invoice/InvoiceTemplate';
-import type { InvoiceData } from '../components/templates/invoice/types';
-import { Button, useConfirm, usePrompt } from '../components/ui';
+import type {
+  InvoiceData,
+  InvoiceStatus,
+} from '../components/templates/invoice/types';
+import { INVOICE_STATUSES } from '../components/templates/invoice/types';
+import { Badge, Button, useConfirm, usePrompt } from '../components/ui';
+import {
+  statusBadgeTone,
+  statusLabel,
+  isAwaitingPastDue,
+  AWAITING_OVERDUE_DAYS,
+  daysSince,
+} from '../components/lists/invoiceStatus';
 import { fmtDate } from '../components/templates/invoice/format';
 import { userContext } from '../context/restaurantcontext';
 import InvoiceEditor from '../components/forms/InvoiceEditor';
@@ -118,6 +129,42 @@ export default function InvoiceDetail() {
       setAction({
         kind: 'err',
         message: e instanceof Error ? e.message : 'Email failed',
+      });
+    }
+  };
+
+  const handleStatusChange = async (next: InvoiceStatus) => {
+    if (!invoice) return;
+    if (next === invoice.status) return;
+    if (next === 'cancelled') {
+      const ok = await confirm({
+        title: 'Cancel invoice?',
+        message: `Invoice #${invoice.invoice_number} will be marked cancelled. It stays in the record (use Delete for true tombstone). You can re-open it later by flipping the status back.`,
+        confirmLabel: 'Cancel invoice',
+        cancelLabel: 'Keep current status',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    setAction({ kind: 'busy', label: 'Updating status…' });
+    try {
+      const res = await fetch(
+        `/api/v2/invoice/${invoice.invoice_id}/status`,
+        {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: next }),
+        },
+      );
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`);
+      setAction({ kind: 'ok', message: `Status set to ${statusLabel(next)}.` });
+      await load();
+    } catch (e) {
+      setAction({
+        kind: 'err',
+        message: e instanceof Error ? e.message : 'Status update failed',
       });
     }
   };
@@ -257,6 +304,54 @@ export default function InvoiceDetail() {
           </div>
         )}
       </div>
+
+      {!isDeleted && (
+        <div className={styles.statusBar}>
+          <div className={styles.statusLeft}>
+            <Badge tone={statusBadgeTone(invoice.status)}>
+              {statusLabel(invoice.status)}
+            </Badge>
+            {isAwaitingPastDue(invoice.status, invoice.invoice_date) && (
+              <span className={styles.statusPastDue}>
+                {daysSince(invoice.invoice_date)} days unpaid · past the{' '}
+                {AWAITING_OVERDUE_DAYS}-day mark
+              </span>
+            )}
+            {invoice.status_changed_at && (
+              <span className={styles.statusAudit}>
+                Last changed{' '}
+                {fmtDate(invoice.status_changed_at, {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+                {invoice.status_changed_by_user_id
+                  ? ` by ${invoice.status_changed_by_user_id}`
+                  : ''}
+              </span>
+            )}
+          </div>
+          {isAdmin && (
+            <label className={styles.statusControl}>
+              <span className={styles.statusControlLabel}>Change to:</span>
+              <select
+                className={styles.statusSelect}
+                value={invoice.status}
+                onChange={(e) =>
+                  handleStatusChange(e.target.value as InvoiceStatus)
+                }
+                disabled={action.kind === 'busy'}
+              >
+                {INVOICE_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {statusLabel(s)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
 
       {action.kind === 'busy' && (
         <div className={styles.success}>{action.label}</div>

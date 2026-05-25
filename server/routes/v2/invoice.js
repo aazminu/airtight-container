@@ -40,6 +40,9 @@ const groupInvoices = (data) => {
 				sent_at: row.sent_at,
 				pdf_s3_key: row.pdf_s3_key,
 				deleted_at: row.deleted_at,
+				status: row.status,
+				status_changed_at: row.status_changed_at,
+				status_changed_by_user_id: row.status_changed_by_user_id,
 				subtotal: row.subtotal,
 				tax_rate: row.tax_rate,
 				tax_amount: row.tax_amount,
@@ -119,6 +122,7 @@ const INVOICE_SELECT_COLS = `
 	i.invoice_id, i.invoice_number, i.invoice_taxed, i.invoice_credit, i.invoice_date,
 	i.subtotal, i.tax_rate, i.tax_amount, i.cc_fee_rate, i.cc_fee_amount, i.total,
 	i.pdf_s3_key, i.sent_at, i.deleted_at, i.client_id,
+	i.status, i.status_changed_at, i.status_changed_by_user_id,
 	cl.client_name, cl.business_name, cl.contact_email, cl.contact_phone,
 	cl.street, cl.city, cl.state AS client_state, cl.zip,
 	ct.id AS container_id, ct.unit_number, ct.size, ct.damage, ct.state AS inventory_state,
@@ -292,6 +296,54 @@ router.post("/:id/pdf", checkAdmin, async (req, res) => {
 	}
 });
 
+// PR 10.1: lifecycle status. Any → any transition allowed (operator
+// can "un-pay" a bounced check, revert an accidental cancel, etc.);
+// the UI gates destructive transitions behind a confirmation modal.
+// Status flip + audit columns happen in a single UPDATE so an unhandled
+// crash can't leave the row half-updated.
+const VALID_STATUSES = new Set([
+	"draft",
+	"awaiting",
+	"paid",
+	"delinquent",
+	"cancelled",
+]);
+
+router.patch("/:id/status", checkAdmin, async (req, res) => {
+	const invoiceId = parseInt(req.params.id, 10);
+	if (!Number.isFinite(invoiceId)) {
+		return res.status(400).json({ message: "Invalid invoice id" });
+	}
+	const status = req.body?.status;
+	if (typeof status !== "string" || !VALID_STATUSES.has(status)) {
+		return res.status(400).json({
+			message: `Status must be one of: ${[...VALID_STATUSES].join(", ")}`,
+		});
+	}
+	try {
+		const deletedAt = await getDeletedAt(invoiceId);
+		if (deletedAt === undefined) {
+			return res.status(404).json({ message: "Not found" });
+		}
+		if (deletedAt !== null) {
+			return res.status(409).json({ message: "Invoice is deleted" });
+		}
+		const { rows } = await db.query(
+			`UPDATE invoices
+			   SET status = $1,
+			       status_changed_at = NOW(),
+			       status_changed_by_user_id = $2
+			 WHERE invoice_id = $3
+			 RETURNING invoice_id, status, status_changed_at, status_changed_by_user_id`,
+			[status, req.user?.id ?? null, invoiceId],
+		);
+		res.status(200).json({ status: "success", data: { invoice: rows[0] } });
+	} catch (err) {
+		console.error("invoice.status error:", err);
+		res.status(500).json({ message: err.message || "Internal server error" });
+	}
+});
+
 // PR 3.4: send the current PDF to the customer (regenerating it first
 // if absent) and mark sent_at. BCCs the personal logging addresses
 // the owner has used historically.
@@ -352,9 +404,18 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 			console.error("invoice.email resend error:", error);
 			return res.status(502).json({ message: error.message ?? "Resend failure" });
 		}
+		// Stamp sent_at and (if the invoice is still 'draft') promote
+		// it to 'awaiting'. Don't downgrade paid/delinquent/cancelled —
+		// re-sending a paid invoice as a receipt shouldn't re-open the
+		// AR. The audit columns mirror the manual PATCH path.
 		await db.query(
-			"UPDATE invoices SET sent_at = NOW() WHERE invoice_id = $1",
-			[invoiceId],
+			`UPDATE invoices
+			    SET sent_at = NOW(),
+			        status = CASE WHEN status = 'draft' THEN 'awaiting' ELSE status END,
+			        status_changed_at = CASE WHEN status = 'draft' THEN NOW() ELSE status_changed_at END,
+			        status_changed_by_user_id = CASE WHEN status = 'draft' THEN $2 ELSE status_changed_by_user_id END
+			  WHERE invoice_id = $1`,
+			[invoiceId, req.user?.id ?? null],
 		);
 		res.status(200).json({ status: "success", message_id: data?.id });
 	} catch (err) {

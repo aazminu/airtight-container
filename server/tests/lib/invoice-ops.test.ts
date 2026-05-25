@@ -192,6 +192,26 @@ describe('createInvoice', () => {
     });
     expect(await invoiceContainerCount(result.id)).toBe(1);
   });
+
+  it("defaults status to 'draft' on creation (PR 10.1)", async () => {
+    const result = await createInvoice(client, {
+      client_id: fx.clientId,
+      containers: [{ id: fx.inventoryA }],
+    });
+    const { rows } = await client.query<{
+      status: string;
+      status_changed_at: Date | null;
+      status_changed_by_user_id: string | null;
+    }>(
+      `SELECT status, status_changed_at, status_changed_by_user_id
+         FROM invoices WHERE invoice_id = $1`,
+      [result.id],
+    );
+    expect(rows[0].status).toBe('draft');
+    // Audit columns stay null until the first transition.
+    expect(rows[0].status_changed_at).toBeNull();
+    expect(rows[0].status_changed_by_user_id).toBeNull();
+  });
 });
 
 describe('updateInvoiceFull', () => {

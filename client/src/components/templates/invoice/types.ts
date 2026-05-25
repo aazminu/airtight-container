@@ -39,6 +39,21 @@ export interface InvoiceLineContainer {
   modifications: InvoiceModification[];
 }
 
+export type InvoiceStatus =
+  | 'draft'
+  | 'awaiting'
+  | 'paid'
+  | 'delinquent'
+  | 'cancelled';
+
+export const INVOICE_STATUSES: readonly InvoiceStatus[] = [
+  'draft',
+  'awaiting',
+  'paid',
+  'delinquent',
+  'cancelled',
+] as const;
+
 export interface InvoiceData {
   invoice_id: number;
   // Accepts string for the create-flow preview which shows
@@ -54,6 +69,12 @@ export interface InvoiceData {
   // surfaces these with a "Deleted" badge; the detail page renders a
   // tombstone view and hides edit/email/regenerate actions.
   deleted_at: string | null;
+  // Lifecycle status (PR 10.1). Default 'draft' on creation; flips to
+  // 'awaiting' when the invoice is first emailed. Operator clicks
+  // drive all subsequent transitions.
+  status: InvoiceStatus;
+  status_changed_at: string | null;
+  status_changed_by_user_id: string | null;
   subtotal: string | null;
   tax_rate: string | null;
   tax_amount: string | null;

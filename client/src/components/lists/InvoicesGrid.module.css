@@ -316,6 +316,18 @@
   color: var(--muted, #6e7781);
 }
 
+.pastDue {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--danger-fg, #82071e);
+  background: var(--danger-bg, rgba(209, 36, 47, 0.08));
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  align-self: flex-start;
+}
+
 .empty {
   grid-column: 1 / -1;
   padding: 3rem 1rem;

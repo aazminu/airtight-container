@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { InvoiceData } from '../templates/invoice/types';
+import type { InvoiceData, InvoiceStatus } from '../templates/invoice/types';
+import { INVOICE_STATUSES } from '../templates/invoice/types';
 import { Badge } from '../ui';
+import {
+  statusBadgeTone,
+  statusLabel,
+  isAwaitingPastDue,
+  AWAITING_OVERDUE_DAYS,
+} from './invoiceStatus';
 import { fmtCurrency, fmtDate } from '../templates/invoice/format';
 import logoSrc from '../../assets/images/airtightfixed.png';
 import styles from './InvoicesGrid.module.css';
@@ -14,6 +21,7 @@ interface ListResponse {
 
 const PAGE_SIZE = 24;
 const ALL_CLIENTS = '__all__';
+const ALL_STATUSES = '__all_statuses__';
 
 const customerLabel = (data: InvoiceData) =>
   data.customer.business_name || data.customer.client_name || 'Unknown';
@@ -62,6 +70,7 @@ export default function InvoicesGrid() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [clientFilter, setClientFilter] = useState<string>(ALL_CLIENTS);
+  const [statusFilter, setStatusFilter] = useState<string>(ALL_STATUSES);
   const [page, setPage] = useState(1);
   const [showAllClients, setShowAllClients] = useState(false);
 
@@ -95,13 +104,29 @@ export default function InvoicesGrid() {
 
   const buckets = useMemo(() => buildBuckets(searchFiltered), [searchFiltered]);
 
-  const filtered = useMemo(
-    () =>
-      clientFilter === ALL_CLIENTS
-        ? searchFiltered
-        : searchFiltered.filter((inv) => String(inv.customer.id) === clientFilter),
-    [searchFiltered, clientFilter],
-  );
+  const filtered = useMemo(() => {
+    let rows = searchFiltered;
+    if (clientFilter !== ALL_CLIENTS) {
+      rows = rows.filter((inv) => String(inv.customer.id) === clientFilter);
+    }
+    if (statusFilter !== ALL_STATUSES) {
+      rows = rows.filter((inv) => inv.status === statusFilter);
+    }
+    return rows;
+  }, [searchFiltered, clientFilter, statusFilter]);
+
+  // Per-status counts feed the sidebar facet. Counted on the
+  // search-narrowed set (not client-narrowed) so the operator can see
+  // status distribution across the search regardless of which client
+  // is selected.
+  const statusCounts = useMemo(() => {
+    const map = new Map<InvoiceStatus, number>();
+    for (const s of INVOICE_STATUSES) map.set(s, 0);
+    for (const inv of searchFiltered) {
+      map.set(inv.status, (map.get(inv.status) ?? 0) + 1);
+    }
+    return map;
+  }, [searchFiltered]);
 
   // If the active client falls out of the visible buckets (search
   // narrowed the list past it), snap back to ALL so the user isn't
@@ -115,7 +140,7 @@ export default function InvoicesGrid() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, clientFilter]);
+  }, [search, clientFilter, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageStart = (page - 1) * PAGE_SIZE;
@@ -153,7 +178,28 @@ export default function InvoicesGrid() {
       {error && <div className={styles.error}>Failed to load invoices: {error}</div>}
 
       <div className={styles.layout}>
-        <aside className={styles.sidebar} aria-label="Filter by client">
+        <aside className={styles.sidebar} aria-label="Filter invoices">
+          <div className={styles.sidebarHeader}>Status</div>
+          <button
+            type="button"
+            className={`${styles.sidebarItem} ${statusFilter === ALL_STATUSES ? styles.active : ''}`}
+            onClick={() => setStatusFilter(ALL_STATUSES)}
+          >
+            <span className={styles.sidebarName}>All statuses</span>
+            <span className={styles.sidebarCount}>{searchFiltered.length}</span>
+          </button>
+          {INVOICE_STATUSES.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={`${styles.sidebarItem} ${statusFilter === s ? styles.active : ''}`}
+              onClick={() => setStatusFilter(s)}
+            >
+              <span className={styles.sidebarName}>{statusLabel(s)}</span>
+              <span className={styles.sidebarCount}>{statusCounts.get(s) ?? 0}</span>
+            </button>
+          ))}
+          <div className={styles.sidebarDivider} />
           <div className={styles.sidebarHeader}>Client</div>
           <button
             type="button"
@@ -246,6 +292,7 @@ interface InvoiceTileProps {
 
 function InvoiceTile({ data, onClick }: InvoiceTileProps) {
   const isDeleted = data.deleted_at != null;
+  const pastDue = !isDeleted && isAwaitingPastDue(data.status, data.invoice_date);
   return (
     <button
       type="button"
@@ -271,11 +318,16 @@ function InvoiceTile({ data, onClick }: InvoiceTileProps) {
           {isDeleted ? (
             <Badge tone="danger">Deleted</Badge>
           ) : (
-            <Badge tone={data.sent_at ? 'success' : 'neutral'}>
-              {data.sent_at ? 'Sent' : 'Unsent'}
+            <Badge tone={statusBadgeTone(data.status)}>
+              {statusLabel(data.status)}
             </Badge>
           )}
         </div>
+        {pastDue && (
+          <div className={styles.pastDue}>
+            ≥ {AWAITING_OVERDUE_DAYS} days unpaid
+          </div>
+        )}
         <div className={styles.containerCount}>
           {isDeleted
             ? 'No containers'

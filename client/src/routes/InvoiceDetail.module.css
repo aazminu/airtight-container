@@ -105,3 +105,61 @@
   max-width: 38rem;
   line-height: 1.55;
 }
+
+.statusBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0 0.5rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--bg-surface, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.statusLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.statusAudit {
+  font-size: 0.75rem;
+}
+
+.statusPastDue {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--danger-fg, #82071e);
+  background: var(--danger-bg, rgba(209, 36, 47, 0.08));
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.statusControl {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.statusControlLabel {
+  font-weight: 500;
+}
+
+.statusSelect {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.8125rem;
+  background: var(--bg-input);
+  color: var(--text);
+}
