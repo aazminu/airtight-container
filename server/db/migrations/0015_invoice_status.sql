@@ -44,4 +44,13 @@ UPDATE "invoices"
        "status_changed_at" = NOW()
  WHERE "deleted_at" IS NULL;
 
+-- Tombstoned invoices (operator-mistake deletes) get 'cancelled'
+-- rather than the column-default 'draft' — they're hidden from
+-- active views anyway, but 'draft' is semantically wrong for
+-- something that already existed and was retracted.
+UPDATE "invoices"
+   SET "status" = 'cancelled',
+       "status_changed_at" = NOW()
+ WHERE "deleted_at" IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS "invoices_status_idx" ON "invoices" ("status");
