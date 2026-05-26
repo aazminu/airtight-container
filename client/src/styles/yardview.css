@@ -5,7 +5,43 @@
 	margin: 0 auto;
 }
 
-/* ── Page title — inherits .invHeader from inventorylist.css ── */
+/* Page title — left-aligned with red accent bar.
+   Lived in inventorylist.css before that file was retired in PR 4.1. */
+.invHeader {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	font-family: var(--font-header);
+	font-size: 2.2rem;
+	font-weight: 800;
+	color: var(--text-primary);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	margin: 0;
+	padding: 24px 32px 20px;
+	border-bottom: 1px solid var(--border);
+	text-align: left;
+}
+
+.invHeader::before {
+	content: '';
+	flex-shrink: 0;
+	width: 4px;
+	height: 1em;
+	background-color: var(--accent);
+	border-radius: 2px;
+}
+
+/* Row hover for yardview's tables. !important on the td overrides the
+   alternating-row backgrounds defined below. Lived as a global rule in
+   inventorylist.css before that file was retired in PR 4.1. */
+.yardContainer tbody tr:hover td {
+	background-color: var(--row-hover) !important;
+}
+
+.yardContainer tbody tr:hover {
+	box-shadow: inset 3px 0 0 var(--accent);
+}
 
 /* ── Release numbers section ────────────────────────────── */
 .yardReleasesSection {
@@ -94,7 +130,7 @@
 	background-color: var(--bg-row-alt);
 }
 
-/* row hover from global rule in inventorylist.css */
+/* row hover handled by the .yardContainer tbody tr:hover rule above */
 
 /* ── Three-panel unit grid ──────────────────────────────── */
 .yardUnitSection {
@@ -160,6 +196,7 @@
 .yardScrollWrap {
 	overflow-x: auto;
 	flex: 1;
+	box-shadow: inset -20px 0 16px -16px rgba(0, 0, 0, 0.18);
 }
 
 /* The table inside each card fills the card */
@@ -202,7 +239,7 @@
 	background-color: var(--bg-row-alt);
 }
 
-/* row hover from global rule */
+/* row hover handled by the .yardContainer tbody tr:hover rule above */
 
 /* ── Per-card pagination bar ────────────────────────────── */
 .yardPagination {
@@ -240,7 +277,29 @@
 	color: var(--text-muted);
 }
 
-@media (max-width: 900px) {
+/* Empty-state row inside a yard card */
+.yardEmpty {
+	padding: 28px 14px !important;
+	color: var(--text-muted) !important;
+	font-style: italic;
+	font-size: 12px;
+}
+
+/* Subtle time string below the outbound date in the Sold card */
+.yardTimeText {
+	display: inline-block;
+	margin-top: 2px;
+	color: var(--text-muted);
+	font-size: 11px;
+}
+
+@media (max-width: 1024px) {
+	.inventoryInfo {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+@media (max-width: 768px) {
 	.yardReleasesSection,
 	.yardUnitSection {
 		padding: 16px 16px 0;
@@ -252,5 +311,10 @@
 
 	.inventoryInfo {
 		grid-template-columns: 1fr;
+	}
+
+	.releaseTableCard {
+		flex: 1 1 100%;
+		min-width: 0;
 	}
 }

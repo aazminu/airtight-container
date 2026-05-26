@@ -26,9 +26,24 @@
   list-style: none;
 }
 
-.navbar img {
+.navbarBrand {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
   padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.12s ease;
+}
+
+.navbarBrand:hover {
+  background-color: var(--bg-surface-2);
+}
+
+.navbarLogo {
   display: block;
+  height: 36px;
+  width: auto;
+  object-fit: contain;
 }
 
 /* ── Nav links — sliding underline ──────────────────────── */
@@ -77,22 +92,23 @@
 /* ── Profile ────────────────────────────────────────────── */
 .profileContainer {
   position: relative;
-  width: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.userProfile {
-  cursor: pointer;
-  border-radius: 50%;
-  display: block;
-  opacity: 0.82;
-  transition: opacity 0.12s ease;
+.userAvatar {
+  box-shadow: 0 0 0 0 transparent;
 }
 
-.userProfile:hover {
-  opacity: 1;
+.userAvatar:hover {
+  box-shadow: 0 0 0 3px var(--bg-surface-2);
+  transform: scale(1.04);
+}
+
+.userAvatar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 @keyframes dropdownIn {
@@ -103,28 +119,114 @@
 .profileDropdown {
   animation: dropdownIn 0.16s cubic-bezier(0.4, 0, 0.2, 1);
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 10px);
   right: 0;
   z-index: 200;
-  width: 200px;
+  min-width: 220px;
+  max-width: 280px;
   background-color: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
-  padding: 10px 12px;
-  text-align: center;
+  padding: 12px;
   font-size: 13px;
-  font-weight: 500;
   color: var(--text-primary);
+}
+
+.profileEmail {
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.profileRole {
+  margin-top: 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+.profileRole:empty {
+  display: none;
+}
+
+.profileDropdown::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  right: 14px;
+  width: 10px;
+  height: 10px;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  transform: rotate(45deg);
 }
 
 .logoutBtn {
   font-size: 13px !important;
-  padding: 6px 12px !important;
-  margin-top: 8px;
+  padding: 7px 12px !important;
+  margin-top: 12px;
   width: 100%;
   border-radius: var(--radius-sm) !important;
   font-weight: 600 !important;
+  background: var(--bg-surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.logoutBtn:hover {
+  background: var(--danger);
+  color: var(--danger-fg, #fff);
+  border-color: var(--danger);
+}
+
+/* ── Language toggle (EN / ES segmented control) ────────── */
+.langToggle {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 13px;
+  overflow: hidden;
+  background-color: var(--bg-surface-2);
+  height: 26px;
+}
+
+.langOption {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.langOption:hover {
+  color: var(--text-primary);
+}
+
+.langOption + .langOption {
+  border-left: 1px solid var(--border-strong);
+}
+
+.langOptionActive {
+  background-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+.langOptionActive:hover {
+  color: var(--accent-fg);
 }
 
 /* ── Pill theme toggle ──────────────────────────────────── */

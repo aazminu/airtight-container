@@ -1,0 +1,323 @@
+/* Passive hint banner shown when the user clicks a read-only field.
+   Sits above the two-pane layout. Doesn't steal focus or block input. */
+.hintBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.hintBannerIcon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.hintBannerText {
+  flex: 1;
+  min-width: 0;
+}
+
+.hintBannerClose {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.hintBannerClose:hover {
+  opacity: 1;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.paneHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.changeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+/* ── photo strip ──────────────────────────────────────────── */
+.photoStrip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.photoThumbBtn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.12s ease;
+}
+
+.photoThumbBtn:hover {
+  border-color: var(--accent);
+}
+
+.photoThumb {
+  display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+}
+
+.photoEmpty {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── edit form ────────────────────────────────────────────── */
+.form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(140px, 1fr));
+  gap: 12px 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fieldWide {
+  grid-column: 1 / -1;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.input {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.input.changed {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-input));
+}
+
+/* read-only display field inside the form pane */
+.readonlyField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-2);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--text-muted);
+  min-width: 0;
+  word-break: break-word;
+  text-align: left;
+}
+
+.readonlyClickable {
+  cursor: help;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.readonlyClickable:hover {
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg-surface-2));
+  border-color: color-mix(in srgb, var(--warning) 40%, var(--border));
+}
+
+.readonlyClickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.readonlyValue {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.readonlyHint {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.readonlyLink {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.readonlyLink:hover {
+  text-decoration: underline;
+}
+
+/* ── diff pane ────────────────────────────────────────────── */
+.diffField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.diffField.changedField {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.diffLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.diffValue {
+  font-weight: 500;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.diffOld {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.diffArrow {
+  color: var(--accent);
+  margin: 0 6px;
+  font-weight: 700;
+}
+
+.diffNew {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.diffEmpty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.noChanges {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+  padding: 24px 16px;
+}
+
+/* ── action footer ────────────────────────────────────────── */
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.actionsLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.actionsRight {
+  display: flex;
+  gap: 10px;
+}
+
+.confirmBanner {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+}

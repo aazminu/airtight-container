@@ -11,7 +11,7 @@ This plan is the source of truth for the 2.0 rewrite. It captures every decision
 - Brand-new S&H domain (inventory, lifecycle, rate model, month-end billing)
 - Pending-audit workflow for both Sales and S&H, surfaced to admins via a navbar dropdown
 - Clients page (renamed from contacts), with split address fields, business name, and S&H rate defaults
-- Invoice rewrite: tiled list, per-invoice detail page, new template, snapshot totals, PDF-in-S3 storage, historical migration of all 239 prior invoices
+- Invoice rewrite: tiled list, per-invoice detail page, new template, snapshot totals, PDF-in-S3 storage, historical migration of all 238 prior invoices (240 raw, minus 2 orphan duplicates cleaned up in Phase 1 Step 0)
 - Reports rewrite: extensible form-driven generation with saved history
 - Inventory page rework: three state-segmented tables, popup edit, fixed pagination/search/sort
 - Dashboard facelift with P&L and admin pending count
@@ -79,7 +79,7 @@ Migration strategy: **drizzle-kit migrations**, with a one-shot data-transformat
 1. Stop traffic
 2. Take a pg_dump backup
 3. Run drizzle-kit migrations (new tables, columns, constraints, FKs)
-4. Run [scripts/migrate-data-v2.ts](../scripts/migrate-data-v2.ts) (transforms + backfills + invoice re-render)
+4. Run [server/scripts/migrate-data-v2.ts](../server/scripts/migrate-data-v2.ts) (transforms + backfills + invoice re-render)
 5. Drop legacy tables
 6. Smoke test
 7. Resume traffic
@@ -107,8 +107,8 @@ Migration strategy: **drizzle-kit migrations**, with a one-shot data-transformat
 | Table | Column | Type | Purpose |
 |---|---|---|---|
 | `inventory` | `is_pending_audit` | `boolean DEFAULT true` | Pending until admin audits acquisition price + mods |
-| `sold` | `material_cost` | `numeric DEFAULT 0` | Mod material |
-| `sold` | `labor_cost` | `numeric DEFAULT 0` | Mod labor |
+| `sold` | `material_cost` | `numeric` nullable | Mod material; NULL means "not recorded" |
+| `sold` | `labor_cost` | `numeric` nullable | Mod labor; NULL means "not recorded" |
 | `invoices` | `subtotal` | `numeric` | Snapshot |
 | `invoices` | `tax_rate` | `numeric` | Snapshot (e.g., 0.06625) |
 | `invoices` | `tax_amount` | `numeric` | Snapshot |
@@ -197,15 +197,27 @@ emailed_to          text[]
 | `releases` (the v1 table with `number text[]`) | Dead; v1 route has a bug inserting scalar into array. No client usage. |
 | `users` (old pre-Better-Auth) | Better Auth `"user"` is canonical |
 
-### 3.5 Backfills (in [scripts/migrate-data-v2.ts](../scripts/migrate-data-v2.ts))
+### 3.5 Backfills (in [server/scripts/migrate-data-v2.ts](../server/scripts/migrate-data-v2.ts))
 
-1. **Split `contacts.contact_address` → street/city/state/zip** using the current "split on first comma" heuristic, then a manual review pass before cutover. Document any rows that won't parse.
-2. **Map `inventory.sale_company` (text) → `sale_company_id` FK** by matching name. Create `sale_companies` rows for any name with no match (or fold into "Unknown" if too sparse).
-3. **Map `inventory.acceptance_number` (text) → `release_number_id` FK** by matching value. The one inventory row with NULL/empty `acceptance_number` → backfill with a placeholder `release_numbers` row (`release_number_value='LEGACY-UNKNOWN'`, `release_number_count=0`, `is_complete=true`, paired with a `sale_companies` row `'Unknown'`).
-4. **Compute snapshot totals on the 239 historical invoices** using the *current rates the invoices were sent under* (6.625% NJ tax if `invoice_taxed`, 3.5% CC fee if `invoice_credit`) and the line items in `sold` joined through `invoice_containers`. Persist into the new `subtotal`/`tax_rate`/`tax_amount`/`cc_fee_rate`/`cc_fee_amount`/`total` columns.
-5. **Re-render all 239 invoices** through the new template → PDF → S3, persist `pdf_s3_key`. Verify totals match the snapshots.
+0. **Cleanup orphan duplicate invoices.** Delete any `invoices` row that has zero attached `invoice_containers` AND shares its `invoice_number` with another invoice — a legacy double-submit artifact that PR 1.6's `UNIQUE(invoice_number)` constraint would otherwise reject. Today: 2 rows (invoice_ids 122, 123 — both `invoice_number=202505021`, Belleayre Mountain, dup within 1 minute on 2025-05-27). User-confirmed delete 2026-05-12.
+1. **Split `contacts.contact_address` → street/city/state/zip.** The script runs in two passes:
+   - **Pass A (`--emit-address-csv`):** apply the "split on first comma" heuristic across all 150 historical contacts and emit `server/scripts/migration-data/addresses.csv` with `[contact_id, original_address, parsed_street, parsed_city, parsed_state, parsed_zip, needs_review]`. The `needs_review` flag is set for rows the heuristic can't cleanly resolve (e.g., no state+ZIP tail, or no comma between street and city).
+   - User edits the CSV in place to correct unparseable rows.
+   - **Pass B (the real backfill run):** consumes the edited CSV. Errors if missing. Step 1 UPSERTs on `clients.id` so re-runs after CSV edits update existing rows.
+   - At the eventual prod cutover, regenerate Pass A against then-current prod data (new clients may have been added in the months since), re-edit, re-run.
+2. **Map `inventory.sale_company` (text) → `sale_company_id` FK.** The legacy text column is noisy — 32 distinct values, mostly case/whitespace variants of the existing 5 sale_companies, plus 8 apparent new vendors (18W, Beacon, D'Annunzio, DiFazio, LMD, Logistics, Matthews, UBPS — Logitics → Logistics treated as typo) and 5 noise strings (COMPANY, N/A, TEST, RENTAL RETURN, rental) folded to a single `Unknown` placeholder. Normalization map is hard-coded in the script; user-confirmed 2026-05-12. The 8 new vendor names are inserted into `sale_companies`.
+3. **Map `inventory.acceptance_number` (text) → `release_number_id` FK.**
+   - **3a.** Insert a new `release_numbers` row (`count=0, is_complete=true`) for each orphan `acceptance_number` — 296 inventory rows reference an acceptance number whose `release_numbers` row was wiped by the legacy DELETE-when-count-zero pattern. Each orphan gets its own row so the historical paper trail is preserved.
+   - **3b.** Insert a single `LEGACY-UNKNOWN` placeholder for any inventory row with empty `acceptance_number` (id=449 today; paired with Triton from id=449's existing sale_company value).
+   - **3c.** Populate `inventory.release_number_id` by matching on `release_number_value`; remaining unmatched rows point at `LEGACY-UNKNOWN`.
+   - **3d.** Populate `inventory.sale_company_id`. First pass: inherit `sale_company_id` from the row's `release_numbers` FK when `inventory.sale_company` is null/noise (this gives id=192 a SeaCube sale_company via its real `P534112` acceptance instead of the `Unknown` placeholder PLAN originally suggested). Second pass: normalize the remaining `inventory.sale_company` text values and look up the matching `sale_companies` row.
+4. **Compute snapshot totals on the 238 historical invoices** (240 raw minus the 2 orphans removed in step 0) using the *current rates the invoices were sent under* (6.625% NJ tax if `invoice_taxed`, 3.5% CC fee if `invoice_credit`) and the line items in `sold` joined through `invoice_containers`. Formula matches the legacy [InvoiceForm.jsx:341-347](../client/src/components/forms/InvoiceForm.jsx#L341-L347) — `subtotal = Σ floor(sale_price)+floor(modification_price)+floor(trucking_rate)`, `tax = subtotal*tax_rate`, `cc_fee = (subtotal+tax)*cc_fee_rate`. Persist into the new `subtotal`/`tax_rate`/`tax_amount`/`cc_fee_rate`/`cc_fee_amount`/`total` columns.
+5. **Nullify `sold.modification_price = 0`.** 280 historical sold rows have explicit zero and 146 already have NULL; convert the 0s to NULL so the column reflects "we don't know" rather than "we know it was free." (Originally a PDF re-render step here — deferred to Phase 3 once the Puppeteer pipeline exists.)
 6. **Set `is_pending_audit = false`** on all 656 existing inventory rows (legacy boxes are grandfathered, no audit needed).
-7. **Set `is_complete = true`** on any `release_numbers` row with `release_number_count = 0`.
+7. **Set `is_complete = true`** on any `release_numbers` row with `release_number_count = 0` (no-op today — zero rows match the pre-existing rows, but the 297 new placeholder rows inserted in step 3 are already `is_complete=true`).
+8. **Nullify the `sold.outbound_date = '2024-01-01'` sentinel** (280 rows) so the column is honestly NULL when delivery hasn't happened.
+
+The script wraps everything in a single transaction; if any step fails the whole backfill rolls back. After all steps run, the script asserts the preconditions PR 1.6 needs: 0 inventory rows with NULL `release_number_id`, 0 with NULL `sale_company_id`, 0 invoices with NULL `subtotal`, distinct `invoice_number` count = total invoice count.
 
 ### 3.6 New constraints / indexes
 
@@ -382,9 +394,9 @@ Eight phases, staged. Each phase is one or more PRs; each PR is mergeable to mai
 **Exit:** App builds and runs identically on Vite. All feature pages unchanged. Test commands work.
 
 ### Phase 1 — Schema 2.0 + Clients page
-**Goal:** New schema in prod with all 239 invoices and 656 inventory rows backfilled.
+**Goal:** New schema in prod with all 238 invoices (240 minus 2 orphan duplicates) and 656 inventory rows backfilled.
 - Drizzle migrations for all schema changes in [Section 3](#3-schema-20)
-- `scripts/migrate-data-v2.ts` with the seven backfill steps
+- `server/scripts/migrate-data-v2.ts` with the eight backfill steps
 - Drop legacy `releases` and `users` tables
 - New `/clients` page (rolodex + edit/create) with S&H rate defaults
 - Update all existing routes to use Drizzle and the renamed `clients` table
@@ -411,7 +423,7 @@ Eight phases, staged. Each phase is one or more PRs; each PR is mergeable to mai
 - `/invoices/:id` detail page with edit/regen/email/delete
 - Snapshot totals + tax-rate dropdown (state defaults)
 - PDF generation via Puppeteer + S3 upload
-- Historical re-render of 239 invoices through new template (one-off script under Phase 1 cutover, or backfilled here — TBD; safer here so we can manually verify)
+- Historical re-render of 238 invoices through new template (deferred from Phase 1; lands here once the Puppeteer pipeline exists so we can manually verify outputs)
 - Server-side invoice number sequencing with advisory lock
 - S&H month-end cron job + pending review queue
 - S&H invoice detail page (read-only, with Send button)
@@ -451,13 +463,16 @@ Eight phases, staged. Each phase is one or more PRs; each PR is mergeable to mai
 - Profile interaction redesign
 **Exit:** Spanish-only yard worker can do their full job. iPad usable in the yard.
 
-### Phase 7 — Hardware (printer + driver receipt)
-**Goal:** End-of-intake driver receipt prints to the A80 thermal printer.
-- **Prerequisite:** dedicated conversation about A80 spec sheet, connection options, possible hardware swap.
-- Driver receipt template (small format, thermal-optimized layout)
-- Print integration (likely browser-side ESC/POS via Web Bluetooth or a small native print bridge)
-- Optional: Twilio SMS fallback if printer unreliable
-**Exit:** Driver gets a printed receipt at end of intake.
+### Phase 7 — Driver receipt: triple-channel delivery (email + SMS + AirPrint)
+**Goal:** At outbound the driver gets the delivery sheet through whichever channels apply — email, SMS, paper. Admin picks per-driver in a single Send-to-Driver action.
+
+**Direction change 2026-05-18:** the original A80 thermal printer is the wrong hardware (FCC ID `2A6FW-A80` resolved to a Xiamen Print Future Technology A4 mobile document printer, not an 80mm POS receipt printer — no ESC/POS, no web SDK, takes 216mm letter-format thermal sheets). Apple Safari has no Web Bluetooth, so any Bluetooth thermal printer is also out from the iPad. New hardware path: **Star TSP654II AirPrint-24** (Apple-certified AirPrint, ethernet) + **GL.iNet GL-MT300N-V2 Mango** as a local-WiFi-only bridge (no internet uplink — printer + iPad on the same LAN, iPad continues to use cellular for internet, AirPrint over WiFi). Yard-coverage caveat: the steel-container Faraday-cage problem means the router has to be where the iPad and printer both live at print time. Phase 9.8 lands the print integration once hardware is on hand; 9.6 covers email + SMS without depending on the printer.
+
+- **Software side (lands in Phase 9.6 + 9.8):** see those PRs below.
+- **Hardware buying list (operator):** Star TSP654II AirPrint-24 (part `39481870`), GL.iNet Mango (`GL-MT300N-V2`), 80mm thermal paper, 5V/2A USB wall plug for the router. ~$300–500 all-in depending on new vs. refurbished printer.
+- **Twilio account + A2P 10DLC brand & campaign registration** (operator) — registration takes 2-5 business days to clear, kick off early so SMS can deliver in production by the time 9.6 lands.
+
+**Exit:** Operator hits one "Send to driver" action on the delivery sheet detail page; email + SMS go out automatically, and paper drops if the iPad is on the yard's local WiFi.
 
 ### Phase 8 — QuickBooks integration
 **Goal:** Selective one-way invoice push to QB.
@@ -466,6 +481,20 @@ Eight phases, staged. Each phase is one or more PRs; each PR is mergeable to mai
 - Idempotency: track `qb_invoice_id` per invoice so re-pushes update, not duplicate
 - Surface push errors in the UI
 **Exit:** User can selectively push invoices to QB.
+
+### Phase 9 — Standardization & admin presets
+**Goal:** Replace freetext size / damage with admin-managed picklists, give mod-presets default prices, clean up the invoice line description, harden OCR against common character confusions. Unblocked — can land in parallel with Phase 7 / Phase 8.
+
+- **PR 9.1 — Size + Damage preset tables.** New `size_presets` and `damage_presets` (id, label UNIQUE, position, created_at) shaped like `mod_presets`. Seed sizes: `10'DV`, `10'HC`, `20'DV`, `20'HC`, `40'DV`, `40'HC` (DV = dry van / standard, HC = high cube). Seed damage: `New`, `WWT` (wind & water tight), `As-is`. Two new Dashboard admin tabs (Container Sizes + Damage Types) mirror the Mod Presets tab CRUD (add / edit / reorder / delete; 23505 → 409 on duplicate label). Intake size / damage fields + `InventoryEditor` swap to `<input list>` sourced from the new tables (same pattern as mod descriptions). Size + damage stay `text` on `inventory` / `sh_inventory` — no FK — so a deleted preset doesn't strand historical rows; deleted presets just drop out of the dropdown. Backfill: migration script maps existing freetext to nearest preset, emits a CSV of unmatched values for user review, second pass writes the corrected mappings (same workflow as the Phase 1 address split). Hooks: `useSizePresetLabels()` / `useDamagePresetLabels()` mirror `useModPresetLabels()`.
+- **PR 9.2 — Mod-preset default prices.** Add `mod_presets.default_price numeric nullable`. Admin tab gains a price column with inline edit; POST/PUT accept the price. `CreateInvoice` + `InvoiceEditor` autofill `modification_price` when the user picks a preset (only when the field is empty so we don't clobber a typed value). `useModPresetLabels()` extends to return `{ label, default_price }` tuples.
+- **PR 9.3 — Invoice line description = `[Size] [Damage] [Unit#]`.** `format.ts:buildLineGroups` prepends size + damage (joined live from `inventory`) to the parent line's description (e.g. `20'DV WWT TCKU‑287291‑3`). The per-container line description / notes field on invoices is dropped from the template and from the `CreateInvoice` / `InvoiceEditor` UI. `inventory.notes` stays — yard staff still use it for non-invoice context. Legacy invoices re-render under the new format on next regen (size + damage join live from `inventory`, not snapshotted on `sold` — confirm at PR time that sale-time values stay readable). Deliver-To banner at the top of the invoice is unaffected.
+- **PR 9.4 — OCR character-disambiguation.** Current failure mode: Textract returns `O` for `0` (and 1/I, 5/S, 8/B confusions) on grimy / low-contrast container plates. `server/lib/textract.ts` adds a candidate-expansion pass — for the digit positions of ISO 6346 (5-10 + check digit), substitute common look-alikes (O→0, I/L→1, S→5, B→8, Z→2, G→6, T→7) and accept the first candidate that check-digit-validates; for the alpha prefix (positions 1-4), enforce position-4 = `U` (container category) regardless of Textract's read. Add a regression suite of raw Textract responses sampled from the failing images so future tweaks don't backslide.
+- **PR 9.5 — Invoice tombstone on delete.** DELETE keeps the row, sets `deleted_at`, clears `pdf_s3_key`, deletes invoice_containers, returns inventory to `available`. Keeps the YYYYMM sequence contiguous so the operator can see which numbers are intentionally vacant. UI: striped tile + "Deleted" badge in the grid, tombstone notice on detail page; PUT / regen-PDF / email all 409 on tombstoned invoices.
+- **PR 9.6 — Driver-receipt SMS + "Send to driver" flow.** New optional step in delivery-sheet creation captures driver contact (name / phone / email) into `reports.resolved_data`. ReportDetail (delivery_sheet only) gains a "Send to driver" modal with Email + SMS checkboxes (Print arrives in 9.8); each checkbox shows the captured contact and lets the operator confirm or override inline. If contact info wasn't captured at create-time, the modal prompts for it on first send. Server: Twilio integration in `server/lib/sms.ts`; new `POST /api/v2/report/:id/sms` admin-gated and gated to `report_type='delivery_sheet'`; new `report_receipt_links` table (`token`, `report_id`, `expires_at`, `accessed_at`, `revoked_at`) and a public unauthenticated `GET /r/:token` route that 302-redirects to a fresh presigned S3 URL for the delivery-sheet PDF. Each send generates a new token (old tokens stay valid until 30-day expiry). SMS body is single-segment (≤160 char): `Airtight: Delivery sheet for {unit}. https://airtightshippingcontainer.com/r/{token}` — no PII in the body so a wrong-number mis-send leaks only a generic phrase. Twilio account + A2P 10DLC operator-side prerequisite (see Phase 7). Migrations `0011_report_receipt_links.sql`, `0012_reports_sms_sent_at.sql`, and a delivery-sheet validation-schema update accepting the optional driver fields.
+- **PR 9.7 — Outbound state from the delivery sheet's date.** Container state flips `sold → outbound` from `delivery_sheet.outbound_date`, not from a discrete operator action. On delivery-sheet create / update, if `outbound_date <= today` and the linked container is `state='sold'`, eager-flip to `'outbound'`. A `node-cron` "0 5 * * *" daily job (same scaffold as Phase 3's S&H month-end) catches future-dated rows as they come due. One-way: once a container is `'outbound'`, editing the date back to the future does NOT revert it (physical boxes don't come back). One-shot backfill in the migration flips existing `'sold'` rows that have a past-dated delivery-sheet outbound. Removes the long-standing "Mark Outbound is gone; Phase 7 will stamp it" gap.
+- **PR 9.8 — AirPrint print channel.** Once Star TSP654II + Mango router are physically deployed: Send-to-Driver modal gains a Print checkbox, enabled when iPad is on the yard's local WiFi network (detected via a no-internet network heuristic + cached "this is the yard SSID" preference). Print path renders a receipt-format delivery-slip template (existing letter `DeliveryTemplate` adapted to 80mm-portrait CSS), calls `window.print()`, lets iOS show AirPrint picker, paper comes out. **Blocked on hardware arrival.**
+
+**Exit:** Size + Damage are picklists end-to-end with admin CRUD. Mod presets carry default prices that autofill. Invoice line items show `[Size] [Damage] [Unit#]` with the per-line notes column gone. OCR success on the regression set is materially up. Invoice deletes leave navigable placeholders. Drivers receive their delivery sheet via email / SMS / paper from one operator action; outbound state flips automatically from the delivery sheet's date.
 
 ---
 
@@ -483,6 +512,9 @@ Things we don't need to decide now but should resolve before they block:
 - **Three invoice template designs**: pitch in the Phase 3 PR description.
 - **P&L "labor cost" granularity**: single number per box is the plan. Confirm one more time when we wire the audit screen — easy to expand if you change your mind.
 - **Reports library extension**: design `report_type` to be enum-extensible. Future report ideas you have should land in this file as they come up.
+- **Admin-editable modification presets**: the per-modification line-item dropdown in the invoice editor + create flow currently uses a hard-coded list (Installation of Rollup Door, Paint Job, Installation of Man Door, Installation of Window — `client/src/components/forms/modificationPresets.ts`). Promote to a small `mod_presets` table with admin CRUD on the dashboard so Michelle can add / edit / remove without a deploy. Phase 5 dashboard work is the natural home. **Update 2026-05-16:** landed in Phase 5; Phase 9.2 extends with `default_price` for autofill.
+- **OCR regression sample collection** (Phase 9.4 prep): user has images where Textract misread `0` as `O` (and similar digit/alpha confusions). Collect the offending raw Textract responses + source images for the regression suite before opening 9.4. Keep them out of git — drop into `server/scripts/textract-fixtures/` (gitignored) and reference by hash in test names.
+- **Size + Damage preset values** (Phase 9.1): seed `10'DV`, `10'HC`, `20'DV`, `20'HC`, `40'DV`, `40'HC` for size; `New`, `WWT`, `As-is` for damage. DV = dry van (standard), HC = high cube. Admin can add / edit / remove from the dashboard after seed.
 
 ---
 

@@ -1,0 +1,139 @@
+{
+  "common": {
+    "back": "Atrás",
+    "next": "Siguiente",
+    "submit": "Enviar",
+    "submitting": "Enviando…",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "loading": "Cargando…",
+    "step_of": "{{step}} de {{total}}",
+    "page_of": "{{page}} / {{total}}",
+    "prev_arrow": "← Anterior",
+    "next_arrow": "Siguiente →"
+  },
+  "navbar": {
+    "yard_view": "Patio",
+    "add_a_box": "Agregar caja",
+    "help": "Ayuda",
+    "logout": "Cerrar sesión",
+    "guest": "Invitado",
+    "admin": "Admin",
+    "employee": "Empleado",
+    "toggle_dark": "Cambiar modo oscuro",
+    "language": "Idioma"
+  },
+  "intake": {
+    "page_title": "Agregar una caja",
+    "kind_heading": "¿Qué tipo de caja es?",
+    "kind_sales": "Venta",
+    "kind_sales_subtitle": "Una caja que compramos y revenderemos. Tiene número de release.",
+    "kind_storage": "Almacenaje",
+    "kind_storage_subtitle": "La caja de un cliente que estamos guardando en el patio.",
+    "release_unavailable": "Ese release ya no está disponible — elige otro.",
+    "logged_sales": "Caja registrada. Michelle la revisará antes de que esté disponible.",
+    "logged_sh": "Caja registrada. Michelle revisará las tarifas y la fecha de entrada antes de empezar a facturar."
+  },
+  "photo_step": {
+    "doors_heading": "Foto de las puertas",
+    "doors_intro": "Toma una foto clara de <strong>las puertas</strong>. Asegúrate de que los números de unidad pintados y la etiqueta blanca estén derechos y se lean bien. Puedes saltarla si no tienes cámara a mano.",
+    "others_heading": "Otras fotos",
+    "others_intro": "Opcional. Toma fotos de daños, el interior u otros ángulos que quieras guardar. Puedes agregar tantas como quieras, o tocar Siguiente para continuar.",
+    "take_doors": "Tomar foto de la puerta",
+    "retake_doors": "Tomar foto otra vez",
+    "take_photo": "Tomar una foto",
+    "add_another": "+ Agregar otra foto",
+    "uploading": "Subiendo…",
+    "upload_failed": "Falló",
+    "photo_alt": "Foto {{n}}",
+    "remove": "Quitar foto",
+    "ocr_failed": "No pudimos leer el número de unidad en esta foto. Escríbelo a mano en el siguiente paso."
+  },
+  "confirm_step": {
+    "heading": "Revisa el número de unidad",
+    "no_image": "No se proporcionó imagen. Escribe el número de unidad a mano abajo.",
+    "read_success": "Leímos <strong>{{unit}}</strong> de la foto (parece un <strong>{{size}}</strong>). Corrígelo abajo si no es correcto.",
+    "read_success_no_size": "Leímos <strong>{{unit}}</strong> de la foto. Corrígelo abajo si no es correcto.",
+    "read_failed": "No pudimos detectar un número de unidad en la foto. Escríbelo a mano abajo.",
+    "unit_label": "Número de unidad",
+    "unit_placeholder": "ej. TRHU2174232",
+    "matched_release": "Coincide con el release <strong>{{release}}</strong> ({{company}}). Lo llenaremos por ti en el siguiente paso.",
+    "matched_release_no_company": "Coincide con el release <strong>{{release}}</strong>. Lo llenaremos por ti en el siguiente paso.",
+    "camera_summary": "Lo que vio la cámara"
+  },
+  "sales_details": {
+    "heading": "Detalles del contenedor",
+    "unit": "Número de unidad",
+    "size": "Tamaño",
+    "size_placeholder": "20ft / 40ft / 40HC",
+    "damage": "Daño / condición",
+    "damage_placeholder": "Como está / abolladura menor en puerta trasera / etc.",
+    "release": "Release",
+    "release_placeholder": "Elige un release",
+    "release_option": "{{release}} ({{count}} restantes)",
+    "trucking": "Compañía transportista",
+    "trucking_placeholder": "Quién la trajo (opcional)",
+    "notes": "Notas",
+    "notes_placeholder": "Cualquier otra cosa que valga la pena anotar"
+  },
+  "sh_details": {
+    "heading": "Detalles de almacenaje",
+    "unit": "Número de unidad",
+    "customer": "Cliente",
+    "customer_placeholder": "Elige un cliente",
+    "size": "Tamaño",
+    "size_placeholder": "20ft / 40ft / 40HC",
+    "damage": "Daño / condición",
+    "damage_placeholder": "Como está / abolladura menor / etc.",
+    "notes": "Notas",
+    "notes_placeholder": "Cualquier otra cosa que valga la pena anotar"
+  },
+  "review": {
+    "heading": "¿Se ve bien?",
+    "sales_intro": "Toca Enviar y registramos esta caja. Michelle revisará los detalles y confirmará el precio antes de que esté disponible.",
+    "sh_intro": "Toca Enviar y registramos esta caja. Michelle revisará las tarifas y la fecha de entrada antes de empezar a facturar.",
+    "unit": "Número de unidad",
+    "size": "Tamaño",
+    "damage": "Daño",
+    "release": "Release",
+    "trucking": "Compañía transportista",
+    "notes": "Notas",
+    "customer": "Cliente"
+  },
+  "yard_view": {
+    "page_title": "Vista del patio",
+    "units_by_type": "Unidades por tipo",
+    "valid_releases": "Números de release válidos"
+  },
+  "outbounds": {
+    "available": "Unidades disponibles",
+    "held": "Unidades retenidas",
+    "sold": "Unidades vendidas",
+    "unit_number": "Número de unidad",
+    "size": "Tamaño",
+    "days_onsite": "Días en el patio",
+    "outbound": "Salida",
+    "release_num": "Release #",
+    "no_units": "Sin unidades.",
+    "load_error": "No se pudo cargar el inventario"
+  },
+  "sh_yard": {
+    "title": "Almacenaje",
+    "count": "{{count}} en el patio",
+    "empty": "No hay cajas de almacenaje en el patio.",
+    "days_on_yard_one": "{{days}} día en el patio",
+    "days_on_yard_other": "{{days}} días en el patio",
+    "check_out": "Sacar"
+  },
+  "releases_panel": {
+    "release_num": "Release #",
+    "box_count": "Cantidad de cajas",
+    "empty": "N/D",
+    "load_error": "No se pudieron cargar los números de release"
+  },
+  "help": {
+    "title": "Ayuda",
+    "lede": "Si algo no se ve bien o no estás seguro de qué hacer, pregúntale a Michelle. Te contestará rápido.",
+    "contact_heading": "Contacto"
+  }
+}

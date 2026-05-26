@@ -13,3 +13,28 @@ notepad.sql
 /package.json
 /package-lock.json
 out.txt
+
+# Phase 1 migration working files (regenerated each run; user-edited locally)
+server/scripts/migration-data/
+
+# Phase 2 PR 2.6: local OCR fixtures (real container photos; don't commit)
+server/tests/fixtures/*.jpg
+server/tests/fixtures/*.jpeg
+server/tests/fixtures/*.heic
+server/tests/fixtures/*.png
+
+# Playwright MCP local cache (snapshots, console logs, screenshots)
+.playwright-mcp/
+
+# Claude Code local config + agent worktrees (machine-local only)
+.claude/
+
+# Planning scratch — stays local, not version-controlled
+docs/agent_questions.md
+
+# Server-side template bundles. Emitted into server/ so each bundle's
+# `import "react"` resolves to server's node_modules at runtime —
+# see comment in server/lib/pdf.ts. Rebuilt by build:server-template
+# and build:report-templates in client/.
+server/template-dist/
+server/report-template-dist/

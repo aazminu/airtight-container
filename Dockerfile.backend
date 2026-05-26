@@ -1,7 +1,39 @@
+# --- Stage 1: build the SSR template bundles --------------------------
+# Vite library mode produces two server-consumable ESM + CSS bundles:
+#   server/template-dist/        — InvoiceTemplate (consumed by lib/pdf.ts)
+#   server/report-template-dist/ — ReportTemplate  (consumed by lib/report-pdf.ts)
+FROM node:20-alpine AS template-build
+WORKDIR /build/client
+COPY client/package.json client/package-lock.json* ./
+RUN npm ci
+COPY client/ ./
+# Vite configs write to ../server/{,report-}template-dist relative to
+# client/, so the sibling directory must exist before the builds run.
+RUN mkdir -p ../server
+RUN npm run build:server-template
+RUN npm run build:report-templates
+
+# --- Stage 2: backend runtime -----------------------------------------
 FROM node:20-alpine
+
+# Puppeteer needs system Chromium + a few font/lib deps. Skip the
+# bundled Chromium download — we point Puppeteer at the Alpine package.
+ENV PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+RUN apk add --no-cache \
+      chromium \
+      nss \
+      freetype \
+      freetype-dev \
+      harfbuzz \
+      ca-certificates \
+      ttf-freefont
+
 WORKDIR /app
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev
-COPY server/ .
+COPY server/ ./
+COPY --from=template-build /build/server/template-dist ./template-dist
+COPY --from=template-build /build/server/report-template-dist ./report-template-dist
 EXPOSE 3001
-CMD ["node", "server.js"]
+CMD ["npm", "start"]

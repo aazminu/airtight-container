@@ -2,7 +2,7 @@ import React from "react";
 import { useState, useEffect, useContext } from "react";
 import Bubble from "../Bubble";
 import exit from "../../assets/images/exithover.png";
-import { userContext } from "../../context/restaurantcontext";
+import { userContext } from "../../context/userContext";
 function ReleaseForm({ type, company, deleteCompany }) {
 	const { setPopup } = useContext(userContext);
 	const [releases, setReleases] = useState([]);

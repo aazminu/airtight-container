@@ -1,0 +1,151 @@
+/*
+ * Release summary styles. Brand atoms (sheet, header, parties, banner,
+ * footer, divider, section titles) live in templates/shared/.
+ */
+
+.summaryCards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 0.4in;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: #f4f1e6;
+  border: 1px solid #2a3142;
+  border-radius: 6px;
+}
+
+.cardLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 7.5pt;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5a6478;
+}
+
+.cardValue {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 18pt;
+  font-weight: 600;
+  color: #0a0e1a;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+
+.cardOver {
+  font-size: 11pt;
+  font-weight: 400;
+  color: #5a6478;
+}
+
+.cardSubtle {
+  font-size: 8pt;
+  color: #5a6478;
+}
+
+.progressBar {
+  width: 100%;
+  height: 6px;
+  background: #e3e2dc;
+  border-radius: 3px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: #0a0e1a;
+  transition: width 0.3s ease;
+}
+
+.empty {
+  padding: 24px;
+  text-align: center;
+  color: #5a6478;
+  font-style: italic;
+  font-size: 10pt;
+  border: 2px dashed #c3c1b9;
+  border-radius: 6px;
+  margin-bottom: 0.4in;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+  margin-bottom: 0.3in;
+}
+
+.table thead th {
+  text-align: left;
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  color: #5a6478;
+  padding: 7px 6px;
+  border-bottom: 1px solid #2a3142;
+}
+
+.table tbody td {
+  padding: 6px;
+  border-top: 1px solid #e3e2dc;
+  vertical-align: top;
+}
+
+.table tbody tr:first-child td {
+  border-top: 0;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 1px solid #2a3142;
+}
+
+.colUnit {
+  width: 16%;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8.5pt;
+}
+
+.colSize {
+  width: 8%;
+}
+
+.colCondition {
+  width: 14%;
+}
+
+.colState {
+  width: 12%;
+}
+
+.colIntake {
+  width: 12%;
+  font-variant-numeric: tabular-nums;
+}
+
+.colOut {
+  width: 12%;
+  font-variant-numeric: tabular-nums;
+}
+
+.colBuyer {
+  width: 26%;
+}
+
+.archivedFootnote {
+  margin: 0.25in 0 0.3in;
+  padding: 8px 12px;
+  border-left: 3px solid #5a6478;
+  background: #f4f1e6;
+  font-size: 8.5pt;
+  font-style: italic;
+  color: #2a3142;
+  line-height: 1.5;
+}

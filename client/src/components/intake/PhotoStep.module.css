@@ -1,0 +1,131 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.intro {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.intro strong {
+  color: var(--text-primary);
+}
+
+.captureRow {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.captureBtn {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 56px;
+  padding: 0.875rem 1rem;
+  border: 1px dashed var(--accent);
+  border-radius: 12px;
+  background: var(--bg-surface-2);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.captureBtn:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.captureBtn input[type='file'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.tile {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  aspect-ratio: 4 / 3;
+  background: var(--bg-surface-2);
+}
+
+.tile[data-role='primary'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tileRole {
+  position: absolute;
+  top: 0.375rem;
+  left: 0.375rem;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1875rem 0.5rem;
+  border-radius: 999px;
+}
+
+.tileRemove {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: 0;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+
+.tileRemove:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.uploading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.error {
+  color: var(--danger, #d1242f);
+  background: rgba(209, 36, 47, 0.08);
+  border: 1px solid rgba(209, 36, 47, 0.25);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}

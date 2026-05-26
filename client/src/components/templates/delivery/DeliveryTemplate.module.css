@@ -1,0 +1,166 @@
+/*
+ * Delivery-specific styles. Brand atoms (sheet, header, parties,
+ * banner, footer, divider, section titles, base table) live in
+ * client/src/components/templates/shared/sheet.module.css.
+ *
+ * Sized to fit one letter page even with all operator-entered fields
+ * filled in. Modifications are intentionally absent — they belong on
+ * the invoice, not the delivery receipt.
+ */
+
+.containerRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  padding: 14px 18px;
+  background: #f4f1e6;
+  border: 1px solid #2a3142;
+  border-radius: 6px;
+  margin-bottom: 0.22in;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.fieldLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 7.5pt;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #5a6478;
+}
+
+.fieldValue {
+  font-size: 10.5pt;
+  font-weight: 600;
+  color: #0a0e1a;
+  font-variant-numeric: tabular-nums;
+}
+
+.fieldValue.mono {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10pt;
+}
+
+.notesBlock {
+  margin: 0 0 0.22in;
+  padding: 10px 14px;
+  background: #f4f1e6;
+  border-left: 3px solid #0a0e1a;
+  font-size: 9pt;
+  line-height: 1.45;
+}
+
+.notesLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 8pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5a6478;
+  margin-bottom: 3px;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 22px;
+  row-gap: 4px;
+  margin: 0 0 0.18in;
+}
+
+.detailLine {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 0;
+  border-bottom: 1px solid #e3e2dc;
+}
+
+.detailLineLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 7.5pt;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5a6478;
+  margin: 0;
+}
+
+.detailLineValue {
+  margin: 0;
+  font-size: 9.5pt;
+  color: #0a0e1a;
+  word-break: break-word;
+}
+
+.pickupRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 0.22in;
+  padding: 8px 12px;
+  background: #f4f1e6;
+  border: 1px solid #2a3142;
+  border-radius: 6px;
+}
+
+.pickupLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 7.5pt;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5a6478;
+  flex-shrink: 0;
+}
+
+.pickupValue {
+  font-size: 9.5pt;
+  font-weight: 500;
+  color: #0a0e1a;
+}
+
+.disclaimer {
+  margin: 0.18in 0 0.16in;
+  padding: 6px 0;
+  font-size: 8pt;
+  font-style: italic;
+  text-align: center;
+  color: #0a0e1a;
+  letter-spacing: 0.02em;
+  border-top: 1px dashed #2a3142;
+  border-bottom: 1px dashed #2a3142;
+}
+
+.signatureRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.3in;
+  margin-top: auto;
+  margin-bottom: 0.3in;
+}
+
+.signatureField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.signatureLine {
+  border-bottom: 1px solid #0a0e1a;
+  height: 24px;
+}
+
+.signatureLabel {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 8pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0a0e1a;
+}

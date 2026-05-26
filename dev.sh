@@ -66,7 +66,7 @@ done
 
 # ── start frontend ───────────────────────────────────────────────────────────
 info "Starting frontend →  http://localhost:3000"
-(cd "$CLIENT" && BROWSER=none npm start 2>&1 | sed $'s/^/\033[35m[client]\033[0m /') &
+(cd "$CLIENT" && npm run dev 2>&1 | sed $'s/^/\033[35m[client]\033[0m /') &
 PIDS+=($!)
 
 info "Both processes running. Ctrl+C to stop."

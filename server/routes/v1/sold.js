@@ -37,6 +37,19 @@ router.get("/:unitNumber", checkEmployee, async (req, res) => {
 
 router.post("/", checkAdmin, async (req, res) => {
 	try {
+		// modification_price was previously DEFAULT 0; now nullable. Translate
+		// 0 / "" / missing → NULL so new rows match the post-backfill semantics
+		// ("not recorded" vs "we know it was free"). Phase 2 audit flow gives
+		// admins a proper way to record mod costs.
+		const modRaw = req.body.modification_price;
+		const modPrice =
+			modRaw === undefined ||
+			modRaw === null ||
+			modRaw === "" ||
+			Number(modRaw) === 0
+				? null
+				: modRaw;
+
 		await db.query(
 			"INSERT INTO sold (inventory_id, sold_date, destination, sale_price, release_number, trucking_rate, modification_price, invoice_notes) VALUES ($1, CURRENT_TIMESTAMP, $2, $3, $4, $5, $6, $7)",
 			[
@@ -45,7 +58,7 @@ router.post("/", checkAdmin, async (req, res) => {
 				req.body.sale_price,
 				req.body.release_number,
 				req.body.trucking_rate,
-				req.body.modification_price,
+				modPrice,
 				req.body.invoice_notes,
 			]
 		);

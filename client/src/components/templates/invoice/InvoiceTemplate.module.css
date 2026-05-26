@@ -1,0 +1,184 @@
+/*
+ * Invoice-specific styles. The brand atoms (sheet, header, parties,
+ * banner, footer, divider) live in
+ * client/src/components/templates/shared/sheet.module.css and are
+ * consumed via the components in templates/shared/index.tsx.
+ *
+ * This module only carries the items table + summary block, which are
+ * unique to the invoice doc shape.
+ */
+
+.items {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.35in;
+  font-size: 8.5pt;
+}
+
+.items thead th {
+  text-align: left;
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  color: #5a6478;
+  padding: 7px 6px;
+  border-bottom: 1px solid #2a3142;
+}
+
+.items thead .colPrice,
+.items thead .colTotal {
+  text-align: right;
+}
+
+.items tbody td {
+  padding: 6px 6px;
+  vertical-align: top;
+}
+
+.parentRow td {
+  border-top: 1px solid #e3e2dc;
+}
+
+.parentRow:first-child td {
+  border-top: 0;
+}
+
+.parentRow[data-has-subs='true'] td {
+  padding-bottom: 2px;
+}
+
+.subRow td {
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 7.75pt;
+  line-height: 1.15;
+  color: #5a6478;
+}
+
+.subRow[data-last='true'] td {
+  padding-bottom: 6px;
+}
+
+.subRow .colDesc {
+  padding-left: 22px;
+}
+
+.items tbody tr:last-child td {
+  border-bottom: 1px solid #2a3142;
+}
+
+.colN {
+  width: 5%;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7.5pt;
+  color: #5a6478;
+}
+
+.colQty { width: 4%; }
+.colDesc {
+  width: 60%;
+  text-wrap: pretty;
+  hyphens: none;
+}
+.colPrice { width: 14%; text-align: right; color: #5a6478; }
+.colTotal { width: 17%; text-align: right; font-weight: 500; }
+
+.summaryRow {
+  display: grid;
+  grid-template-columns: 1fr 2.4in;
+  gap: 0.55in;
+  margin-bottom: 0.5in;
+}
+
+.terms {
+  font-size: 8.5pt;
+  color: #5a6478;
+  line-height: 1.6;
+}
+
+.termsTitle {
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: #0a0e1a;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.terms p {
+  margin: 0;
+  max-width: 3.5in;
+}
+
+.terms strong {
+  font-weight: 700;
+  color: #0a0e1a;
+}
+
+.totals {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+}
+
+.totalLine {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 10pt;
+}
+
+.totalLine dt {
+  color: #5a6478;
+  font-weight: 500;
+}
+
+.totalLine dd {
+  margin: 0;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.grandTotal {
+  margin-top: 10px;
+  padding-top: 11px;
+  border-top: 1px solid #2a3142;
+  font-size: 14pt;
+}
+
+.grandTotal dt {
+  color: #0a0e1a;
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+  font-size: 12pt;
+}
+
+.grandTotal dd {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  font-size: 14pt;
+  font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  .items thead {
+    display: table-header-group;
+  }
+  .items tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .parentRow {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+  .summaryRow {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
