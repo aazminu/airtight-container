@@ -57,8 +57,12 @@ app.use(
 	})
 );
 
-// Better Auth must be mounted before express.json()
-app.all("/api/auth/*", authLimiter, toNodeHandler(auth));
+// Better Auth must be mounted before express.json().
+// Rate-limit only sign-in endpoints — the broader /api/auth/* tree
+// includes get-session, which the client hits on every page load,
+// so a blanket limiter locks legitimate users out within a few minutes.
+app.all("/api/auth/sign-in/*", authLimiter, toNodeHandler(auth));
+app.all("/api/auth/*", toNodeHandler(auth));
 
 app.use(express.json());
 
