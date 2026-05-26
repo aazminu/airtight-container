@@ -61,7 +61,7 @@ const makeInvoice = (over: Partial<InvoiceData> & { customer_id?: number }): Inv
 };
 
 const mockFetch = (invoices: InvoiceData[]) => {
-  return vi.spyOn(global, 'fetch').mockResolvedValue({
+  return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
     ok: true,
     status: 200,
     json: () =>
@@ -241,7 +241,7 @@ describe('InvoicesGrid', () => {
   });
 
   it('shows an error banner when the fetch fails', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: false,
       status: 500,
       json: () => Promise.resolve({}),
