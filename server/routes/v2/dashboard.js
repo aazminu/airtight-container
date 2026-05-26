@@ -9,6 +9,15 @@ const router = express.Router();
 const roleToPermissions = (role) => (role === "pending" ? "none" : role);
 const permissionsToRole = (perm) => (perm === "none" ? "pending" : perm);
 
+// Allowlist of role transitions an admin can apply. Without this guard
+// any string in req.body.new_permissions ends up in user.role — the
+// route used to write whatever was POSTed straight to the DB column,
+// which Better Auth's session/role gating then trusts. An attacker
+// admin could promote any user to any string ('superadmin', etc.) and
+// downstream role checks would silently fail-open against the unknown
+// label, or — worse — succeed against future role names we add later.
+const ALLOWED_PERMISSIONS = new Set(["none", "employee", "admin"]);
+
 router.get("/", checkAdmin, async (req, res) => {
 	try {
 		const results = await db.query(
@@ -31,13 +40,33 @@ router.get("/", checkAdmin, async (req, res) => {
 
 router.put("/:id", checkAdmin, async (req, res) => {
 	try {
-		const role = permissionsToRole(req.body.new_permissions);
+		const next = req.body?.new_permissions;
+		if (!ALLOWED_PERMISSIONS.has(next)) {
+			return res.status(400).json({
+				message: `new_permissions must be one of: ${[...ALLOWED_PERMISSIONS].join(", ")}`,
+			});
+		}
+		// Block self-demotion of the last admin — would leave the
+		// account roster without anyone who can promote new admins.
+		if (req.user?.id === req.params.id && next !== "admin") {
+			const { rows } = await db.query(
+				`SELECT COUNT(*)::int AS n FROM "user" WHERE role = 'admin'`,
+			);
+			if ((rows[0]?.n ?? 0) <= 1) {
+				return res.status(409).json({
+					message:
+						"Cannot demote the last remaining admin. Promote another user first.",
+				});
+			}
+		}
+		const role = permissionsToRole(next);
 		await db.query('UPDATE "user" SET role = $1 WHERE id = $2', [
 			role,
 			req.params.id,
 		]);
 		res.status(200).json({ status: "success" });
 	} catch (err) {
+		console.error("dashboard.put error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });

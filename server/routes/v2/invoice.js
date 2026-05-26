@@ -345,9 +345,25 @@ router.patch("/:id/status", checkAdmin, async (req, res) => {
 });
 
 // PR 3.4: send the current PDF to the customer (regenerating it first
-// if absent) and mark sent_at. BCCs the personal logging addresses
-// the owner has used historically.
-const SEND_BCC = ["vagabond7257@gmail.com", "hlynch02@tufts.edu"];
+// if absent) and mark sent_at. Internal BCC addresses (per
+// SEND_BCC env var, comma-separated) get a silent copy. Empty/unset
+// env var = no BCC, which is safer than baking addresses into source.
+const SEND_BCC = (process.env.SEND_BCC ?? "")
+	.split(",")
+	.map((s) => s.trim())
+	.filter(Boolean);
+
+// HTML-escape minimal entity set for interpolating user-controlled
+// strings (client names, etc.) into outbound email HTML. Prevents
+// stored XSS when a malicious client_name like "</p><script>..."
+// reaches a customer's inbox.
+const escapeHtml = (s) =>
+	String(s ?? "")
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
 
 router.post("/:id/email", checkAdmin, async (req, res) => {
 	const invoiceId = parseInt(req.params.id, 10);
@@ -384,8 +400,8 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 		const pdfBytes = await getInvoicePdfBytes(pdfKey);
 		const resend = new Resend(process.env.RESEND);
 		const subject = `Invoice #${inv.invoice_number} from Airtight Storage Systems`;
-		const html = `<p>Hi ${inv.client_name ?? ""},</p>
-			<p>Your invoice <strong>#${inv.invoice_number}</strong> is attached.</p>
+		const html = `<p>Hi ${escapeHtml(inv.client_name)},</p>
+			<p>Your invoice <strong>#${escapeHtml(inv.invoice_number)}</strong> is attached.</p>
 			<p>Thank you,<br/>Airtight Storage Systems</p>`;
 		const { data, error } = await resend.emails.send({
 			from: "Michelle <michelle@airtightstorage.com>",

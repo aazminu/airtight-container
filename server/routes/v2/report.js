@@ -63,9 +63,12 @@ const EMAIL_COPY = {
 	},
 };
 
-// BCC the operator's logging mailboxes on every outbound report (same
-// pattern the invoice email route uses).
-const SEND_BCC = ["vagabond7257@gmail.com", "hlynch02@tufts.edu"];
+// BCC the operator's logging mailboxes on every outbound report.
+// Comma-separated env var; empty/unset = no BCC.
+const SEND_BCC = (process.env.SEND_BCC ?? "")
+	.split(",")
+	.map((s) => s.trim())
+	.filter(Boolean);
 
 router.get("/", checkEmployee, async (req, res) => {
 	try {
