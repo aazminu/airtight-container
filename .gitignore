@@ -38,3 +38,6 @@ docs/agent_questions.md
 # and build:report-templates in client/.
 server/template-dist/
 server/report-template-dist/
+
+# Temp scratch (e.g. campaign form text); never commit.
+twilio.txt
