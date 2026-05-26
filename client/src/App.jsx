@@ -71,8 +71,6 @@ const App = () => {
 		)
 	);
 	const path = window.location.pathname;
-	const hideNav =
-		url.includes("form") || path === "/auth" || isPublicPath(path);
 	return (
 		<>
 			<Provider>
