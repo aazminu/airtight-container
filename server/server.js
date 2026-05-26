@@ -1,7 +1,6 @@
 import "dotenv/config";
 import { webcrypto } from "crypto";
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
-import { Resend } from "resend";
 import express from "express";
 import { toNodeHandler } from "better-auth/node";
 import rateLimit from "express-rate-limit";
@@ -9,7 +8,6 @@ import cors from "cors";
 import helmet from "helmet";
 import cron from "node-cron";
 import { auth } from "./auth.js";
-import { checkAuth } from "./middleware/auth.js";
 import soldRoute from "./routes/v1/sold.js";
 import inventoryRoute from "./routes/v1/inventory.js";
 import releaseRoute_2 from "./routes/v2/release.js";
@@ -33,12 +31,28 @@ const port = process.env.PORT;
 app.set("trust proxy", 1);
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
-const emailLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+
+// CORS allowlist guard. Fail-fast at boot: every cookie-authenticated
+// endpoint is reachable via cross-origin when credentials:true, so a
+// wildcard / missing / wrong CORS_ORIGIN would silently open the entire
+// API to attacker-origin scripts. Reject anything that isn't a single
+// http(s) origin string.
+const corsOrigin = process.env.CORS_ORIGIN;
+if (!corsOrigin || corsOrigin === "*" || corsOrigin.includes(",")) {
+	throw new Error(
+		`CORS_ORIGIN must be a single http(s) origin (got: ${JSON.stringify(corsOrigin)})`,
+	);
+}
+try {
+	new URL(corsOrigin);
+} catch {
+	throw new Error(`CORS_ORIGIN is not a valid URL: ${corsOrigin}`);
+}
 
 app.use(helmet());
 app.use(
 	cors({
-		origin: process.env.CORS_ORIGIN,
+		origin: corsOrigin,
 		credentials: true,
 	})
 );
@@ -68,24 +82,6 @@ app.use("/api/v2/damage-presets", damagePresetsRoute);
 // 128-bit token in the URL is the access credential. Mounted at /r,
 // outside the /api/* auth tree.
 app.use("/r", publicReceiptRoute);
-
-app.post("/api/v1/send", emailLimiter, checkAuth, async (req, res) => {
-	const resend = new Resend(process.env.RESEND);
-	const { to, subject, html, bcc } = req.body;
-	const { data, error } = await resend.emails.send({
-		from: "Michelle <michelle@airtightstorage.com>",
-		to: [to],
-		bcc: bcc,
-		subject: subject,
-		html: html,
-	});
-
-	if (error) {
-		console.log(error);
-		return res.status(400).json({ error });
-	}
-	res.status(200).json({ data });
-});
 
 // PR 3.6: S&H month-end cron. Runs at 01:00 on the 1st of each month,
 // billing the previous month. Disabled outside production by default —

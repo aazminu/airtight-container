@@ -10,7 +10,6 @@ Before touching anything, read **[docs/HANDOFF.md](docs/HANDOFF.md)**. It is the
 
 Other docs you may need:
 - **[docs/PLAN.md](docs/PLAN.md)** — full 2.0 implementation plan: scope, stack, schema rewrite, domain models, 8-phase PR plan. Source of truth for the rewrite.
-- **[docs/schema.psql](docs/schema.psql)** — `pg_dump --schema-only` of current prod (the legacy schema we're migrating from).
 - **[docs/V2_TODO.md](docs/V2_TODO.md)** — original spec; PLAN.md supersedes but the prose has context PLAN.md doesn't repeat.
 - **[docs/agent_questions.md](docs/agent_questions.md)** — historical Q&A from planning. Skim only if a decision feels under-justified.
 - **[docs/session-notes/](docs/session-notes/)** — archived per-session notes from before HANDOFF.md existed. Read-only history.

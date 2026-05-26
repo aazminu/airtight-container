@@ -35,5 +35,12 @@ RUN npm ci --omit=dev
 COPY server/ ./
 COPY --from=template-build /build/server/template-dist ./template-dist
 COPY --from=template-build /build/server/report-template-dist ./report-template-dist
+
+# Drop root. Puppeteer/Chromium runs fine as a non-root user; the only
+# thing that fails as non-root is the sandbox, but we set
+# --no-sandbox in lib/pdf.ts already.
+RUN addgroup -S app && adduser -S app -G app && chown -R app:app /app
+USER app
+
 EXPOSE 3001
 CMD ["npm", "start"]
