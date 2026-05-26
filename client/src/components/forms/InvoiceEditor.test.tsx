@@ -61,7 +61,7 @@ const baseInvoice = (over: Partial<InvoiceData> = {}): InvoiceData => ({
 // Dispatch fetch by URL so the various component-internal fetches all
 // get sensible empty responses without one polluting the other.
 const installFetchMock = () => {
-  vi.spyOn(global, 'fetch').mockImplementation((url) => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation((url: RequestInfo | URL) => {
     const u = typeof url === 'string' ? url : (url as Request).url;
     const empty = { status: 'success', data: { clients: [], inventory: [] } };
     return Promise.resolve({
