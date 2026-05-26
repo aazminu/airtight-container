@@ -42,10 +42,12 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           # Pin the host key from a secret instead of TOFU via
           # ssh-keyscan. Without this, a one-time MITM on the runner
-          # → EC2 path on any deploy can hand the attacker shell on
-          # the host. The secret should contain the literal known_hosts
-          # line, e.g. "ec2-1-2-3-4.compute.amazonaws.com ssh-ed25519 AAA...".
-          echo "${{ secrets.EC2_SSH_HOST_KEY }}" > ~/.ssh/known_hosts
+          # → EC2 path on any deploy hands the attacker shell on the
+          # host. The secret holds only the key (e.g.
+          # "ssh-ed25519 AAA...") — the hostname is concatenated from
+          # EC2_HOST below so the entry always matches whatever
+          # hostname the next line connects to.
+          echo "${{ secrets.EC2_HOST }} ${{ secrets.EC2_SSH_HOST_KEY }}" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
