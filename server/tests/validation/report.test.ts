@@ -132,7 +132,7 @@ describe('createReportSchema', () => {
       },
     });
     expect(r.success).toBe(true);
-    if (r.success) {
+    if (r.success && r.data.report_type === 'delivery_sheet') {
       expect(r.data.parameters.driver_contact?.email).toBe(null);
     }
   });
