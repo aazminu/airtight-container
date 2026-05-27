@@ -12,20 +12,29 @@ Next obvious moves: resubmit Twilio A2P 10DLC campaign with the new public URLs,
 
 **In flight (2026-05-27): physical-audit inventory cleanup — DEFERRED to tonight.** Operator did a full yard audit (ground truth), we reconciled it against prod `inventory`. Migration deferred so operator can re-audit outside business hours; rule: rows created after **2026-05-26 15:04 EST** count as onsite. Findings + destructive-migration plan in [docs/AUDIT_MIGRATION.md](AUDIT_MIGRATION.md); big operator-meeting backlog in [PLAN.md §8](PLAN.md#8-open-follow-ups-for-implementation-time). **When resuming the migration:** re-run `audit-cleanup-investigate.sql` after the re-audit, resolve D1–D5 in AUDIT_MIGRATION.md, then write the transactional destructive SQL. Nothing run against prod yet — read-only diffs only. S&H month-end cron confirmed not active in prod (no S&H boxes yet; fine).
 
-**Structural batch (2026-05-27) — built on branch `phase-struct/structural-batch` (off `2.0`, NOT pushed, NOT merged to `2.0`/`main`). Awaiting operator test.** Client + server tsc clean (server holds at its pre-existing 3-error baseline: `outbound-from-delivery.ts`, `invoice-ops.test.ts`, `report.test.ts`). All verified against the local mirror only.
-- **DONE — clean container deletion.** Available-only, transactional, reopens the release slot. Verified end-to-end via Playwright (delete frees the slot; sold/hold→409; missing→404).
-- **DONE — outbound flow** (operator priority):
-  - `ATYYYYMM###` delivery-sheet numbering: **migration 0016** (column + unique partial index + backfill), advisory-lock sequencer (`server/lib/delivery-sheet-number.ts`), allocated on delivery-sheet create + stamped into `resolved_data`. **0016 applied to LOCAL mirror only — NOT run on prod.**
-  - Receipt-print = outbound: `POST /api/v2/report/:id/complete-pickup` flips `sold→outbound` + stamps `outbound_date=now`; date-based auto-flip cron kept as fallback.
-  - `/outbound` screen (nav link added): search by AT#, confirm, "Mark picked up & print receipt"; `GET /api/v2/report/by-number/:number` lookup. Driver SMS left to the delivery-sheet detail page (owns A2P consent). Verified end-to-end (create→AT202605001→lookup→complete-pickup→outbound; idempotent; screen renders).
-  - Outbound date removed from the invoice editor; **invoice UPSERT no longer writes `sold.outbound_date`** (was clobbering it on every edit).
-- **DONE — client-form domain** (merged from agent worktree): email optional on add-client + empty-string→null coercion; phone normalization to `XXX-XXX-XXXX [EXT. …]` + one-shot `server/scripts/normalize-phones.ts` (**written, NOT run**).
-- **DONE — invoice-PDF domain** (merged from agent worktree): emailed invoice PDF now includes modification line items (server joins `sold_modifications`; always re-renders on send); new `GET /api/v2/invoice/:id/pdf` "Download PDF" button. **Needs a visual spot-check** of a multi-mod invoice PDF (couldn't render Puppeteer without S3 creds).
-- **Before merging to `2.0`:** apply migration 0016 to prod; visual-check the invoice PDF mods; consider running `normalize-phones.ts --apply`. Two stale agent worktree branches (`worktree-agent-*`) can be pruned. A third worktree `worktree-agent-a9f346f98e443245e` was NOT created by this session — leave it.
+**Structural batch (2026-05-27) — branch `phase-struct/structural-batch` (off `2.0`, NOT pushed/merged). For tonight's prod cut.** Client tsc clean; server holds at its pre-existing 3-error baseline (`outbound-from-delivery.ts`, `invoice-ops.test.ts`, `report.test.ts`). Verified against the local mirror.
 
-**Deferred (called out, not built):** Google Places address autofill (needs `GOOGLE_MAPS_API_KEY`); delivery-sheet-as-invoice-extension redesign + per-box delivery address + trucking-company entity (large interrelated epic, overlaps tonight's migration); Quote document type; S&H free/flat billing (ride with S&H onboarding); unit-number display/format (waits on migration decision D4); toast/verbosity sweep (touches every catch block — dedicated pass).
+**DEPLOY CHECKLIST for tonight (apply in order, alongside the audit migration):**
+- **Migrations to run on prod (in `server/db/migrations/`, none run on prod yet):** `0016` (delivery-sheet AT number), `0017` (trucking_companies + invoice ship-to + per-box `sold` delivery cols), `0018` (quotes tables). All idempotent (`IF NOT EXISTS`), all applied + verified on the local mirror.
+- **Build change:** `Dockerfile.backend` now runs `npm run build:quote-template` (new quote PDF bundle, `client/vite.config.quote-template.ts`). **Watch the deploy build** — if it fails, the quote PDF route is the only thing affected.
+- **Visual spot-checks after deploy:** a multi-mod invoice PDF (mods render), a quote PDF, and a delivery sheet showing the per-box address/orientation/carrier.
+- Optional: run `server/scripts/normalize-phones.ts --apply` (phone backfill, written but not run).
 
-Unit-number normalization spec refined (strict `LLLL ######-#`, accommodate no-check-digit + single-digit TS boxes, backfill) — folded into AUDIT_MIGRATION.md.
+**DONE + verified:**
+- **Clean container deletion** — available-only, reopens release slot. Playwright-verified.
+- **Outbound flow** — AT numbering (0016) + `POST /report/:id/complete-pickup` (sold→outbound, date-based cron kept as fallback) + `/outbound` screen + `GET /report/by-number/:n`. Verified end-to-end. Also fixed a pre-existing delivery-stepper bug (created before preview / stuck on preview).
+- **Delivery epic** (sheets-as-invoice-extensions): `trucking_companies` entity (0017, backfilled), invoice ship-to + per-box `sold` delivery cols, delivery UI in the invoice **create** flow (ship-to cascade, trucking dropdown + inline add, door-orientation datalist, per-box address), invoice-ops persistence, **delivery-wipe fix** in `InvoiceDetail.handleSave` (round-trips ship-to + per-box delivery), Make-Delivery-Sheet button on the invoice, report-menu delivery option retired (route kept), and the delivery resolver/template now pulls per-box address + orientation + carrier. **Verified end-to-end via API:** invoice PUT persists delivery → delivery sheet resolves address/orientation/trucking + AT number.
+- **Quote domain** (0018) — tables, `Q-YYYYMM-NNNN` numbering, CRUD, separate "Quote" PDF, list/detail/create UI, nav link. Merged.
+- **Invoice-PDF** (mods in emailed PDF + Download button) and **client-form** (optional email + phone normalization) — merged.
+- **Outbound date** removed from the invoice flow; invoice-ops no longer writes `sold.outbound_date`.
+
+**Deferred fast-follows (not in tonight unless asked):**
+- **InvoiceEditor delivery EDIT UI** — the create flow captures delivery and the editor no longer wipes it (round-trips), but there's no in-editor UI yet to *change* delivery on an existing invoice.
+- **Quote promote-to-invoice** — stubbed (`TODO(promote-to-invoice)` in `routes/v2/quote.js`); design-heavy (free-text quote lines → container invoice lines). Quote works standalone.
+- Google Places autofill (needs `GOOGLE_MAPS_API_KEY` — operator filling later); CurrencyInput primitive; dirty-form guards; inline "+ New Client"; email-on-send contact_email backfill; toast/verbosity sweep; unit-number display/format (waits on AUDIT_MIGRATION D4).
+- Several `worktree-agent-*` branches are merged and their worktrees can be pruned; `worktree-agent-a9f346f98e443245e` was not from this session — leave it.
+
+Unit-number normalization spec refined (strict `LLLL ######-#`, no-check-digit + single-digit TS boxes, backfill) — in AUDIT_MIGRATION.md.
 
 ---
 
