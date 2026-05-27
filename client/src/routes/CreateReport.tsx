@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Badge, Button, Flow, FlowStep, Stepper } from '../components/ui';
 import DeliveryTemplate from '../components/templates/delivery/DeliveryTemplate';
 import type { DeliveryData } from '../components/templates/delivery/types';
@@ -41,6 +41,12 @@ const TYPES: ReportType[] = [
   'release_summary',
 ];
 
+// Delivery sheets are reached from the "Make delivery sheet" button on an
+// invoice (scoped to a specific container), not the generic report picker.
+// The /reports/new/delivery_sheet route stays valid — it's just not an
+// option on the type-chooser menu.
+const PICKABLE_TYPES: ReportType[] = TYPES.filter((t) => t !== 'delivery_sheet');
+
 function isReportType(v: string | undefined): v is ReportType {
   return v != null && (TYPES as string[]).includes(v);
 }
@@ -57,7 +63,7 @@ export default function CreateReport() {
           <p className={styles.pickerSubtitle}>What kind of report?</p>
         </header>
         <div className={styles.picker}>
-          {TYPES.map((t) => (
+          {PICKABLE_TYPES.map((t) => (
             <Link key={t} to={`/reports/new/${t}`} className={styles.pickerCard}>
               <div className={styles.pickerLabel}>{TYPE_LABELS[t]}</div>
               <p className={styles.pickerDesc}>{TYPE_DESCRIPTIONS[t]}</p>
@@ -269,11 +275,26 @@ const NO_INVOICE_MARKER = 'has no invoice and no client_id';
 
 function DeliveryFlow() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
+  const [searchParams] = useSearchParams();
+  // Invoice-detail's "Make delivery sheet" button deep-links here with
+  // ?container_id=<id> (the sales container). When present we preselect
+  // it and skip the picker so the operator lands on the Customer step.
+  const prefillContainerId = useMemo(() => {
+    const raw = searchParams.get('container_id');
+    if (raw == null) return null;
+    const n = parseInt(raw, 10);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  }, [searchParams]);
+
+  const [step, setStep] = useState(prefillContainerId != null ? 1 : 0);
   const [options, setOptions] = useState<PickerOption[]>([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [containerSearch, setContainerSearch] = useState('');
-  const [params, setParams] = useState<DeliveryParamState>(EMPTY_DELIVERY);
+  const [params, setParams] = useState<DeliveryParamState>(
+    prefillContainerId != null
+      ? { ...EMPTY_DELIVERY, container_id: prefillContainerId }
+      : EMPTY_DELIVERY,
+  );
 
   const [preview, setPreview] = useState<DeliveryData | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -411,6 +432,16 @@ function DeliveryFlow() {
     }
   };
 
+  // When deep-linked from an invoice we skip the picker, so the Customer
+  // step's normal "resolve on entry" (goNext → fetchPreview) never runs.
+  // Kick off one preview for the prefilled container on mount.
+  useEffect(() => {
+    if (prefillContainerId != null) {
+      void fetchPreview();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updateField = <K extends keyof DeliveryParamState>(
     key: K,
     value: DeliveryParamState[K],
@@ -454,7 +485,7 @@ function DeliveryFlow() {
       return;
     }
     setSubmitState({ kind: 'done', id: result.id });
-    setStep(4);
+    setStep(5);
   };
 
   return (
@@ -855,7 +886,7 @@ function DeliveryFlow() {
         </Flow>
       </div>
 
-      {step < 4 && (
+      {step < 5 && (
         <div className={styles.actions}>
           <Button
             variant="secondary"
@@ -865,7 +896,7 @@ function DeliveryFlow() {
             ← Back
           </Button>
           <div className={styles.actionsRight}>
-            {step === 3 ? (
+            {step === 4 ? (
               <Button
                 onClick={submit}
                 disabled={submitState.kind === 'submitting' || !preview}

@@ -12,6 +12,16 @@ import {
 import type { DeliveryData } from './types';
 import styles from './DeliveryTemplate.module.css';
 
+// Flatten the resolved carrier of record into the single DetailLine the
+// delivery block expects. Dispatch name/phone trail the company so the
+// driver reads "Carrier · Dispatcher · phone". Returns null (→ "—") when
+// no carrier is assigned on the sold row.
+const truckingValue = (t: DeliveryData['trucking']): string | null => {
+  if (!t) return null;
+  const dispatch = [t.dispatch_name, t.dispatch_phone].filter(Boolean).join(' · ');
+  return dispatch ? `${t.company_name} · ${dispatch}` : t.company_name;
+};
+
 const fmtDate = (iso: string | null): string => {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-US', {
@@ -100,6 +110,10 @@ export default function DeliveryTemplate({ data }: { data: DeliveryData }) {
       <SectionTitle>Delivery</SectionTitle>
 
       <dl className={styles.detailGrid}>
+        <DetailLine
+          label="Trucking company"
+          value={truckingValue(data.trucking)}
+        />
         <DetailLine label="Delivery company" value={data.delivery_company} />
         <DetailLine label="On-site contact" value={data.onsite_contact} />
         <DetailLine
