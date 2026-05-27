@@ -26,6 +26,15 @@ export interface IncomingContainer {
   modification_price?: string | number | null;
   destination?: string | null;
   invoice_notes?: string | null;
+  // Per-container delivery (migration 0017). The UI cascades defaults from
+  // the invoice ship-to; these are the resolved per-box values.
+  outbound_trucking_company_id?: number | null;
+  door_orientation?: string | null;
+  delivery_name?: string | null;
+  delivery_street?: string | null;
+  delivery_city?: string | null;
+  delivery_state?: string | null;
+  delivery_zip?: string | null;
   modifications?: IncomingModification[];
 }
 
@@ -36,6 +45,14 @@ export interface UpdateInvoiceBody {
   invoice_date?: string;
   tax_rate?: string | number | null;
   cc_fee_rate?: string | number | null;
+  // Invoice-level ship-to (migration 0017). Defaults to the client's
+  // billing address when ship_to_same_as_billing is true.
+  ship_to_same_as_billing?: boolean;
+  ship_to_name?: string | null;
+  ship_to_street?: string | null;
+  ship_to_city?: string | null;
+  ship_to_state?: string | null;
+  ship_to_zip?: string | null;
   containers: IncomingContainer[];
 }
 
@@ -183,8 +200,14 @@ export async function updateInvoiceFull(
          invoice_credit = COALESCE($3, invoice_credit),
          invoice_date = COALESCE($4, invoice_date),
          tax_rate = $5,
-         cc_fee_rate = $6
-     WHERE invoice_id = $7`,
+         cc_fee_rate = $6,
+         ship_to_same_as_billing = COALESCE($7, ship_to_same_as_billing),
+         ship_to_name = $8,
+         ship_to_street = $9,
+         ship_to_city = $10,
+         ship_to_state = $11,
+         ship_to_zip = $12
+     WHERE invoice_id = $13`,
     [
       body.client_id ?? null,
       body.invoice_taxed ?? null,
@@ -192,6 +215,12 @@ export async function updateInvoiceFull(
       body.invoice_date ?? null,
       body.tax_rate ?? null,
       body.cc_fee_rate ?? null,
+      body.ship_to_same_as_billing ?? null,
+      body.ship_to_name ?? null,
+      body.ship_to_street ?? null,
+      body.ship_to_city ?? null,
+      body.ship_to_state ?? null,
+      body.ship_to_zip ?? null,
       invoiceId,
     ],
   );
@@ -241,14 +270,24 @@ export async function updateInvoiceFull(
     // invoice path would clobber a real pickup date on every invoice edit.
     await client.query(
       `INSERT INTO sold (inventory_id, sale_price, trucking_rate,
-                         modification_price, destination, invoice_notes)
-       VALUES ($1, $2, $3, $4, $5, $6)
+                         modification_price, destination, invoice_notes,
+                         outbound_trucking_company_id, door_orientation,
+                         delivery_name, delivery_street, delivery_city,
+                         delivery_state, delivery_zip)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        ON CONFLICT (inventory_id) DO UPDATE SET
          sale_price = EXCLUDED.sale_price,
          trucking_rate = EXCLUDED.trucking_rate,
          modification_price = EXCLUDED.modification_price,
          destination = EXCLUDED.destination,
-         invoice_notes = EXCLUDED.invoice_notes`,
+         invoice_notes = EXCLUDED.invoice_notes,
+         outbound_trucking_company_id = EXCLUDED.outbound_trucking_company_id,
+         door_orientation = EXCLUDED.door_orientation,
+         delivery_name = EXCLUDED.delivery_name,
+         delivery_street = EXCLUDED.delivery_street,
+         delivery_city = EXCLUDED.delivery_city,
+         delivery_state = EXCLUDED.delivery_state,
+         delivery_zip = EXCLUDED.delivery_zip`,
       [
         ct.inventory_id,
         ct.sale_price ?? null,
@@ -256,6 +295,13 @@ export async function updateInvoiceFull(
         ct.modification_price ?? null,
         ct.destination ?? null,
         ct.invoice_notes ?? null,
+        ct.outbound_trucking_company_id ?? null,
+        ct.door_orientation ?? null,
+        ct.delivery_name ?? null,
+        ct.delivery_street ?? null,
+        ct.delivery_city ?? null,
+        ct.delivery_state ?? null,
+        ct.delivery_zip ?? null,
       ],
     );
 

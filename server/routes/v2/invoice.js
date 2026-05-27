@@ -49,6 +49,12 @@ const groupInvoices = (data) => {
 				cc_fee_rate: row.cc_fee_rate,
 				cc_fee_amount: row.cc_fee_amount,
 				total: row.total,
+				ship_to_same_as_billing: row.ship_to_same_as_billing,
+				ship_to_name: row.ship_to_name,
+				ship_to_street: row.ship_to_street,
+				ship_to_city: row.ship_to_city,
+				ship_to_state: row.ship_to_state,
+				ship_to_zip: row.ship_to_zip,
 				customer: {
 					contact_id: row.client_id,
 					contact_name: row.client_name,
@@ -84,6 +90,13 @@ const groupInvoices = (data) => {
 				modification_price: row.modification_price,
 				outbound_date: row.outbound_date,
 				invoice_notes: row.invoice_notes,
+				outbound_trucking_company_id: row.outbound_trucking_company_id,
+				door_orientation: row.door_orientation,
+				delivery_name: row.delivery_name,
+				delivery_street: row.delivery_street,
+				delivery_city: row.delivery_city,
+				delivery_state: row.delivery_state,
+				delivery_zip: row.delivery_zip,
 				modifications: [],
 			});
 		}
@@ -123,11 +136,15 @@ const INVOICE_SELECT_COLS = `
 	i.subtotal, i.tax_rate, i.tax_amount, i.cc_fee_rate, i.cc_fee_amount, i.total,
 	i.pdf_s3_key, i.sent_at, i.deleted_at, i.client_id,
 	i.status, i.status_changed_at, i.status_changed_by_user_id,
+	i.ship_to_same_as_billing, i.ship_to_name, i.ship_to_street,
+	i.ship_to_city, i.ship_to_state, i.ship_to_zip,
 	cl.client_name, cl.business_name, cl.contact_email, cl.contact_phone,
 	cl.street, cl.city, cl.state AS client_state, cl.zip,
 	ct.id AS container_id, ct.unit_number, ct.size, ct.damage, ct.state AS inventory_state,
 	sc.id AS sold_id, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price,
-	sc.modification_price, sc.invoice_notes
+	sc.modification_price, sc.invoice_notes,
+	sc.outbound_trucking_company_id, sc.door_orientation,
+	sc.delivery_name, sc.delivery_street, sc.delivery_city, sc.delivery_state, sc.delivery_zip
 `;
 
 // LEFT JOINs throughout: tombstoned invoices have their invoice_containers
