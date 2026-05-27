@@ -59,6 +59,17 @@ export interface DeliveryData {
   /** How (and whether) the driver collects payment on delivery. */
   payment_details: string | null;
 
+  /** Outbound carrier of record from the delivery epic (resolved from
+   *  sold.outbound_trucking_company_id → trucking_companies). Distinct
+   *  from the operator-typed delivery_company free-text above; null when
+   *  the sold row has no carrier assigned. */
+  trucking: {
+    company_name: string;
+    dispatch_name: string | null;
+    dispatch_phone: string | null;
+    dispatch_email: string | null;
+  } | null;
+
   /** Free-text receipt note. Defaults to sold.invoice_notes at form
    *  time; operator can override. Rendered as the top "DELIVERY
    *  RECEIPT:" line on the legacy doc. */
