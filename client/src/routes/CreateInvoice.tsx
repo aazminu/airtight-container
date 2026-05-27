@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Button, CurrencyInput, Flow, FlowStep, Stepper } from '../components/ui';
+import { AddClientModal } from '../components/forms/AddClientModal';
 import InvoiceTemplate from '../components/templates/invoice/InvoiceTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/invoice/format';
 import type {
@@ -142,6 +143,7 @@ export default function CreateInvoice() {
   const [clientSearch, setClientSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
+  const [addClientOpen, setAddClientOpen] = useState(false);
   const [drafts, setDrafts] = useState<Record<number, ContainerDraft>>({});
   const [invoiceTaxed, setInvoiceTaxed] = useState(false);
   const [invoiceCredit, setInvoiceCredit] = useState(false);
@@ -701,6 +703,22 @@ export default function CreateInvoice() {
               value={clientSearch}
               onChange={(e) => setClientSearch(e.target.value)}
               placeholder="Search name, business, email, city…"
+            />
+            <button
+              type="button"
+              className={styles.linkBtn}
+              onClick={() => setAddClientOpen(true)}
+            >
+              + New client
+            </button>
+            <AddClientModal
+              open={addClientOpen}
+              onClose={() => setAddClientOpen(false)}
+              onCreated={(client) => {
+                const row = client as unknown as ClientRow;
+                setClients((cs) => [row, ...cs]);
+                setSelectedClient(row);
+              }}
             />
             <div className={styles.list}>
               {filteredClients.length === 0 && (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Button, Flow, FlowStep, Stepper } from '../components/ui';
+import { AddClientModal } from '../components/forms/AddClientModal';
 import QuoteTemplate from '../components/templates/quote/QuoteTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/quote/format';
 import type {
@@ -80,6 +81,7 @@ export default function CreateQuote() {
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
+  const [addClientOpen, setAddClientOpen] = useState(false);
   const [lines, setLines] = useState<LineDraft[]>([blankLine()]);
   const [notes, setNotes] = useState('');
   const [quoteTaxed, setQuoteTaxed] = useState(false);
@@ -383,6 +385,22 @@ export default function CreateQuote() {
               value={clientSearch}
               onChange={(e) => setClientSearch(e.target.value)}
               placeholder="Search name, business, email, city…"
+            />
+            <button
+              type="button"
+              className={styles.linkBtn}
+              onClick={() => setAddClientOpen(true)}
+            >
+              + New client
+            </button>
+            <AddClientModal
+              open={addClientOpen}
+              onClose={() => setAddClientOpen(false)}
+              onCreated={(client) => {
+                const row = client as unknown as ClientRow;
+                setClients((cs) => [row, ...cs]);
+                setSelectedClient(row);
+              }}
             />
             <div className={styles.list}>
               {filteredClients.length === 0 && (
