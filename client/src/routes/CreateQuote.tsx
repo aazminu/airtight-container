@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Button, Flow, FlowStep, Stepper } from '../components/ui';
 import { AddClientModal } from '../components/forms/AddClientModal';
+import { useDirtyForm } from '../lib/useDirtyForm';
 import QuoteTemplate from '../components/templates/quote/QuoteTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/quote/format';
 import type {
@@ -97,6 +98,10 @@ export default function CreateQuote() {
     | { kind: 'error'; message: string }
     | { kind: 'done'; id: number; quote_number: string }
   >({ kind: 'idle' });
+  useDirtyForm(
+    submitState.kind !== 'done' &&
+      (selectedClient !== null || notes.trim() !== ''),
+  );
 
   useEffect(() => {
     (async () => {

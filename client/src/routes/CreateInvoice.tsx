@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Button, CurrencyInput, Flow, FlowStep, Stepper } from '../components/ui';
 import { AddClientModal } from '../components/forms/AddClientModal';
+import { useDirtyForm } from '../lib/useDirtyForm';
 import InvoiceTemplate from '../components/templates/invoice/InvoiceTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/invoice/format';
 import type {
@@ -173,6 +174,10 @@ export default function CreateInvoice() {
     | { kind: 'error'; message: string }
     | { kind: 'done'; id: number; invoice_number: number }
   >({ kind: 'idle' });
+  useDirtyForm(
+    submitState.kind !== 'done' &&
+      (selectedIds.length > 0 || selectedClient !== null),
+  );
 
   const loadTruckingCompanies = async () => {
     try {
