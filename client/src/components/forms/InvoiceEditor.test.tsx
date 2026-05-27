@@ -244,7 +244,8 @@ describe('InvoiceEditor', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(onSave).toHaveBeenCalledOnce();
     const draft = onSave.mock.calls[0][0] as InvoiceData;
-    expect(draft.containers[0].sale_price).toBe('9000');
+    // CurrencyInput normalizes to 2 decimal places on blur.
+    expect(draft.containers[0].sale_price).toBe('9000.00');
   });
 
   it('removing the only container shows the "No containers" warning', async () => {
