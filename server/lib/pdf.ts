@@ -96,7 +96,8 @@ const INVOICE_SELECT = `
   cl.client_name, cl.business_name, cl.contact_email, cl.contact_phone,
   cl.street, cl.city, cl.state AS client_state, cl.zip,
   ct.id AS container_id, ct.unit_number, ct.size, ct.damage, ct.state AS inventory_state,
-  sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price, sc.modification_price, sc.invoice_notes
+  sc.id AS sold_id, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price,
+  sc.modification_price, sc.invoice_notes
 `;
 
 interface InvoiceData {
@@ -124,6 +125,7 @@ interface InvoiceData {
   };
   containers: Array<{
     inventory_id: number;
+    sold_id: number | null;
     unit_number: string;
     state: string;
     size: string;
@@ -134,7 +136,16 @@ interface InvoiceData {
     modification_price: string | null;
     outbound_date: string | null;
     invoice_notes: string | null;
+    modifications: InvoiceModification[];
   }>;
+}
+
+interface InvoiceModification {
+  id: number;
+  sold_id: number;
+  description: string;
+  price: string;
+  position: number;
 }
 
 async function fetchInvoiceData(invoiceId: number): Promise<InvoiceData | null> {
@@ -153,7 +164,7 @@ async function fetchInvoiceData(invoiceId: number): Promise<InvoiceData | null> 
   const rows = result.rows as any[];
   if (rows.length === 0) return null;
   const first = rows[0];
-  return {
+  const data: InvoiceData = {
     invoice_id: first.invoice_id,
     invoice_number: first.invoice_number,
     invoice_taxed: first.invoice_taxed,
@@ -178,6 +189,7 @@ async function fetchInvoiceData(invoiceId: number): Promise<InvoiceData | null> 
     },
     containers: rows.map((r) => ({
       inventory_id: r.container_id,
+      sold_id: r.sold_id,
       unit_number: r.unit_number,
       state: r.inventory_state,
       size: r.size,
@@ -188,8 +200,35 @@ async function fetchInvoiceData(invoiceId: number): Promise<InvoiceData | null> 
       modification_price: r.modification_price,
       outbound_date: r.outbound_date,
       invoice_notes: r.invoice_notes,
+      modifications: [],
     })),
   };
+  // Attach per-modification line items in one IN-list query (not N+1),
+  // mirroring attachModifications() in routes/v2/invoice.js. The template
+  // renders these as sub-rows; without them the PDF falls back to the
+  // legacy sold.modification_price scalar and shows no per-mod breakdown.
+  const soldIds = data.containers
+    .map((c) => c.sold_id)
+    .filter((id): id is number => id != null);
+  if (soldIds.length > 0) {
+    const modResult = await db.query(
+      `SELECT id, sold_id, description, price, position
+       FROM sold_modifications
+       WHERE sold_id = ANY($1::int[])
+       ORDER BY sold_id, position, id`,
+      [soldIds],
+    );
+    const bySold = new Map<number, InvoiceModification[]>();
+    const modRows = modResult.rows as unknown as InvoiceModification[];
+    for (const m of modRows) {
+      if (!bySold.has(m.sold_id)) bySold.set(m.sold_id, []);
+      bySold.get(m.sold_id)!.push(m);
+    }
+    for (const c of data.containers) {
+      c.modifications = c.sold_id != null ? bySold.get(c.sold_id) ?? [] : [];
+    }
+  }
+  return data;
 }
 
 // ---- HTML wrapper ---------------------------------------------------
