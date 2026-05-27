@@ -370,6 +370,13 @@ export default function CreateInvoice() {
         // invoice; the preview never collects it.
         outbound_date: null,
         invoice_notes: d?.invoice_notes || null,
+        outbound_trucking_company_id: d?.trucking_company_id ?? null,
+        door_orientation: d?.door_orientation || null,
+        delivery_name: null,
+        delivery_street: null,
+        delivery_city: null,
+        delivery_state: null,
+        delivery_zip: null,
         modifications: mods,
       };
     });
@@ -393,6 +400,12 @@ export default function CreateInvoice() {
       cc_fee_rate: ccFeeRate || null,
       cc_fee_amount: totalsPreview.cc.toFixed(2),
       total: totalsPreview.total.toFixed(2),
+      ship_to_same_as_billing: shipSameAsBilling,
+      ship_to_name: shipSameAsBilling ? null : shipTo.name || null,
+      ship_to_street: shipSameAsBilling ? null : shipTo.street || null,
+      ship_to_city: shipSameAsBilling ? null : shipTo.city || null,
+      ship_to_state: shipSameAsBilling ? null : shipTo.state || null,
+      ship_to_zip: shipSameAsBilling ? null : shipTo.zip || null,
       customer: {
         id: selectedClient.id,
         client_name: selectedClient.client_name,

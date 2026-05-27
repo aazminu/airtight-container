@@ -237,6 +237,12 @@ export default function InvoiceDetail() {
           invoice_date: updated.invoice_date,
           tax_rate: updated.tax_rate,
           cc_fee_rate: updated.cc_fee_rate,
+          ship_to_same_as_billing: updated.ship_to_same_as_billing,
+          ship_to_name: updated.ship_to_name,
+          ship_to_street: updated.ship_to_street,
+          ship_to_city: updated.ship_to_city,
+          ship_to_state: updated.ship_to_state,
+          ship_to_zip: updated.ship_to_zip,
           containers: updated.containers.map((c) => ({
             inventory_id: c.inventory_id,
             sale_price: c.sale_price,
@@ -244,7 +250,14 @@ export default function InvoiceDetail() {
             modification_price: c.modification_price,
             destination: c.destination,
             invoice_notes: c.invoice_notes,
-            outbound_date: c.outbound_date,
+            // Round-trip per-box delivery so an edit doesn't wipe it.
+            outbound_trucking_company_id: c.outbound_trucking_company_id,
+            door_orientation: c.door_orientation,
+            delivery_name: c.delivery_name,
+            delivery_street: c.delivery_street,
+            delivery_city: c.delivery_city,
+            delivery_state: c.delivery_state,
+            delivery_zip: c.delivery_zip,
             modifications: c.modifications.map((m, i) => ({
               description: m.description,
               price: m.price,

@@ -36,6 +36,15 @@ export interface InvoiceLineContainer {
   modification_price: string | null;
   outbound_date: string | null;
   invoice_notes: string | null;
+  // Per-container delivery (delivery epic). Round-tripped through the
+  // editor so an invoice edit doesn't wipe them.
+  outbound_trucking_company_id: number | null;
+  door_orientation: string | null;
+  delivery_name: string | null;
+  delivery_street: string | null;
+  delivery_city: string | null;
+  delivery_state: string | null;
+  delivery_zip: string | null;
   modifications: InvoiceModification[];
 }
 
@@ -81,6 +90,14 @@ export interface InvoiceData {
   cc_fee_rate: string | null;
   cc_fee_amount: string | null;
   total: string | null;
+  // Invoice-level ship-to (delivery epic). When ship_to_same_as_billing
+  // the per-* fields are null and the customer's billing address is used.
+  ship_to_same_as_billing: boolean;
+  ship_to_name: string | null;
+  ship_to_street: string | null;
+  ship_to_city: string | null;
+  ship_to_state: string | null;
+  ship_to_zip: string | null;
   customer: InvoiceCustomer;
   containers: InvoiceLineContainer[];
 }
