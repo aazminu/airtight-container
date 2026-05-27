@@ -461,21 +461,6 @@ export default function InvoiceEditor({
                   onChange={(e) => updateContainer(ctIdx, { destination: e.target.value })}
                 />
               </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Outbound date</span>
-                <input
-                  type="date"
-                  className={styles.input}
-                  value={asISODate(c.outbound_date)}
-                  onChange={(e) =>
-                    updateContainer(ctIdx, {
-                      outbound_date: e.target.value
-                        ? new Date(e.target.value).toISOString()
-                        : null,
-                    })
-                  }
-                />
-              </label>
               {c.modifications.length === 0 && (
                 <label className={styles.field}>
                   <span className={styles.label}>Legacy mod (one-line)</span>

@@ -45,7 +45,6 @@ interface ContainerDraft {
   trucking_rate: string;
   destination: string;
   invoice_notes: string;
-  outbound_date: string;
   modifications: Array<{ id: number; description: string; price: string }>;
 }
 
@@ -66,7 +65,6 @@ const blankDraft = (row: InventoryRow, destination = ''): ContainerDraft => ({
   trucking_rate: '',
   destination,
   invoice_notes: '',
-  outbound_date: '',
   modifications: [],
 });
 
@@ -246,9 +244,9 @@ export default function CreateInvoice() {
         trucking_rate: d?.trucking_rate || null,
         sale_price: d?.sale_price || null,
         modification_price: null,
-        outbound_date: d?.outbound_date
-          ? new Date(d.outbound_date).toISOString()
-          : null,
+        // Outbound date is owned by the lifecycle (receipt-print), not the
+        // invoice; the preview never collects it.
+        outbound_date: null,
         invoice_notes: d?.invoice_notes || null,
         modifications: mods,
       };
@@ -428,9 +426,9 @@ export default function CreateInvoice() {
         }),
       );
 
-      // 3) Push the full edit shape (mods, tax_rate, cc_fee_rate, outbound
-      //    dates) via PUT /:id so the snapshot totals + per-mod line items
-      //    persist. POST + per-sold above only handles the legacy scalars.
+      // 3) Push the full edit shape (mods, tax_rate, cc_fee_rate) via
+      //    PUT /:id so the snapshot totals + per-mod line items persist.
+      //    POST + per-sold above only handles the legacy scalars.
       const putRes = await fetch(`/api/v2/invoice/${created.id}`, {
         method: 'PUT',
         credentials: 'include',
@@ -450,9 +448,6 @@ export default function CreateInvoice() {
               modification_price: null,
               destination: d.destination || null,
               invoice_notes: d.invoice_notes || null,
-              outbound_date: d.outbound_date
-                ? new Date(d.outbound_date).toISOString()
-                : null,
               modifications: d.modifications
                 .filter((m) => m.description.trim() !== '')
                 .map((m, i) => ({
@@ -712,15 +707,6 @@ export default function CreateInvoice() {
                         className={styles.input}
                         value={d.destination}
                         onChange={(e) => updateDraft(id, { destination: e.target.value })}
-                      />
-                    </label>
-                    <label className={styles.field}>
-                      <span className={styles.fieldLabel}>Outbound date</span>
-                      <input
-                        className={styles.input}
-                        type="date"
-                        value={d.outbound_date}
-                        onChange={(e) => updateDraft(id, { outbound_date: e.target.value })}
                       />
                     </label>
                   </div>

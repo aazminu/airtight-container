@@ -26,7 +26,6 @@ export interface IncomingContainer {
   modification_price?: string | number | null;
   destination?: string | null;
   invoice_notes?: string | null;
-  outbound_date?: string | null;
   modifications?: IncomingModification[];
 }
 
@@ -236,18 +235,20 @@ export async function updateInvoiceFull(
     await client.query("UPDATE inventory SET state = 'sold' WHERE id = $1", [
       ct.inventory_id,
     ]);
+    // outbound_date is intentionally NOT managed here. It belongs to the
+    // container lifecycle (stamped when the driver receipt is printed —
+    // see report.js complete-pickup), not invoicing. Writing it from the
+    // invoice path would clobber a real pickup date on every invoice edit.
     await client.query(
       `INSERT INTO sold (inventory_id, sale_price, trucking_rate,
-                         modification_price, destination, invoice_notes,
-                         outbound_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+                         modification_price, destination, invoice_notes)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (inventory_id) DO UPDATE SET
          sale_price = EXCLUDED.sale_price,
          trucking_rate = EXCLUDED.trucking_rate,
          modification_price = EXCLUDED.modification_price,
          destination = EXCLUDED.destination,
-         invoice_notes = EXCLUDED.invoice_notes,
-         outbound_date = EXCLUDED.outbound_date`,
+         invoice_notes = EXCLUDED.invoice_notes`,
       [
         ct.inventory_id,
         ct.sale_price ?? null,
@@ -255,7 +256,6 @@ export async function updateInvoiceFull(
         ct.modification_price ?? null,
         ct.destination ?? null,
         ct.invoice_notes ?? null,
-        ct.outbound_date ?? null,
       ],
     );
 
