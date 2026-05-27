@@ -45,8 +45,37 @@ interface ContainerDraft {
   trucking_rate: string;
   destination: string;
   invoice_notes: string;
+  // Per-box delivery (delivery epic). delivery_same_as_ship true → the box
+  // inherits the invoice ship-to (which inherits billing); otherwise the
+  // operator entered a box-specific address.
+  trucking_company_id: number | null;
+  door_orientation: string;
+  delivery_same_as_ship: boolean;
+  delivery_name: string;
+  delivery_street: string;
+  delivery_city: string;
+  delivery_state: string;
+  delivery_zip: string;
   modifications: Array<{ id: number; description: string; price: string }>;
 }
+
+interface TruckingCompany {
+  id: number;
+  company_name: string;
+  dispatch_name: string | null;
+  dispatch_phone: string | null;
+}
+
+interface ShipTo {
+  name: string;
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
+const DOOR_ORIENTATIONS = ['Doors to Cab', 'Doors to Rear'] as const;
+const DOOR_ORIENTATION_DATALIST_ID = 'door-orientation-options';
 
 const STEP_NAMES = ['Containers', 'Customer', 'Details', 'Preview', 'Done'] as const;
 
@@ -65,6 +94,14 @@ const blankDraft = (row: InventoryRow, destination = ''): ContainerDraft => ({
   trucking_rate: '',
   destination,
   invoice_notes: '',
+  trucking_company_id: null,
+  door_orientation: '',
+  delivery_same_as_ship: true,
+  delivery_name: '',
+  delivery_street: '',
+  delivery_city: '',
+  delivery_state: '',
+  delivery_zip: '',
   modifications: [],
 });
 
@@ -113,6 +150,19 @@ export default function CreateInvoice() {
   const [ccFeePct, setCcFeePct] = useState('3.5');
   const ccFeeRate = pctToDecimal(ccFeePct);
   const [invoiceDate, setInvoiceDate] = useState<string>(todayISO);
+  // Invoice ship-to (delivery epic). Defaults to the client's billing
+  // address; operator can override. Per-box delivery cascades from here.
+  const [shipSameAsBilling, setShipSameAsBilling] = useState(true);
+  const [shipTo, setShipTo] = useState<ShipTo>({
+    name: '',
+    street: '',
+    city: '',
+    state: '',
+    zip: '',
+  });
+  const [truckingCompanies, setTruckingCompanies] = useState<TruckingCompany[]>(
+    [],
+  );
   const modPresetLabels = useModPresetLabels();
   const modPresets = useModPresets();
   const [submitState, setSubmitState] = useState<
@@ -121,6 +171,20 @@ export default function CreateInvoice() {
     | { kind: 'error'; message: string }
     | { kind: 'done'; id: number; invoice_number: number }
   >({ kind: 'idle' });
+
+  const loadTruckingCompanies = async () => {
+    try {
+      const res = await fetch('/api/v2/trucking-companies', {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const body = await res.json();
+        setTruckingCompanies(body.data.trucking_companies ?? []);
+      }
+    } catch {
+      // Non-fatal; dropdown just shows no options.
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -146,7 +210,65 @@ export default function CreateInvoice() {
         // Non-fatal; UI shows empty pickers and a hint.
       }
     })();
+    loadTruckingCompanies();
   }, []);
+
+  // Effective ship-to: the client's billing address when "same as billing"
+  // is on, otherwise the operator-entered override. Per-box delivery
+  // defaults from this (the 3rd cascade level).
+  const effectiveShipTo = (): ShipTo =>
+    shipSameAsBilling
+      ? {
+          name: selectedClient
+            ? selectedClient.business_name || selectedClient.client_name || ''
+            : '',
+          street: selectedClient?.street ?? '',
+          city: selectedClient?.city ?? '',
+          state: selectedClient?.state ?? '',
+          zip: selectedClient?.zip ?? '',
+        }
+      : shipTo;
+
+  // Resolve a container's delivery address for submit: its own when it has
+  // a box-specific address, else the effective ship-to.
+  const resolveDelivery = (d: ContainerDraft): ShipTo => {
+    if (d.delivery_same_as_ship) return effectiveShipTo();
+    return {
+      name: d.delivery_name,
+      street: d.delivery_street,
+      city: d.delivery_city,
+      state: d.delivery_state,
+      zip: d.delivery_zip,
+    };
+  };
+
+  const addTruckingCompany = async (name: string): Promise<number | null> => {
+    const company_name = name.trim();
+    if (!company_name) return null;
+    try {
+      const res = await fetch('/api/v2/trucking-companies', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company_name }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        await loadTruckingCompanies();
+        return body.data.trucking_company.id as number;
+      }
+      // 409 duplicate: find the existing one by name.
+      if (res.status === 409) {
+        const existing = truckingCompanies.find(
+          (t) => t.company_name.toLowerCase() === company_name.toLowerCase(),
+        );
+        return existing?.id ?? null;
+      }
+    } catch {
+      // Non-fatal.
+    }
+    return null;
+  };
 
   // Sync drafts with selectedIds so we have one ContainerDraft per
   // selected container, preserving any user edits that already exist.
@@ -439,8 +561,15 @@ export default function CreateInvoice() {
           invoice_credit: invoiceCredit,
           tax_rate: taxRate,
           cc_fee_rate: ccFeeRate,
+          ship_to_same_as_billing: shipSameAsBilling,
+          ship_to_name: shipSameAsBilling ? null : shipTo.name || null,
+          ship_to_street: shipSameAsBilling ? null : shipTo.street || null,
+          ship_to_city: shipSameAsBilling ? null : shipTo.city || null,
+          ship_to_state: shipSameAsBilling ? null : shipTo.state || null,
+          ship_to_zip: shipSameAsBilling ? null : shipTo.zip || null,
           containers: selectedIds.map((id) => {
             const d = drafts[id]!;
+            const del = resolveDelivery(d);
             return {
               inventory_id: id,
               sale_price: d.sale_price || null,
@@ -448,6 +577,13 @@ export default function CreateInvoice() {
               modification_price: null,
               destination: d.destination || null,
               invoice_notes: d.invoice_notes || null,
+              outbound_trucking_company_id: d.trucking_company_id,
+              door_orientation: d.door_orientation || null,
+              delivery_name: del.name || null,
+              delivery_street: del.street || null,
+              delivery_city: del.city || null,
+              delivery_state: del.state || null,
+              delivery_zip: del.zip || null,
               modifications: d.modifications
                 .filter((m) => m.description.trim() !== '')
                 .map((m, i) => ({
@@ -668,6 +804,75 @@ export default function CreateInvoice() {
                 <option key={d} value={d} />
               ))}
             </datalist>
+            <datalist id={DOOR_ORIENTATION_DATALIST_ID}>
+              {DOOR_ORIENTATIONS.map((o) => (
+                <option key={o} value={o} />
+              ))}
+            </datalist>
+
+            <div className={styles.containerCard}>
+              <div className={styles.containerHead}>
+                <strong>Shipping address</strong>
+              </div>
+              <label className={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={shipSameAsBilling}
+                  onChange={(e) => setShipSameAsBilling(e.target.checked)}
+                />
+                Same as billing address
+                {shipSameAsBilling && selectedClient && (
+                  <span className={styles.containerSub}>
+                    {' '}
+                    ({customerCityState(selectedClient) || 'on file'})
+                  </span>
+                )}
+              </label>
+              {!shipSameAsBilling && (
+                <div className={styles.fieldGrid}>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Ship to (name)</span>
+                    <input
+                      className={styles.input}
+                      value={shipTo.name}
+                      onChange={(e) => setShipTo((s) => ({ ...s, name: e.target.value }))}
+                    />
+                  </label>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Street</span>
+                    <input
+                      className={styles.input}
+                      value={shipTo.street}
+                      onChange={(e) => setShipTo((s) => ({ ...s, street: e.target.value }))}
+                    />
+                  </label>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>City</span>
+                    <input
+                      className={styles.input}
+                      value={shipTo.city}
+                      onChange={(e) => setShipTo((s) => ({ ...s, city: e.target.value }))}
+                    />
+                  </label>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>State</span>
+                    <input
+                      className={styles.input}
+                      value={shipTo.state}
+                      onChange={(e) => setShipTo((s) => ({ ...s, state: e.target.value }))}
+                    />
+                  </label>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>ZIP</span>
+                    <input
+                      className={styles.input}
+                      value={shipTo.zip}
+                      onChange={(e) => setShipTo((s) => ({ ...s, zip: e.target.value }))}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
 
             {selectedIds.map((id) => {
               const d = drafts[id];
@@ -709,7 +914,103 @@ export default function CreateInvoice() {
                         onChange={(e) => updateDraft(id, { destination: e.target.value })}
                       />
                     </label>
+                    <label className={styles.field}>
+                      <span className={styles.fieldLabel}>Trucking company</span>
+                      <select
+                        className={styles.input}
+                        value={d.trucking_company_id ?? ''}
+                        onChange={async (e) => {
+                          if (e.target.value === '__add__') {
+                            const name = window.prompt('New trucking company name');
+                            if (name && name.trim()) {
+                              const newId = await addTruckingCompany(name);
+                              if (newId) updateDraft(id, { trucking_company_id: newId });
+                            }
+                            return;
+                          }
+                          updateDraft(id, {
+                            trucking_company_id: e.target.value
+                              ? Number(e.target.value)
+                              : null,
+                          });
+                        }}
+                      >
+                        <option value="">— none —</option>
+                        {truckingCompanies.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.company_name}
+                          </option>
+                        ))}
+                        <option value="__add__">+ Add new company…</option>
+                      </select>
+                    </label>
+                    <label className={styles.field}>
+                      <span className={styles.fieldLabel}>Door orientation</span>
+                      <input
+                        className={styles.input}
+                        list={DOOR_ORIENTATION_DATALIST_ID}
+                        value={d.door_orientation}
+                        onChange={(e) =>
+                          updateDraft(id, { door_orientation: e.target.value })
+                        }
+                      />
+                    </label>
                   </div>
+
+                  <label className={styles.checkRow}>
+                    <input
+                      type="checkbox"
+                      checked={d.delivery_same_as_ship}
+                      onChange={(e) =>
+                        updateDraft(id, { delivery_same_as_ship: e.target.checked })
+                      }
+                    />
+                    Delivery address same as shipping
+                  </label>
+                  {!d.delivery_same_as_ship && (
+                    <div className={styles.fieldGrid}>
+                      <label className={styles.field}>
+                        <span className={styles.fieldLabel}>Deliver to (name)</span>
+                        <input
+                          className={styles.input}
+                          value={d.delivery_name}
+                          onChange={(e) => updateDraft(id, { delivery_name: e.target.value })}
+                        />
+                      </label>
+                      <label className={styles.field}>
+                        <span className={styles.fieldLabel}>Street</span>
+                        <input
+                          className={styles.input}
+                          value={d.delivery_street}
+                          onChange={(e) => updateDraft(id, { delivery_street: e.target.value })}
+                        />
+                      </label>
+                      <label className={styles.field}>
+                        <span className={styles.fieldLabel}>City</span>
+                        <input
+                          className={styles.input}
+                          value={d.delivery_city}
+                          onChange={(e) => updateDraft(id, { delivery_city: e.target.value })}
+                        />
+                      </label>
+                      <label className={styles.field}>
+                        <span className={styles.fieldLabel}>State</span>
+                        <input
+                          className={styles.input}
+                          value={d.delivery_state}
+                          onChange={(e) => updateDraft(id, { delivery_state: e.target.value })}
+                        />
+                      </label>
+                      <label className={styles.field}>
+                        <span className={styles.fieldLabel}>ZIP</span>
+                        <input
+                          className={styles.input}
+                          value={d.delivery_zip}
+                          onChange={(e) => updateDraft(id, { delivery_zip: e.target.value })}
+                        />
+                      </label>
+                    </div>
+                  )}
 
                   <div className={styles.modsSection}>
                     <div className={styles.modsHeader}>
