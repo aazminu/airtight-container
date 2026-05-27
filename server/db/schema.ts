@@ -332,6 +332,9 @@ export const reports = pgTable(
     resolved_data: jsonb('resolved_data'),
     pdf_s3_key: text('pdf_s3_key'),
     pdf_generated_at: timestamp('pdf_generated_at', { withTimezone: true }),
+    // ATYYYYMM### identifier for delivery_sheet reports (NULL otherwise).
+    // Sequenced in server/lib/delivery-sheet-number.ts. See migration 0016.
+    delivery_sheet_number: text('delivery_sheet_number'),
     emailed_to: text('emailed_to').array(),
     emailed_at: timestamp('emailed_at', { withTimezone: true }),
     sms_sent_at: timestamp('sms_sent_at', { withTimezone: true }),
