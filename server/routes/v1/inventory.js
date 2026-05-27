@@ -464,17 +464,84 @@ router.put("/outbound/:id", checkAdmin, async (req, res) => {
 });
 
 router.delete("/:id", checkAdmin, async (req, res) => {
+	const client = await db.pool.connect();
 	try {
-		const results = await db.query("DELETE FROM inventory WHERE id = $1", [
-			req.params.id,
-		]);
+		await client.query("BEGIN");
+
+		const found = await client.query(
+			`SELECT id, state, unit_number, release_number_id
+			 FROM inventory WHERE id = $1 FOR UPDATE`,
+			[req.params.id],
+		);
+		if (found.rows.length === 0) {
+			await client.query("ROLLBACK");
+			return res.status(404).json({ message: "Container not found" });
+		}
+		const box = found.rows[0];
+
+		// Only available boxes are deletable. sold/outbound/hold carry sale +
+		// invoice history; their FKs are ON DELETE CASCADE, so deleting them
+		// would silently take out invoice line items and sale records.
+		if (box.state !== "available") {
+			await client.query("ROLLBACK");
+			return res.status(409).json({
+				status: "conflict",
+				code: "not_deletable_state",
+				message: `Only available containers can be deleted (this one is '${box.state}').`,
+			});
+		}
+
+		// Defensive: an available box shouldn't be on an invoice or have a sold
+		// row, but if state ever drifted, refuse rather than cascade history away.
+		const refs = await client.query(
+			`SELECT
+			   (SELECT count(*) FROM invoice_containers WHERE container_id = $1) AS invoice_refs,
+			   (SELECT count(*) FROM sold WHERE inventory_id = $1) AS sold_refs`,
+			[req.params.id],
+		);
+		if (
+			Number(refs.rows[0].invoice_refs) > 0 ||
+			Number(refs.rows[0].sold_refs) > 0
+		) {
+			await client.query("ROLLBACK");
+			return res.status(409).json({
+				status: "conflict",
+				code: "has_sale_history",
+				message:
+					"Container has invoice or sale history and cannot be deleted; remove it from its invoice first.",
+			});
+		}
+
+		await client.query("DELETE FROM inventory WHERE id = $1", [req.params.id]);
+
+		// Reopen the release enumeration slot so the unit number can be
+		// re-entered (intake auto-marks it used on creation, matching by
+		// trim+upper). No-op when the unit wasn't pre-enumerated.
+		let slotReopened = 0;
+		if (box.release_number_id && box.unit_number) {
+			const reopened = await client.query(
+				`UPDATE release_number_containers
+				 SET is_used = false
+				 WHERE release_number_id = $1 AND container_number = $2`,
+				[box.release_number_id, box.unit_number.trim().toUpperCase()],
+			);
+			slotReopened = reopened.rowCount ?? 0;
+		}
+
+		await client.query("COMMIT");
 		res.status(200).json({
 			status: "success",
-			results: results.rows.length,
-			data: { inventory: results.rows },
+			data: {
+				deleted_id: Number(req.params.id),
+				release_slot_reopened: slotReopened,
+			},
 		});
 	} catch (err) {
+		await client.query("ROLLBACK").catch(() => {});
+		console.error("inventory.delete error:", err);
 		res.status(500).json({ message: "Internal server error" });
+	} finally {
+		client.release();
 	}
 });
 

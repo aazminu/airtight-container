@@ -231,6 +231,12 @@ export default function Inventory() {
     setPopup('Container updated.');
   };
 
+  const handleDeleted = (id: number) => {
+    setRows((rs) => rs.filter((r) => r.id !== id));
+    setEditing(null);
+    setPopup('Container deleted.');
+  };
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -419,6 +425,7 @@ export default function Inventory() {
         row={editing}
         onClose={() => setEditing(null)}
         onSaved={handleSaved}
+        onDeleted={handleDeleted}
         onError={(msg) => setPopup(msg)}
       />
     </div>

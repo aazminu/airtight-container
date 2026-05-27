@@ -32,6 +32,7 @@ interface Props {
   row: InventoryEditorRow | null;
   onClose: () => void;
   onSaved: (updated: InventoryEditorRow) => void;
+  onDeleted: (id: number) => void;
   onError: (msg: string) => void;
 }
 
@@ -83,12 +84,20 @@ const fmtDisplay = (key: EditableField, v: string | number | null | undefined): 
   return s;
 };
 
-export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
+export function InventoryEditor({
+  row,
+  onClose,
+  onSaved,
+  onDeleted,
+  onError,
+}: Props) {
   const [draft, setDraft] = useState<InventoryEditorRow | null>(row);
   const [photoUrls, setPhotoUrls] = useState<string[] | null>(null);
   const [photoSrc, setPhotoSrc] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const sizeLabels = useSizePresetLabels();
   const damageLabels = useDamagePresetLabels();
   // Passive read-only hint banner. Set when the user clicks a
@@ -100,6 +109,7 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
   useEffect(() => {
     setDraft(row);
     setConfirming(false);
+    setDeleteConfirming(false);
     setPhotoUrls(null);
     setReadOnlyHint(null);
   }, [row]);
@@ -191,8 +201,32 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
 
   const cancelConfirm = () => setConfirming(false);
 
+  const remove = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/v1/inventory/${row.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          message?: string;
+        } | null;
+        throw new Error(body?.message ?? `delete failed (${res.status})`);
+      }
+      onDeleted(row.id);
+    } catch (err) {
+      onError(`ERROR ${err instanceof Error ? err.message : 'Delete failed'}`);
+      setDeleting(false);
+      setDeleteConfirming(false);
+    }
+  };
+
   const isSold = row.state === 'sold' || row.state === 'outbound';
   const hasInvoice = row.invoice_number != null;
+  // Only available containers are deletable — sold/outbound/hold carry
+  // sale + invoice history the backend refuses to cascade away.
+  const deletable = row.state === 'available';
 
   return (
     <Modal
@@ -200,8 +234,8 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
       onClose={onClose}
       title={`Edit ${row.unit_number.trim()}`}
       size="lg"
-      closeOnBackdropClick={!saving}
-      closeOnEscape={!saving}
+      closeOnBackdropClick={!saving && !deleting}
+      closeOnEscape={!saving && !deleting}
     >
       {readOnlyHint && (
         <div className={styles.hintBanner} role="status">
@@ -425,15 +459,53 @@ export function InventoryEditor({ row, onClose, onSaved, onError }: Props) {
       {/* ── action footer ─────────────────────────────────── */}
       <div className={styles.actions}>
         <div className={styles.actionsLeft}>
-          {confirming && (
+          {deleteConfirming ? (
+            <span className={styles.confirmBanner}>
+              Permanently delete {row.unit_number.trim()}? This frees its
+              release-number slot and can’t be undone.
+            </span>
+          ) : confirming ? (
             <span className={styles.confirmBanner}>
               Review the diff and confirm to apply {changes.length} change
               {changes.length === 1 ? '' : 's'}.
             </span>
+          ) : (
+            deletable && (
+              <Button
+                type="button"
+                variant="danger"
+                onClick={() => {
+                  setConfirming(false);
+                  setDeleteConfirming(true);
+                }}
+                disabled={saving}
+              >
+                Delete container
+              </Button>
+            )
           )}
         </div>
         <div className={styles.actionsRight}>
-          {confirming ? (
+          {deleteConfirming ? (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setDeleteConfirming(false)}
+                disabled={deleting}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                onClick={remove}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting…' : 'Delete permanently'}
+              </Button>
+            </>
+          ) : confirming ? (
             <>
               <Button
                 type="button"
