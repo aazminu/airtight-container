@@ -10,6 +10,14 @@
 
 Next obvious moves: resubmit Twilio A2P 10DLC campaign with the new public URLs, smoke `/reports/:id/print` AirPrint on the operator's iPad once it's back, and work through `docs/SECURITY_PLAN.md` (PR #11 + PR #12 backlog).
 
+**In flight (2026-05-27): physical-audit inventory cleanup — DEFERRED to tonight.** Operator did a full yard audit (ground truth), we reconciled it against prod `inventory`. Migration deferred so operator can re-audit outside business hours; rule: rows created after **2026-05-26 15:04 EST** count as onsite. Findings + destructive-migration plan in [docs/AUDIT_MIGRATION.md](AUDIT_MIGRATION.md); big operator-meeting backlog in [PLAN.md §8](PLAN.md#8-open-follow-ups-for-implementation-time). **When resuming the migration:** re-run `audit-cleanup-investigate.sql` after the re-audit, resolve D1–D5 in AUDIT_MIGRATION.md, then write the transactional destructive SQL. Nothing run against prod yet — read-only diffs only. S&H month-end cron confirmed not active in prod (no S&H boxes yet; fine).
+
+**Structural work (2026-05-27):**
+- **DONE — clean container deletion.** Available-only, transactional, reopens the release-# slot; replaces the unsafe delete route. Files: `server/routes/v1/inventory.js`, `client/src/components/forms/InventoryEditor.tsx`, `client/src/routes/Inventory.tsx`. tsc clean. **Not yet committed** — sitting in the `2.0` working tree; verify in-app (delete an available box, confirm its release number frees up) before committing/branching.
+- **NEXT — outbound flow** (operator's priority, essential for daily ops). Decisions locked: receipt-print is the primary outbound trigger (`sold.outbound_date` = print time), **keep** the date-based auto-flip cron as a fallback, and **add `ATYYYYMM###` delivery-sheet numbering now**. Full build breakdown in PLAN §8 "Real outbound flow". Rides on current report-based delivery sheets.
+
+Unit-number normalization spec refined (strict `LLLL ######-#`, accommodate no-check-digit + single-digit TS boxes, backfill) — folded into AUDIT_MIGRATION.md.
+
 ---
 
 ## What changed during the cutover
