@@ -56,6 +56,57 @@ describe('createClientSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('coerces an empty-string email to null instead of rejecting', () => {
+    const result = createClientSchema.safeParse({
+      customer: { contact_name: 'Jane', contact_email: '' },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.customer.contact_email).toBeNull();
+    }
+  });
+
+  it('coerces blank optional text fields to null', () => {
+    const result = createClientSchema.safeParse({
+      customer: { contact_name: 'Jane', business_name: '   ', city: '' },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.customer.business_name).toBeNull();
+      expect(result.data.customer.city).toBeNull();
+    }
+  });
+
+  it('normalizes phone to canonical XXX-XXX-XXXX form', () => {
+    const result = createClientSchema.safeParse({
+      customer: { contact_name: 'Jane', contact_phone: '(555) 123-4567' },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.customer.contact_phone).toBe('555-123-4567');
+    }
+  });
+
+  it('normalizes phone with an extension', () => {
+    const result = createClientSchema.safeParse({
+      customer: { contact_name: 'Jane', contact_phone: '(555) 123-4567 x1234' },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.customer.contact_phone).toBe('555-123-4567 EXT. 1234');
+    }
+  });
+
+  it('coerces a blank phone to null', () => {
+    const result = createClientSchema.safeParse({
+      customer: { contact_name: 'Jane', contact_phone: '' },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.customer.contact_phone).toBeNull();
+    }
+  });
+
   it('trims whitespace from contact_name', () => {
     const result = createClientSchema.safeParse({
       customer: { contact_name: '  Jane Doe  ' },
