@@ -465,3 +465,79 @@ export const damage_presets = pgTable(
     positionIdx: index('damage_presets_position_idx').on(table.position),
   }),
 );
+
+// ---- quotes domain ----------------------------------------------------
+
+// A quote is "an invoice without containers": a client + free-text line
+// items + per-line modifications + tax/cc settings + snapshot totals.
+// Editable, emailable, printable as "Quote", and never consumes
+// inventory. quote_number is text (Q-YYYYMM-NNNN), sequenced via a
+// DISTINCT advisory lock from invoices — see lib/quote-number.ts and
+// migration 0018. status is a lightweight text column ('draft' | 'sent')
+// because a quote has no AR lifecycle.
+export const quotes = pgTable(
+  'quotes',
+  {
+    id: serial('id').primaryKey(),
+    quote_number: text('quote_number').notNull().unique(),
+    client_id: integer('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    quote_taxed: boolean('quote_taxed').notNull().default(false),
+    quote_credit: boolean('quote_credit').notNull().default(false),
+    tax_rate: numeric('tax_rate'),
+    cc_fee_rate: numeric('cc_fee_rate'),
+    subtotal: numeric('subtotal'),
+    tax_amount: numeric('tax_amount'),
+    cc_fee_amount: numeric('cc_fee_amount'),
+    total: numeric('total'),
+    notes: text('notes'),
+    status: text('status').notNull().default('draft'),
+    pdf_s3_key: text('pdf_s3_key'),
+    sent_at: timestamp('sent_at', { withTimezone: true }),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deleted_at: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => ({
+    clientIdx: index('quotes_client_idx').on(table.client_id),
+    createdAtIdx: index('quotes_created_at_idx').on(table.created_at),
+  }),
+);
+
+export const quote_line_items = pgTable(
+  'quote_line_items',
+  {
+    id: serial('id').primaryKey(),
+    quote_id: integer('quote_id')
+      .notNull()
+      .references(() => quotes.id, { onDelete: 'cascade' }),
+    description: text('description').notNull(),
+    sale_price: numeric('sale_price'),
+    trucking_rate: numeric('trucking_rate'),
+    destination: text('destination'),
+    position: integer('position').notNull().default(0),
+  },
+  (table) => ({
+    quoteIdx: index('quote_line_items_quote_idx').on(table.quote_id),
+  }),
+);
+
+export const quote_line_modifications = pgTable(
+  'quote_line_modifications',
+  {
+    id: serial('id').primaryKey(),
+    quote_line_item_id: integer('quote_line_item_id')
+      .notNull()
+      .references(() => quote_line_items.id, { onDelete: 'cascade' }),
+    description: text('description').notNull(),
+    price: numeric('price').notNull(),
+    position: integer('position').notNull().default(0),
+  },
+  (table) => ({
+    lineIdx: index('quote_line_modifications_line_idx').on(
+      table.quote_line_item_id,
+    ),
+  }),
+);

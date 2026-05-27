@@ -26,6 +26,9 @@ import Audit from "./routes/Audit";
 import Releases from "./routes/Releases";
 import TemplatesPreview from "./routes/TemplatesPreview";
 import InvoiceDetail from "./routes/InvoiceDetail";
+import Quotes from "./routes/Quotes";
+import CreateQuote from "./routes/CreateQuote";
+import QuoteDetail from "./routes/QuoteDetail";
 import ShInvoices from "./routes/ShInvoices";
 import ShInvoiceDetail from "./routes/ShInvoiceDetail";
 import Help from "./routes/Help";
@@ -46,6 +49,9 @@ const App = () => {
 				<Route path="/invoices" element={<Invoices />} />
 				<Route path="/invoices/create" element={<CreateInvoice />} />
 				<Route path="/invoices/:id" element={<InvoiceDetail />} />
+				<Route path="/quotes" element={<Quotes />} />
+				<Route path="/quotes/create" element={<CreateQuote />} />
+				<Route path="/quotes/:id" element={<QuoteDetail />} />
 				<Route path="/sh-invoices" element={<ShInvoices />} />
 				<Route path="/sh-invoices/:id" element={<ShInvoiceDetail />} />
 				<Route path="/reports" element={<Reports />} />
