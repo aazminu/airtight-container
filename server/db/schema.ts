@@ -147,6 +147,20 @@ export const inventory = pgTable(
   }),
 );
 
+// Carriers/truckers as entities (migration 0017). dispatch_* is the
+// business/dispatch contact. Outbound trucker on sold FKs here; inbound
+// inventory.trucking_company stays freetext for now.
+export const trucking_companies = pgTable('trucking_companies', {
+  id: serial('id').primaryKey(),
+  company_name: text('company_name').notNull().unique(),
+  dispatch_name: text('dispatch_name'),
+  dispatch_phone: text('dispatch_phone'),
+  dispatch_email: text('dispatch_email'),
+  created_at: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const sold = pgTable('sold', {
   id: serial('id').primaryKey(),
   inventory_id: integer('inventory_id')
@@ -155,6 +169,10 @@ export const sold = pgTable('sold', {
     .references(() => inventory.id, { onDelete: 'cascade' }),
   sold_date: timestamp('sold_date', { withTimezone: true }).defaultNow(),
   outbound_trucker: text('outbound_trucker'),
+  outbound_trucking_company_id: integer('outbound_trucking_company_id').references(
+    () => trucking_companies.id,
+    { onDelete: 'set null' },
+  ),
   destination: text('destination'),
   sale_price: numeric('sale_price'),
   release_number: text('release_number'),
@@ -164,6 +182,14 @@ export const sold = pgTable('sold', {
   labor_cost: numeric('labor_cost'),
   invoice_notes: text('invoice_notes'),
   outbound_date: timestamp('outbound_date', { withTimezone: true }),
+  // Per-container delivery address (migration 0017). Defaults cascade in
+  // the UI from the invoice ship-to; these hold the resolved values.
+  delivery_name: text('delivery_name'),
+  delivery_street: text('delivery_street'),
+  delivery_city: text('delivery_city'),
+  delivery_state: text('delivery_state'),
+  delivery_zip: text('delivery_zip'),
+  door_orientation: text('door_orientation'),
 });
 
 // Per-modification line items, ordered by `position`. Each row
@@ -206,6 +232,16 @@ export const invoices = pgTable(
     cc_fee_rate: numeric('cc_fee_rate'),
     cc_fee_amount: numeric('cc_fee_amount'),
     total: numeric('total'),
+    // Invoice-level ship-to (migration 0017). When ship_to_same_as_billing
+    // is true the client's billing address is used and the columns stay null.
+    ship_to_same_as_billing: boolean('ship_to_same_as_billing')
+      .notNull()
+      .default(true),
+    ship_to_name: text('ship_to_name'),
+    ship_to_street: text('ship_to_street'),
+    ship_to_city: text('ship_to_city'),
+    ship_to_state: text('ship_to_state'),
+    ship_to_zip: text('ship_to_zip'),
     pdf_s3_key: text('pdf_s3_key'),
     sent_at: timestamp('sent_at', { withTimezone: true }),
     deleted_at: timestamp('deleted_at', { withTimezone: true }),
