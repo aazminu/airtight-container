@@ -63,10 +63,27 @@ export default function InvoiceEditor({
   const [draft, setDraft] = useState<InvoiceData>(() => structuredClone(initial));
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [available, setAvailable] = useState<InventoryRow[]>([]);
+  const [truckingCompanies, setTruckingCompanies] = useState<
+    { id: number; company_name: string }[]
+  >([]);
   const [pickerValue, setPickerValue] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const modPresetLabels = useModPresetLabels();
   const modPresets = useModPresets();
+
+  const loadTruckingCompanies = async () => {
+    try {
+      const res = await fetch('/api/v2/trucking-companies', {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const body = await res.json();
+        setTruckingCompanies(body.data.trucking_companies ?? []);
+      }
+    } catch {
+      // Non-fatal.
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -94,10 +111,41 @@ export default function InvoiceEditor({
         // Non-fatal; pickers will be empty but the rest of the form works.
       }
     })();
+    loadTruckingCompanies();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const addTruckingCompany = async (name: string): Promise<number | null> => {
+    const company_name = name.trim();
+    if (!company_name) return null;
+    try {
+      const res = await fetch('/api/v2/trucking-companies', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company_name }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        await loadTruckingCompanies();
+        return body.data.trucking_company.id as number;
+      }
+      if (res.status === 409) {
+        return (
+          truckingCompanies.find(
+            (t) => t.company_name.toLowerCase() === company_name.toLowerCase(),
+          )?.id ?? null
+        );
+      }
+    } catch {
+      // Non-fatal.
+    }
+    return null;
+  };
+
+  const DOOR_ORIENTATION_DATALIST_ID = 'invedit-door-orientations';
 
   // Recompute totals on the fly as the draft changes. Server will
   // recompute authoritatively at save time; this preview is just so
@@ -294,6 +342,10 @@ export default function InvoiceEditor({
           <option key={d} value={d} />
         ))}
       </datalist>
+      <datalist id={DOOR_ORIENTATION_DATALIST_ID}>
+        <option value="Doors to Cab" />
+        <option value="Doors to Rear" />
+      </datalist>
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Invoice</h2>
@@ -414,6 +466,64 @@ export default function InvoiceEditor({
       </section>
 
       <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Shipping address</h2>
+        <label className={styles.checkRow}>
+          <input
+            type="checkbox"
+            checked={draft.ship_to_same_as_billing}
+            onChange={(e) =>
+              updateInvoice('ship_to_same_as_billing', e.target.checked)
+            }
+          />
+          Same as billing address
+        </label>
+        {!draft.ship_to_same_as_billing && (
+          <div className={styles.fieldGrid}>
+            <label className={styles.field}>
+              <span className={styles.label}>Ship to (name)</span>
+              <input
+                className={styles.input}
+                value={draft.ship_to_name ?? ''}
+                onChange={(e) => updateInvoice('ship_to_name', e.target.value)}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.label}>Street</span>
+              <input
+                className={styles.input}
+                value={draft.ship_to_street ?? ''}
+                onChange={(e) => updateInvoice('ship_to_street', e.target.value)}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.label}>City</span>
+              <input
+                className={styles.input}
+                value={draft.ship_to_city ?? ''}
+                onChange={(e) => updateInvoice('ship_to_city', e.target.value)}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.label}>State</span>
+              <input
+                className={styles.input}
+                value={draft.ship_to_state ?? ''}
+                onChange={(e) => updateInvoice('ship_to_state', e.target.value)}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.label}>ZIP</span>
+              <input
+                className={styles.input}
+                value={draft.ship_to_zip ?? ''}
+                onChange={(e) => updateInvoice('ship_to_zip', e.target.value)}
+              />
+            </label>
+          </div>
+        )}
+      </section>
+
+      <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
           Containers ({draft.containers.length})
         </h2>
@@ -466,6 +576,90 @@ export default function InvoiceEditor({
                   className={styles.input}
                   value={c.destination ?? ''}
                   onChange={(e) => updateContainer(ctIdx, { destination: e.target.value })}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Trucking company</span>
+                <select
+                  className={styles.input}
+                  value={c.outbound_trucking_company_id ?? ''}
+                  onChange={async (e) => {
+                    if (e.target.value === '__add__') {
+                      const name = window.prompt('New trucking company name');
+                      if (name && name.trim()) {
+                        const newId = await addTruckingCompany(name);
+                        if (newId)
+                          updateContainer(ctIdx, {
+                            outbound_trucking_company_id: newId,
+                          });
+                      }
+                      return;
+                    }
+                    updateContainer(ctIdx, {
+                      outbound_trucking_company_id: e.target.value
+                        ? Number(e.target.value)
+                        : null,
+                    });
+                  }}
+                >
+                  <option value="">— none —</option>
+                  {truckingCompanies.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.company_name}
+                    </option>
+                  ))}
+                  <option value="__add__">+ Add new company…</option>
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Door orientation</span>
+                <input
+                  className={styles.input}
+                  list={DOOR_ORIENTATION_DATALIST_ID}
+                  value={c.door_orientation ?? ''}
+                  onChange={(e) =>
+                    updateContainer(ctIdx, { door_orientation: e.target.value })
+                  }
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Deliver to (name)</span>
+                <input
+                  className={styles.input}
+                  value={c.delivery_name ?? ''}
+                  onChange={(e) => updateContainer(ctIdx, { delivery_name: e.target.value })}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Delivery street</span>
+                <input
+                  className={styles.input}
+                  value={c.delivery_street ?? ''}
+                  onChange={(e) => updateContainer(ctIdx, { delivery_street: e.target.value })}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Delivery city</span>
+                <input
+                  className={styles.input}
+                  value={c.delivery_city ?? ''}
+                  onChange={(e) => updateContainer(ctIdx, { delivery_city: e.target.value })}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Delivery state</span>
+                <input
+                  className={styles.input}
+                  value={c.delivery_state ?? ''}
+                  onChange={(e) => updateContainer(ctIdx, { delivery_state: e.target.value })}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Delivery ZIP</span>
+                <input
+                  className={styles.input}
+                  value={c.delivery_zip ?? ''}
+                  onChange={(e) => updateContainer(ctIdx, { delivery_zip: e.target.value })}
                 />
               </label>
               {c.modifications.length === 0 && (
