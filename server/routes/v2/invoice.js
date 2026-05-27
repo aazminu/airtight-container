@@ -296,6 +296,45 @@ router.post("/:id/pdf", checkAdmin, async (req, res) => {
 	}
 });
 
+// Download endpoint: always re-render fresh (so the bytes reflect the
+// current invoice state, including modification line items), overwrite
+// the cached S3 object, then stream the PDF back as an attachment. No
+// email is sent. Mirrors the freshness guarantee of the email path.
+router.get("/:id/pdf", checkAdmin, async (req, res) => {
+	const id = parseInt(req.params.id, 10);
+	if (!Number.isFinite(id)) {
+		return res.status(400).json({ message: "Invalid invoice id" });
+	}
+	try {
+		const { rows } = await db.query(
+			"SELECT invoice_number, deleted_at FROM invoices WHERE invoice_id = $1",
+			[id],
+		);
+		const inv = rows[0];
+		if (!inv) return res.status(404).json({ message: "Not found" });
+		if (inv.deleted_at !== null) {
+			return res.status(409).json({ message: "Invoice is deleted" });
+		}
+		const { s3Key } = await renderAndStoreInvoicePdf(id);
+		await db.query(
+			"UPDATE invoices SET pdf_s3_key = $1 WHERE invoice_id = $2",
+			[s3Key, id],
+		);
+		const pdfBytes = await getInvoicePdfBytes(s3Key);
+		res.status(200);
+		res.setHeader("Content-Type", "application/pdf");
+		res.setHeader(
+			"Content-Disposition",
+			`attachment; filename="invoice-${inv.invoice_number}.pdf"`,
+		);
+		res.setHeader("Content-Length", pdfBytes.length);
+		res.end(pdfBytes);
+	} catch (err) {
+		console.error("invoice.pdf.download error:", err);
+		res.status(500).json({ message: err.message || "Internal server error" });
+	}
+});
+
 // PR 10.1: lifecycle status. Any → any transition allowed (operator
 // can "un-pay" a bounced check, revert an accidental cancel, etc.);
 // the UI gates destructive transitions behind a confirmation modal.
@@ -387,15 +426,15 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 		if (!to)
 			return res.status(400).json({ message: "No recipient email on file" });
 
-		let pdfKey = inv.pdf_s3_key;
-		if (!pdfKey) {
-			const result = await renderAndStoreInvoicePdf(invoiceId);
-			pdfKey = result.s3Key;
-			await db.query(
-				"UPDATE invoices SET pdf_s3_key = $1 WHERE invoice_id = $2",
-				[pdfKey, invoiceId],
-			);
-		}
+		// Always re-render fresh so post-edit changes (e.g. modification
+		// line items) aren't stale: the cached S3 object is only updated on
+		// explicit regenerate, so a send that trusts pdf_s3_key would attach
+		// an out-of-date PDF. Re-rendering also overwrites the cache.
+		const { s3Key: pdfKey } = await renderAndStoreInvoicePdf(invoiceId);
+		await db.query(
+			"UPDATE invoices SET pdf_s3_key = $1 WHERE invoice_id = $2",
+			[pdfKey, invoiceId],
+		);
 
 		const pdfBytes = await getInvoicePdfBytes(pdfKey);
 		const resend = new Resend(process.env.RESEND);

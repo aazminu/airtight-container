@@ -93,6 +93,35 @@ export default function InvoiceDetail() {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!invoice) return;
+    setAction({ kind: 'busy', label: 'Generating PDF…' });
+    try {
+      const res = await fetch(`/api/v2/invoice/${invoice.invoice_id}/pdf`, {
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoice-${invoice.invoice_number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setAction({ kind: 'ok', message: 'PDF downloaded.' });
+    } catch (e) {
+      setAction({
+        kind: 'err',
+        message: e instanceof Error ? e.message : 'Download failed',
+      });
+    }
+  };
+
   const handleEmail = async () => {
     if (!invoice) return;
     const fallbackTo = invoice.customer.contact_email ?? '';
@@ -293,6 +322,11 @@ export default function InvoiceDetail() {
             {isAdmin && (
               <Button variant="secondary" onClick={handleRegeneratePdf}>
                 Regenerate PDF
+              </Button>
+            )}
+            {isAdmin && (
+              <Button variant="secondary" onClick={handleDownloadPdf}>
+                Download PDF
               </Button>
             )}
             {isAdmin && <Button onClick={handleEmail}>Email</Button>}
