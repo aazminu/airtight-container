@@ -17,8 +17,11 @@ Next obvious moves: resubmit Twilio A2P 10DLC campaign with the new public URLs,
 **DEPLOY CHECKLIST for tonight (apply in order, alongside the audit migration):**
 - **Migrations to run on prod (in `server/db/migrations/`, none run on prod yet):** `0016` (delivery-sheet AT number), `0017` (trucking_companies + invoice ship-to + per-box `sold` delivery cols), `0018` (quotes tables). All idempotent (`IF NOT EXISTS`), all applied + verified on the local mirror.
 - **Build change:** `Dockerfile.backend` now runs `npm run build:quote-template` (new quote PDF bundle, `client/vite.config.quote-template.ts`). **Watch the deploy build** — if it fails, the quote PDF route is the only thing affected.
+- **New client build env (optional):** `VITE_GOOGLE_MAPS_API_KEY` enables address autofill on the client form. Absent = form falls back to manual entry (no crash). Fill the key when ready.
 - **Visual spot-checks after deploy:** a multi-mod invoice PDF (mods render), a quote PDF, and a delivery sheet showing the per-box address/orientation/carrier.
 - Optional: run `server/scripts/normalize-phones.ts --apply` (phone backfill, written but not run).
+
+**Second build pass (2026-05-27, all committed, all tsc+tests green — client 52 / server 205):** InvoiceEditor delivery edit UI; email-on-send back-fills `client.contact_email` (prompt on conflict); unit-number display formatting (`TCLU 1234567`); `<CurrencyInput>` primitive (invoice money fields); inline "+ New Client" (invoice + quote pickers); dirty-form guards (`useDirtyForm` on create flows); Google Places **address autofill** (key-gated); Quote **promote-to-invoice** (positional line→container mapping — see below); and the 3 pre-existing server tsc baseline errors cleared (server tsc now 0).
 
 **DONE + verified:**
 - **Clean container deletion** — available-only, reopens release slot. Playwright-verified.
@@ -28,11 +31,14 @@ Next obvious moves: resubmit Twilio A2P 10DLC campaign with the new public URLs,
 - **Invoice-PDF** (mods in emailed PDF + Download button) and **client-form** (optional email + phone normalization) — merged.
 - **Outbound date** removed from the invoice flow; invoice-ops no longer writes `sold.outbound_date`.
 
-**Deferred fast-follows (not in tonight unless asked):**
-- **InvoiceEditor delivery EDIT UI** — the create flow captures delivery and the editor no longer wipes it (round-trips), but there's no in-editor UI yet to *change* delivery on an existing invoice.
-- **Quote promote-to-invoice** — stubbed (`TODO(promote-to-invoice)` in `routes/v2/quote.js`); design-heavy (free-text quote lines → container invoice lines). Quote works standalone.
-- Google Places autofill (needs `GOOGLE_MAPS_API_KEY` — operator filling later); CurrencyInput primitive; dirty-form guards; inline "+ New Client"; email-on-send contact_email backfill; toast/verbosity sweep; unit-number display/format (waits on AUDIT_MIGRATION D4).
-- Several `worktree-agent-*` branches are merged and their worktrees can be pruned; `worktree-agent-a9f346f98e443245e` was not from this session — leave it.
+**Still deferred (not built):**
+- **Toast/popup verbosity sweep** (touches every catch block — dedicated pass).
+- **Unit-number STORAGE format** (display formatting shipped; the stored-vs-display canonical-form decision is AUDIT_MIGRATION D4).
+- Remaining **CurrencyInput** adoption (intake / S&H / InventoryEditor / quote money fields — primitive exists, invoice fields adopted).
+- **Modal-backdrop "discard?"** integration on editor modals (nav + beforeunload guards shipped).
+- **Quote promote**: explicit per-line→container mapping UI (positional default shipped — operator may want drag/assign).
+- New-code unit tests for delivery-sheet-number / complete-pickup / trucking route (the test agent's stale base blocked these; covered indirectly by existing + quote-promote tests).
+- Several `worktree-agent-*` worktrees are merged and can be pruned; `worktree-agent-a9f346f98e443245e` was not from this session — leave it.
 
 Unit-number normalization spec refined (strict `LLLL ######-#`, no-check-digit + single-digit TS boxes, backfill) — in AUDIT_MIGRATION.md.
 
