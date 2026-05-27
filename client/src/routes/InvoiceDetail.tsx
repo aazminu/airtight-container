@@ -140,13 +140,25 @@ export default function InvoiceDetail() {
       },
     });
     if (to === null) return;
+    // Back-fill the client's email. No email on file → the server saves it
+    // silently. A *different* email on file → ask before overwriting.
+    let update_client_email = false;
+    const onFile = (invoice.customer.contact_email ?? '').trim();
+    if (onFile && onFile !== to.trim()) {
+      update_client_email = await confirm({
+        title: 'Update email on file?',
+        message: `This client's email on file is ${onFile}. Update it to ${to.trim()}?`,
+        confirmLabel: 'Update',
+        cancelLabel: 'Keep on file',
+      });
+    }
     setAction({ kind: 'busy', label: 'Sending…' });
     try {
       const res = await fetch(`/api/v2/invoice/${invoice.invoice_id}/email`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to }),
+        body: JSON.stringify({ to, update_client_email }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);

@@ -428,7 +428,7 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 	}
 	try {
 		const { rows } = await db.query(
-			`SELECT i.invoice_number, i.pdf_s3_key, i.deleted_at, cl.contact_email, cl.client_name
+			`SELECT i.invoice_number, i.pdf_s3_key, i.deleted_at, i.client_id, cl.contact_email, cl.client_name
 			 FROM invoices i
 			 JOIN clients cl ON i.client_id = cl.id
 			 WHERE i.invoice_id = $1`,
@@ -489,6 +489,18 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 			  WHERE invoice_id = $1`,
 			[invoiceId, req.user?.id ?? null],
 		);
+		// Back-fill the client's email from the recipient. Silent when none
+		// is on file; only overwrite a different existing email when the
+		// caller confirmed (update_client_email), so a one-off send doesn't
+		// clobber the address of record.
+		const onFile = (inv.contact_email ?? "").trim();
+		const typed = String(to).trim();
+		if (typed && typed !== onFile && (!onFile || req.body?.update_client_email === true)) {
+			await db.query("UPDATE clients SET contact_email = $1 WHERE id = $2", [
+				typed,
+				inv.client_id,
+			]);
+		}
 		res.status(200).json({ status: "success", message_id: data?.id });
 	} catch (err) {
 		console.error("invoice.email error:", err);
