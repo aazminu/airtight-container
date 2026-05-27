@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import QuoteTemplate from '../components/templates/quote/QuoteTemplate';
 import type { QuoteData } from '../components/templates/quote/types';
-import { Badge, Button, useConfirm, usePrompt } from '../components/ui';
+import { Badge, Button, Modal, useConfirm, usePrompt } from '../components/ui';
 import { fmtDate } from '../components/templates/quote/format';
 import { userContext } from '../context/userContext';
 import QuoteEditor from '../components/forms/QuoteEditor';
@@ -12,6 +12,14 @@ interface ApiResponse {
   status: string;
   results: number;
   data: { quotes: QuoteData[] };
+}
+
+interface InventoryRow {
+  id: number;
+  unit_number: string;
+  size: string;
+  damage: string;
+  state: string;
 }
 
 type ActionState =
@@ -32,6 +40,13 @@ export default function QuoteDetail() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [action, setAction] = useState<ActionState>({ kind: 'idle' });
+  const [promoteOpen, setPromoteOpen] = useState(false);
+  const [available, setAvailable] = useState<InventoryRow[]>([]);
+  const [availableLoaded, setAvailableLoaded] = useState(false);
+  const [containerSearch, setContainerSearch] = useState('');
+  // Selection order is significant: chosen container[i] maps to quote
+  // line[i] positionally on promotion (see promote endpoint).
+  const [promoteIds, setPromoteIds] = useState<number[]>([]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -194,6 +209,80 @@ export default function QuoteDetail() {
     }
   };
 
+  const openPromote = async () => {
+    setPromoteIds([]);
+    setContainerSearch('');
+    setPromoteOpen(true);
+    if (availableLoaded) return;
+    try {
+      const res = await fetch('/api/v1/inventory/state', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: 'available' }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        setAvailable(body.data.inventory ?? []);
+        setAvailableLoaded(true);
+      }
+    } catch {
+      // Non-fatal; the picker shows empty.
+    }
+  };
+
+  const togglePromote = (containerId: number) => {
+    setPromoteIds((prev) =>
+      prev.includes(containerId)
+        ? prev.filter((x) => x !== containerId)
+        : [...prev, containerId],
+    );
+  };
+
+  const handlePromote = async () => {
+    if (!quote || promoteIds.length === 0) return;
+    setAction({ kind: 'busy', label: 'Creating invoice…' });
+    setPromoteOpen(false);
+    try {
+      const res = await fetch(`/api/v2/quote/${quote.id}/promote`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          containers: promoteIds.map((inventory_id) => ({ inventory_id })),
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      }
+      const created = (await res.json()) as {
+        id: number;
+        invoice_number: number;
+      };
+      setAction({
+        kind: 'ok',
+        message: `Invoice #${created.invoice_number} created.`,
+      });
+      navigate(`/invoices/${created.id}`);
+    } catch (e) {
+      setAction({
+        kind: 'err',
+        message: e instanceof Error ? e.message : 'Promote failed',
+      });
+    }
+  };
+
+  const filteredAvailable = useMemo(() => {
+    if (!containerSearch.trim()) return available;
+    const q = containerSearch.toLowerCase();
+    return available.filter((r) =>
+      [r.unit_number, r.size, r.damage].some((v) =>
+        v?.toLowerCase().includes(q),
+      ),
+    );
+  }, [available, containerSearch]);
+
   if (loading) {
     return (
       <div className={styles.page}>
@@ -251,6 +340,11 @@ export default function QuoteDetail() {
               </Button>
             )}
             {isAdmin && <Button onClick={handleEmail}>Email</Button>}
+            {isAdmin && (
+              <Button variant="secondary" onClick={openPromote}>
+                Promote to invoice
+              </Button>
+            )}
             {isAdmin && (
               <Button variant="danger" onClick={handleDelete}>
                 Delete
@@ -315,6 +409,80 @@ export default function QuoteDetail() {
           <QuoteTemplate data={quote} />
         </div>
       )}
+
+      <Modal
+        open={promoteOpen}
+        onClose={() => setPromoteOpen(false)}
+        title="Promote to invoice"
+        size="lg"
+      >
+        <p className={styles.promoteHint}>
+          Pick the containers for the new invoice. The quote's line pricing
+          (sale price, trucking, modifications) is copied onto them in order —
+          the 1st container selected takes the 1st quote line, and so on. The
+          quote stays as-is and can be promoted again.
+        </p>
+        <input
+          type="search"
+          className={styles.promoteSearch}
+          value={containerSearch}
+          onChange={(e) => setContainerSearch(e.target.value)}
+          placeholder="Search unit #, size, condition…"
+        />
+        <div className={styles.promoteList}>
+          {filteredAvailable.length === 0 && (
+            <div className={styles.empty}>
+              {availableLoaded
+                ? 'No available containers match the search.'
+                : 'Loading available containers…'}
+            </div>
+          )}
+          {filteredAvailable.map((row) => {
+            const order = promoteIds.indexOf(row.id);
+            const checked = order !== -1;
+            const mappedLine = checked ? quote.lines[order] : undefined;
+            return (
+              <button
+                key={row.id}
+                type="button"
+                className={`${styles.promoteRow} ${
+                  checked ? styles.promoteRowChecked : ''
+                }`}
+                onClick={() => togglePromote(row.id)}
+              >
+                <input type="checkbox" checked={checked} readOnly tabIndex={-1} />
+                <span className={styles.promoteRowName}>{row.unit_number}</span>
+                <span className={styles.promoteRowMeta}>
+                  {row.size} · {row.damage}
+                </span>
+                {checked && (
+                  <span className={styles.promoteRowMap}>
+                    → line {order + 1}
+                    {mappedLine?.description
+                      ? `: ${mappedLine.description}`
+                      : ' (no quote line — blank pricing)'}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div className={styles.promoteFooter}>
+          <span className={styles.promoteRowMeta}>
+            {promoteIds.length} container{promoteIds.length === 1 ? '' : 's'}{' '}
+            selected · {quote.lines.length} quote line
+            {quote.lines.length === 1 ? '' : 's'}
+          </span>
+          <div className={styles.promoteFooterActions}>
+            <Button variant="secondary" onClick={() => setPromoteOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handlePromote} disabled={promoteIds.length === 0}>
+              Create invoice
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
