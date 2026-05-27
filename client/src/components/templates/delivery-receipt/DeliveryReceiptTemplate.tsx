@@ -14,6 +14,7 @@
 //   - All text fits on one ~150-200mm tear-off.
 
 import type { DeliveryData } from '../delivery/types';
+import { formatUnitNumber } from '../../../lib/unitNumber';
 import styles from './DeliveryReceiptTemplate.module.css';
 
 const fmtDateTime = (iso: string | null): string => {
@@ -62,7 +63,7 @@ export default function DeliveryReceiptTemplate({ data }: Props) {
 
       <div className={styles.unitBlock}>
         <div className={styles.label}>Container</div>
-        <div className={styles.unitNumber}>{data.container.unit_number}</div>
+        <div className={styles.unitNumber}>{formatUnitNumber(data.container.unit_number)}</div>
         <div className={styles.unitSpec}>
           {[data.container.size, data.container.damage]
             .filter(Boolean)

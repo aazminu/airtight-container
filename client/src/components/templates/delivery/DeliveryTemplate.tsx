@@ -11,6 +11,7 @@ import {
 } from '../shared';
 import type { DeliveryData } from './types';
 import styles from './DeliveryTemplate.module.css';
+import { formatUnitNumber } from '../../../lib/unitNumber';
 
 // Flatten the resolved carrier of record into the single DetailLine the
 // delivery block expects. Dispatch name/phone trail the company so the
@@ -88,7 +89,7 @@ export default function DeliveryTemplate({ data }: { data: DeliveryData }) {
         <div className={styles.field}>
           <span className={styles.fieldLabel}>Unit Number</span>
           <span className={`${styles.fieldValue} ${styles.mono}`}>
-            {container.unit_number.trim()}
+            {formatUnitNumber(container.unit_number)}
           </span>
         </div>
         <div className={styles.field}>

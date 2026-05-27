@@ -4,6 +4,7 @@
 // Outbound timestamps are displayed in America/New_York (Manalapan NJ
 // time). Previously the file hand-rolled an offset-arithmetic conversion
 // that broke under DST and silently dropped minutes.
+import { formatUnitNumber } from '../../lib/unitNumber';
 
 export interface YardContainer {
   id: number;
@@ -49,7 +50,7 @@ function YardRow({ container }: Props) {
     const { date, time } = formatOutbound(container.outbound_date);
     return (
       <tr>
-        <td>{container.unit_number.trim()}</td>
+        <td>{formatUnitNumber(container.unit_number)}</td>
         <td>{container.size}</td>
         <td>
           {date}
@@ -67,7 +68,7 @@ function YardRow({ container }: Props) {
 
   return (
     <tr>
-      <td>{container.unit_number.trim()}</td>
+      <td>{formatUnitNumber(container.unit_number)}</td>
       <td>{container.size}</td>
       <td>{daysOnsite(container.date)}</td>
     </tr>

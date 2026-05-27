@@ -8,6 +8,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '../components/ui';
 import { InventoryEditor } from '../components/forms/InventoryEditor';
+import { formatUnitNumber } from '../lib/unitNumber';
 import { userContext } from '../context/userContext';
 import styles from './Inventory.module.css';
 
@@ -343,7 +344,7 @@ export default function Inventory() {
               >
                 <td>
                   <span className={styles.unitCell}>
-                    {r.unit_number.trim()}
+                    {formatUnitNumber(r.unit_number)}
                     {r.state === 'hold' && <Badge tone="warning">Held</Badge>}
                     {r.state === 'outbound' && <Badge tone="info">Outbound</Badge>}
                   </span>
