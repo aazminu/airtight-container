@@ -10,6 +10,8 @@
 
 import type { PoolClient } from 'pg';
 import { getNextQuoteNumber } from './quote-number.js';
+import { createInvoice, updateInvoiceFull } from './invoice-ops.js';
+import type { IncomingContainer, IncomingModification } from './invoice-ops.js';
 
 export interface IncomingQuoteMod {
   description?: string;
@@ -255,4 +257,146 @@ export async function deleteQuote(
     'UPDATE quotes SET deleted_at = NOW(), pdf_s3_key = NULL WHERE id = $1',
     [quoteId],
   );
+}
+
+export interface PromoteQuoteBody {
+  // Chosen container inventory rows, in the order they should map onto
+  // the quote's lines. Optionally a line_id can be pinned to a container
+  // for an explicit (non-positional) mapping; any container without a
+  // line_id falls back to positional pairing.
+  containers: Array<{ inventory_id: number; line_id?: number | null }>;
+}
+
+interface QuotePromoteRow {
+  client_id: number;
+  deleted_at: Date | string | null;
+}
+
+interface QuoteLineForPromote {
+  id: number;
+  sale_price: string | null;
+  trucking_rate: string | null;
+  destination: string | null;
+}
+
+/**
+ * Spawn a brand-new sales invoice from a quote, copying the quote's line
+ * pricing onto the chosen containers. The quote is NOT consumed — it's
+ * left intact and can be promoted again.
+ *
+ * Mapping (design assumption): a quote line is paired with a container
+ * positionally — line[i] → container[i] — unless the caller pins a
+ * container to a specific quote line via `line_id`. Pinned containers
+ * take their pinned line; the remaining containers and lines pair up in
+ * order. Excess containers (more boxes than lines) get no quote pricing
+ * (blank sale_price/trucking/mods); excess lines (more lines than boxes)
+ * are dropped — an invoice line must hang off a real container.
+ *
+ * Reuses invoice-ops.createInvoice (advisory-lock numbering + container
+ * link) then updateInvoiceFull (sold-row reconcile, state flip, mods,
+ * totals). Caller owns the transaction.
+ */
+export async function promoteQuoteToInvoice(
+  client: PoolClient,
+  quoteId: number,
+  body: PromoteQuoteBody,
+): Promise<{ id: number; invoice_number: number }> {
+  const { rows: qRows } = await client.query<QuotePromoteRow>(
+    'SELECT client_id, deleted_at FROM quotes WHERE id = $1',
+    [quoteId],
+  );
+  const quote = qRows[0];
+  if (!quote) {
+    const err = new Error('Quote not found') as Error & { status?: number };
+    err.status = 404;
+    throw err;
+  }
+  if (quote.deleted_at !== null) {
+    const err = new Error('Quote is deleted') as Error & { status?: number };
+    err.status = 409;
+    throw err;
+  }
+
+  const containers = Array.isArray(body.containers) ? body.containers : [];
+  if (containers.length === 0) {
+    const err = new Error(
+      'At least one container is required to promote a quote',
+    ) as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
+
+  const { rows: lineRows } = await client.query<QuoteLineForPromote>(
+    `SELECT id, sale_price, trucking_rate, destination
+       FROM quote_line_items
+      WHERE quote_id = $1
+      ORDER BY position, id`,
+    [quoteId],
+  );
+
+  const { rows: modRows } = await client.query<{
+    quote_line_item_id: number;
+    description: string;
+    price: string;
+    position: number;
+  }>(
+    `SELECT quote_line_item_id, description, price, position
+       FROM quote_line_modifications
+      WHERE quote_line_item_id = ANY($1::int[])
+      ORDER BY quote_line_item_id, position, id`,
+    [lineRows.map((l) => l.id)],
+  );
+  const modsByLine = new Map<number, IncomingModification[]>();
+  for (const m of modRows) {
+    if (!modsByLine.has(m.quote_line_item_id))
+      modsByLine.set(m.quote_line_item_id, []);
+    modsByLine.get(m.quote_line_item_id)!.push({
+      description: m.description,
+      price: m.price,
+      position: m.position,
+    });
+  }
+
+  // Resolve each container to a quote line. Explicit line_id pins win;
+  // the rest pair positionally against the lines not already pinned.
+  const lineById = new Map(lineRows.map((l) => [l.id, l]));
+  const pinnedLineIds = new Set(
+    containers
+      .map((c) => c.line_id)
+      .filter((id): id is number => id != null && lineById.has(id)),
+  );
+  const unpinnedLines = lineRows.filter((l) => !pinnedLineIds.has(l.id));
+  let posCursor = 0;
+
+  const invoiceContainers: IncomingContainer[] = containers.map((c) => {
+    let line: QuoteLineForPromote | undefined;
+    if (c.line_id != null && lineById.has(c.line_id)) {
+      line = lineById.get(c.line_id);
+    } else {
+      line = unpinnedLines[posCursor];
+      posCursor += 1;
+    }
+    return {
+      inventory_id: c.inventory_id,
+      sale_price: line?.sale_price ?? null,
+      trucking_rate: line?.trucking_rate ?? null,
+      modification_price: null,
+      destination: line?.destination ?? null,
+      modifications: line ? modsByLine.get(line.id) ?? [] : [],
+    };
+  });
+
+  const created = await createInvoice(client, {
+    client_id: quote.client_id,
+    invoice_taxed: false,
+    invoice_credit: false,
+    containers: invoiceContainers.map((c) => ({ inventory_id: c.inventory_id })),
+  });
+
+  await updateInvoiceFull(client, created.id, {
+    client_id: quote.client_id,
+    containers: invoiceContainers,
+  });
+
+  return created;
 }

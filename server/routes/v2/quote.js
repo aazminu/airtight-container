@@ -8,8 +8,14 @@ import {
 	createQuoteSchema,
 	updateQuoteSchema,
 	emailQuoteSchema,
+	promoteQuoteSchema,
 } from "../../validation/quote.js";
-import { createQuote, updateQuoteFull, deleteQuote } from "../../lib/quote-ops.js";
+import {
+	createQuote,
+	updateQuoteFull,
+	deleteQuote,
+	promoteQuoteToInvoice,
+} from "../../lib/quote-ops.js";
 import {
 	renderAndStoreQuotePdf,
 	getQuotePdfBytes,
@@ -338,10 +344,36 @@ router.post("/:id/email", checkAdmin, validateBody(emailQuoteSchema), async (req
 	}
 });
 
-// TODO(promote-to-invoice): a POST /:id/promote endpoint would spawn a
-// real invoice from this quote's client + line items (mapping quote
-// lines → invoice containers/sold rows). Deferred until the
-// invoice-creation refactor in flight lands — it depends on changes to
-// lib/invoice-ops.ts and the create flow that another workstream owns.
+// Spawn a new sales invoice from this quote's client + line pricing,
+// applied to the chosen containers. The quote is left intact (can be
+// promoted again). Line→container mapping is positional unless the body
+// pins containers to lines via line_id (see lib/quote-ops promoteQuoteToInvoice).
+router.post(
+	"/:id/promote",
+	checkAdmin,
+	validateBody(promoteQuoteSchema),
+	async (req, res) => {
+		const quoteId = parseInt(req.params.id, 10);
+		if (!Number.isFinite(quoteId)) {
+			return res.status(400).json({ message: "Invalid quote id" });
+		}
+		const client = await pool.connect();
+		try {
+			await client.query("BEGIN");
+			const result = await promoteQuoteToInvoice(client, quoteId, req.body);
+			await client.query("COMMIT");
+			res.status(200).json({ status: "success", ...result });
+		} catch (err) {
+			await client.query("ROLLBACK");
+			if (err.status) {
+				return res.status(err.status).json({ message: err.message });
+			}
+			console.error("quote.promote error:", err);
+			res.status(500).json({ message: err.message || "Internal server error" });
+		} finally {
+			client.release();
+		}
+	},
+);
 
 export default router;

@@ -49,5 +49,21 @@ export const emailQuoteSchema = z.object({
   to: z.string().email().max(320).optional(),
 });
 
+// Promote a quote into a new invoice. `containers` is the chosen
+// inventory rows in mapping order; an optional `line_id` per container
+// pins it to a specific quote line (otherwise pairing is positional).
+export const promoteQuoteSchema = z.object({
+  containers: z
+    .array(
+      z.object({
+        inventory_id: z.coerce.number().int().positive(),
+        line_id: z.coerce.number().int().positive().nullable().optional(),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+
 export type CreateQuoteInput = z.infer<typeof createQuoteSchema>;
 export type UpdateQuoteInput = z.infer<typeof updateQuoteSchema>;
+export type PromoteQuoteInput = z.infer<typeof promoteQuoteSchema>;
