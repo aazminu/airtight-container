@@ -110,6 +110,42 @@ router.get("/:id", checkEmployee, async (req, res) => {
 	}
 });
 
+// Look up a delivery sheet by its AT number (ATYYYYMM###). Powers the
+// outbound screen's search. Returns the report plus the linked sales
+// container's current state so the screen can decide whether pickup is
+// still pending.
+router.get("/by-number/:number", checkEmployee, async (req, res) => {
+	try {
+		const number = String(req.params.number).trim().toUpperCase();
+		const rows = await drizzleDb
+			.select()
+			.from(reports)
+			.where(eq(reports.delivery_sheet_number, number));
+		if (rows.length === 0) {
+			return res
+				.status(404)
+				.json({ message: `No delivery sheet found for ${number}.` });
+		}
+		const report = rows[0];
+		let container = null;
+		const cid = report.parameters?.container_id;
+		if (Number.isInteger(cid)) {
+			const inv = await db.query(
+				`SELECT i.id, i.unit_number, i.size, i.state, s.outbound_date, s.destination
+				 FROM inventory i
+				 LEFT JOIN sold s ON s.inventory_id = i.id
+				 WHERE i.id = $1`,
+				[cid],
+			);
+			container = inv.rows[0] ?? null;
+		}
+		res.status(200).json({ status: "success", data: { report, container } });
+	} catch (err) {
+		console.error("reports.by-number error:", err);
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
+
 // Preview a report's resolved data without persisting a row. Used by
 // the multi-step generator forms (delivery sheet, etc.) to render the
 // in-progress template on the Preview step. Same validation as create,

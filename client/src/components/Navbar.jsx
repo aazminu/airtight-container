@@ -66,6 +66,9 @@ function Navbar() {
 										<a href="/reports">Reports</a>
 									</li>
 									<li>
+										<a href="/outbound">Outbound</a>
+									</li>
+									<li>
 										<a href="/dashboard">Dashboard</a>
 									</li>
 									<li>
