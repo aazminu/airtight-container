@@ -45,6 +45,14 @@
   border-color: var(--accent, #0969da);
 }
 
+.placePicker {
+  width: 100%;
+  --gmpx-color-surface: var(--bg, #fff);
+  --gmpx-color-on-surface: var(--text, #111);
+  --gmpx-color-primary: var(--accent, #0969da);
+  --gmpx-font-size-base: 0.95rem;
+}
+
 .fieldset {
   border: 1px solid var(--border, #d0d7de);
   border-radius: 6px;
