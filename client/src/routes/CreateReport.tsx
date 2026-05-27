@@ -117,7 +117,7 @@ export default function CreateReport() {
 async function submitReport(
   report_type: ReportType,
   parameters: Record<string, unknown>,
-): Promise<{ id: number } | { error: string }> {
+): Promise<{ id: number; at_number: string | null } | { error: string }> {
   try {
     const res = await fetch('/api/v2/report', {
       method: 'POST',
@@ -129,7 +129,10 @@ async function submitReport(
     if (!res.ok) {
       return { error: body?.message ?? `HTTP ${res.status}` };
     }
-    return { id: body?.data?.report?.id };
+    return {
+      id: body?.data?.report?.id,
+      at_number: body?.data?.report?.delivery_sheet_number ?? null,
+    };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Network error' };
   }
@@ -283,7 +286,7 @@ function DeliveryFlow() {
     | { kind: 'idle' }
     | { kind: 'submitting' }
     | { kind: 'error'; message: string }
-    | { kind: 'done'; id: number }
+    | { kind: 'done'; id: number; at_number: string | null }
   >({ kind: 'idle' });
 
   // Load both sales inventory (sold/outbound) and S&H boxes (in_storage).
@@ -453,8 +456,8 @@ function DeliveryFlow() {
       setSubmitState({ kind: 'error', message: result.error });
       return;
     }
-    setSubmitState({ kind: 'done', id: result.id });
-    setStep(4);
+    setSubmitState({ kind: 'done', id: result.id, at_number: result.at_number });
+    setStep(5);
   };
 
   return (
@@ -825,7 +828,9 @@ function DeliveryFlow() {
               <Badge tone="success">Created</Badge>
               {submitState.kind === 'done' && (
                 <>
-                  <div className={styles.doneNumber}>#{submitState.id}</div>
+                  <div className={styles.doneNumber}>
+                    {submitState.at_number ?? `#${submitState.id}`}
+                  </div>
                   <p className={styles.hint}>
                     Delivery sheet saved. Open it to render or email the PDF.
                   </p>
@@ -855,7 +860,7 @@ function DeliveryFlow() {
         </Flow>
       </div>
 
-      {step < 4 && (
+      {step < 5 && (
         <div className={styles.actions}>
           <Button
             variant="secondary"
@@ -865,7 +870,7 @@ function DeliveryFlow() {
             ← Back
           </Button>
           <div className={styles.actionsRight}>
-            {step === 3 ? (
+            {step === 4 ? (
               <Button
                 onClick={submit}
                 disabled={submitState.kind === 'submitting' || !preview}
