@@ -1,5 +1,6 @@
 export { Button } from './Button';
 export type { ButtonProps } from './Button';
+export { CurrencyInput } from './CurrencyInput';
 export { Modal } from './Modal';
 export type { ModalProps } from './Modal';
 export { Badge } from './Badge';

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge, Button, Flow, FlowStep, Stepper } from '../components/ui';
+import { Badge, Button, CurrencyInput, Flow, FlowStep, Stepper } from '../components/ui';
 import InvoiceTemplate from '../components/templates/invoice/InvoiceTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/invoice/format';
 import type {
@@ -901,22 +901,16 @@ export default function CreateInvoice() {
                   <div className={styles.fieldGrid}>
                     <label className={styles.field}>
                       <span className={styles.fieldLabel}>Sale price *</span>
-                      <input
-                        className={styles.input}
-                        type="number"
-                        step="0.01"
+                      <CurrencyInput
                         value={d.sale_price}
-                        onChange={(e) => updateDraft(id, { sale_price: e.target.value })}
+                        onChange={(v) => updateDraft(id, { sale_price: v })}
                       />
                     </label>
                     <label className={styles.field}>
                       <span className={styles.fieldLabel}>Trucking</span>
-                      <input
-                        className={styles.input}
-                        type="number"
-                        step="0.01"
+                      <CurrencyInput
                         value={d.trucking_rate}
-                        onChange={(e) => updateDraft(id, { trucking_rate: e.target.value })}
+                        onChange={(v) => updateDraft(id, { trucking_rate: v })}
                       />
                     </label>
                     <label className={styles.field}>

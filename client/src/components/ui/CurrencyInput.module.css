@@ -1,0 +1,28 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+}
+
+.dollar {
+  position: absolute;
+  left: 0.6rem;
+  color: var(--text-muted, #889);
+  pointer-events: none;
+  font-size: 0.95rem;
+}
+
+.input {
+  width: 100%;
+  padding: 0.5rem 0.6rem 0.5rem 1.4rem;
+  border: 1px solid var(--border, #ccd);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+}
+
+.input:disabled {
+  opacity: 0.6;
+}

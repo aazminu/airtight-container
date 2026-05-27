@@ -4,7 +4,7 @@ import type {
   InvoiceLineContainer,
   InvoiceModification,
 } from '../templates/invoice/types';
-import { Button } from '../ui';
+import { Button, CurrencyInput } from '../ui';
 import { fmtCurrency } from '../templates/invoice/format';
 import {
   MODIFICATION_DATALIST_ID,
@@ -552,22 +552,16 @@ export default function InvoiceEditor({
             <div className={styles.fieldGrid}>
               <label className={styles.field}>
                 <span className={styles.label}>Sale price</span>
-                <input
-                  className={styles.input}
-                  type="number"
-                  step="0.01"
-                  value={c.sale_price ?? ''}
-                  onChange={(e) => updateContainer(ctIdx, { sale_price: e.target.value })}
+                <CurrencyInput
+                  value={c.sale_price}
+                  onChange={(v) => updateContainer(ctIdx, { sale_price: v })}
                 />
               </label>
               <label className={styles.field}>
                 <span className={styles.label}>Trucking rate</span>
-                <input
-                  className={styles.input}
-                  type="number"
-                  step="0.01"
-                  value={c.trucking_rate ?? ''}
-                  onChange={(e) => updateContainer(ctIdx, { trucking_rate: e.target.value })}
+                <CurrencyInput
+                  value={c.trucking_rate}
+                  onChange={(v) => updateContainer(ctIdx, { trucking_rate: v })}
                 />
               </label>
               <label className={styles.field}>
