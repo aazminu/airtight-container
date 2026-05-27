@@ -1,7 +1,52 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { FormEvent } from 'react';
+import { APILoader, PlacePicker } from '@googlemaps/extended-component-library/react';
+import type { PlacePicker as PlacePickerElement } from '@googlemaps/extended-component-library/place_picker.js';
 import { Button } from '../ui';
 import styles from './ClientForm.module.css';
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as
+  | string
+  | undefined;
+
+interface PlaceAddressComponent {
+  types?: string[];
+  longText?: string | null;
+  shortText?: string | null;
+}
+
+interface SelectedPlace {
+  addressComponents?: PlaceAddressComponent[] | null;
+}
+
+function pickComponent(
+  components: PlaceAddressComponent[],
+  type: string,
+  short = false,
+): string {
+  const match = components.find((c) => c.types?.includes(type));
+  if (!match) return '';
+  return (short ? match.shortText : match.longText) ?? '';
+}
+
+function placeToAddress(place: SelectedPlace): {
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+} {
+  const components = place.addressComponents ?? [];
+  const streetNumber = pickComponent(components, 'street_number');
+  const route = pickComponent(components, 'route');
+  const street = [streetNumber, route].filter(Boolean).join(' ');
+  const city =
+    pickComponent(components, 'locality') ||
+    pickComponent(components, 'postal_town') ||
+    pickComponent(components, 'sublocality');
+  const state = pickComponent(components, 'administrative_area_level_1', true);
+  const zip = pickComponent(components, 'postal_code');
+  return { street, city, state, zip };
+}
 
 export interface Client {
   id?: number;
@@ -42,6 +87,7 @@ export function ClientForm({ initial, onSubmit, onCancel }: Props) {
   const [form, setForm] = useState<Client>(initial ?? empty);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pickerRef = useRef<PlacePickerElement | null>(null);
 
   useEffect(() => {
     setForm(initial ?? empty);
@@ -51,6 +97,19 @@ export function ClientForm({ initial, onSubmit, onCancel }: Props) {
     <K extends keyof Client>(key: K) =>
     (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const handlePlaceChange = () => {
+    const place = pickerRef.current?.value as SelectedPlace | null | undefined;
+    if (!place) return;
+    const { street, city, state, zip } = placeToAddress(place);
+    setForm((f) => ({
+      ...f,
+      street: street || f.street,
+      city: city || f.city,
+      state: state || f.state,
+      zip: zip || f.zip,
+    }));
+  };
 
   const handle = async (e: FormEvent) => {
     e.preventDefault();
@@ -119,6 +178,20 @@ export function ClientForm({ initial, onSubmit, onCancel }: Props) {
 
       <fieldset className={styles.fieldset}>
         <legend>Address</legend>
+        {GOOGLE_MAPS_API_KEY && (
+          <label className={styles.field}>
+            <span>Search address</span>
+            <APILoader apiKey={GOOGLE_MAPS_API_KEY} />
+            <PlacePicker
+              ref={pickerRef}
+              className={styles.placePicker}
+              type="address"
+              country={['us']}
+              placeholder="Start typing an address…"
+              onPlaceChange={handlePlaceChange}
+            />
+          </label>
+        )}
         <label className={styles.field}>
           <span>Street</span>
           <input
