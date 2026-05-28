@@ -234,6 +234,141 @@
   color: var(--muted, #6e7781);
 }
 
+.promoteSection {
+  margin-bottom: 1.25rem;
+}
+
+.promoteSectionHead {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.promoteRow:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.checkRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.deliveryCard {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  background: var(--bg-surface);
+  display: grid;
+  gap: 0.625rem;
+}
+
+.deliveryHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.deliveryMap {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.containerSub {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.deliveryGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.fieldLabel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.input {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  background: var(--bg-input);
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.linkBtn {
+  background: transparent;
+  border: 0;
+  padding: 0.25rem 0;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+}
+
+.linkBtn:hover {
+  text-decoration: underline;
+}
+
+.previewTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.previewTable th,
+.previewTable td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.previewTable th {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.previewMoney {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.previewDropped {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+@media (max-width: 640px) {
+  .deliveryGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .promoteFooter {
   display: flex;
   align-items: center;

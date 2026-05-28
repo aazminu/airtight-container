@@ -2,8 +2,16 @@ import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import QuoteTemplate from '../components/templates/quote/QuoteTemplate';
 import type { QuoteData } from '../components/templates/quote/types';
-import { Badge, Button, Modal, useConfirm, usePrompt } from '../components/ui';
-import { fmtDate } from '../components/templates/quote/format';
+import {
+  AddressFields,
+  Badge,
+  Button,
+  Modal,
+  useConfirm,
+  usePrompt,
+} from '../components/ui';
+import { DoorOrientationField } from '../components/forms/DoorOrientationField';
+import { fmtCurrency, fmtDate } from '../components/templates/quote/format';
 import { userContext } from '../context/userContext';
 import QuoteEditor from '../components/forms/QuoteEditor';
 import styles from './QuoteDetail.module.css';
@@ -21,6 +29,49 @@ interface InventoryRow {
   damage: string;
   state: string;
 }
+
+interface TruckingCompany {
+  id: number;
+  company_name: string;
+}
+
+interface ContainerDelivery {
+  outbound_trucking_company_id: number | null;
+  door_orientation: string;
+  delivery_same_as_ship: boolean;
+  delivery_name: string;
+  delivery_street: string;
+  delivery_city: string;
+  delivery_state: string;
+  delivery_zip: string;
+}
+
+const EMPTY_DELIVERY: ContainerDelivery = {
+  outbound_trucking_company_id: null,
+  door_orientation: '',
+  delivery_same_as_ship: true,
+  delivery_name: '',
+  delivery_street: '',
+  delivery_city: '',
+  delivery_state: '',
+  delivery_zip: '',
+};
+
+interface ShipTo {
+  name: string;
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
+const EMPTY_SHIP_TO: ShipTo = {
+  name: '',
+  street: '',
+  city: '',
+  state: '',
+  zip: '',
+};
 
 type ActionState =
   | { kind: 'idle' }
@@ -47,6 +98,14 @@ export default function QuoteDetail() {
   // Selection order is significant: chosen container[i] maps to quote
   // line[i] positionally on promotion (see promote endpoint).
   const [promoteIds, setPromoteIds] = useState<number[]>([]);
+  const [truckingCompanies, setTruckingCompanies] = useState<TruckingCompany[]>(
+    [],
+  );
+  const [shipSameAsBilling, setShipSameAsBilling] = useState(true);
+  const [shipTo, setShipTo] = useState<ShipTo>(EMPTY_SHIP_TO);
+  const [deliveryByContainer, setDeliveryByContainer] = useState<
+    Record<number, ContainerDelivery>
+  >({});
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -212,31 +271,70 @@ export default function QuoteDetail() {
   const openPromote = async () => {
     setPromoteIds([]);
     setContainerSearch('');
+    setShipSameAsBilling(true);
+    setShipTo(EMPTY_SHIP_TO);
+    setDeliveryByContainer({});
     setPromoteOpen(true);
-    if (availableLoaded) return;
+    if (!availableLoaded) {
+      try {
+        const res = await fetch('/api/v1/inventory/state', {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: 'available' }),
+        });
+        if (res.ok) {
+          const body = await res.json();
+          setAvailable(body.data.inventory ?? []);
+          setAvailableLoaded(true);
+        }
+      } catch {
+        // Non-fatal; the picker shows empty.
+      }
+    }
+    // Trucking companies for the per-container carrier dropdown.
     try {
-      const res = await fetch('/api/v1/inventory/state', {
-        method: 'PUT',
+      const res = await fetch('/api/v2/trucking-companies', {
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: 'available' }),
       });
       if (res.ok) {
         const body = await res.json();
-        setAvailable(body.data.inventory ?? []);
-        setAvailableLoaded(true);
+        setTruckingCompanies(body?.data?.trucking_companies ?? []);
       }
     } catch {
-      // Non-fatal; the picker shows empty.
+      // Non-fatal.
     }
   };
 
   const togglePromote = (containerId: number) => {
-    setPromoteIds((prev) =>
-      prev.includes(containerId)
-        ? prev.filter((x) => x !== containerId)
-        : [...prev, containerId],
-    );
+    setPromoteIds((prev) => {
+      if (prev.includes(containerId)) {
+        // Drop the container + its collected delivery info.
+        setDeliveryByContainer((d) => {
+          const next = { ...d };
+          delete next[containerId];
+          return next;
+        });
+        return prev.filter((x) => x !== containerId);
+      }
+      // Cap selection at quote.lines.length — every container needs a
+      // line to map onto.
+      if (quote && prev.length >= quote.lines.length) return prev;
+      setDeliveryByContainer((d) =>
+        d[containerId] ? d : { ...d, [containerId]: { ...EMPTY_DELIVERY } },
+      );
+      return [...prev, containerId];
+    });
+  };
+
+  const updateDelivery = (
+    containerId: number,
+    patch: Partial<ContainerDelivery>,
+  ) => {
+    setDeliveryByContainer((d) => ({
+      ...d,
+      [containerId]: { ...(d[containerId] ?? EMPTY_DELIVERY), ...patch },
+    }));
   };
 
   const handlePromote = async () => {
@@ -249,7 +347,25 @@ export default function QuoteDetail() {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          containers: promoteIds.map((inventory_id) => ({ inventory_id })),
+          ship_to_same_as_billing: shipSameAsBilling,
+          ship_to_name: shipSameAsBilling ? null : shipTo.name || null,
+          ship_to_street: shipSameAsBilling ? null : shipTo.street || null,
+          ship_to_city: shipSameAsBilling ? null : shipTo.city || null,
+          ship_to_state: shipSameAsBilling ? null : shipTo.state || null,
+          ship_to_zip: shipSameAsBilling ? null : shipTo.zip || null,
+          containers: promoteIds.map((inventory_id) => {
+            const d = deliveryByContainer[inventory_id] ?? EMPTY_DELIVERY;
+            return {
+              inventory_id,
+              outbound_trucking_company_id: d.outbound_trucking_company_id,
+              door_orientation: d.door_orientation || null,
+              delivery_name: d.delivery_same_as_ship ? null : d.delivery_name || null,
+              delivery_street: d.delivery_same_as_ship ? null : d.delivery_street || null,
+              delivery_city: d.delivery_same_as_ship ? null : d.delivery_city || null,
+              delivery_state: d.delivery_same_as_ship ? null : d.delivery_state || null,
+              delivery_zip: d.delivery_same_as_ship ? null : d.delivery_zip || null,
+            };
+          }),
         }),
       });
       if (!res.ok) {
@@ -416,62 +532,262 @@ export default function QuoteDetail() {
         title="Promote to invoice"
         size="lg"
       >
-        <p className={styles.promoteHint}>
-          Pick the containers for the new invoice. The quote's line pricing
-          (sale price, trucking, modifications) is copied onto them in order —
-          the 1st container selected takes the 1st quote line, and so on. The
-          quote stays as-is and can be promoted again.
-        </p>
-        <input
-          type="search"
-          className={styles.promoteSearch}
-          value={containerSearch}
-          onChange={(e) => setContainerSearch(e.target.value)}
-          placeholder="Search unit #, size, condition…"
-        />
-        <div className={styles.promoteList}>
-          {filteredAvailable.length === 0 && (
-            <div className={styles.empty}>
-              {availableLoaded
-                ? 'No available containers match the search.'
-                : 'Loading available containers…'}
-            </div>
-          )}
-          {filteredAvailable.map((row) => {
-            const order = promoteIds.indexOf(row.id);
-            const checked = order !== -1;
-            const mappedLine = checked ? quote.lines[order] : undefined;
-            return (
-              <button
-                key={row.id}
-                type="button"
-                className={`${styles.promoteRow} ${
-                  checked ? styles.promoteRowChecked : ''
-                }`}
-                onClick={() => togglePromote(row.id)}
-              >
-                <input type="checkbox" checked={checked} readOnly tabIndex={-1} />
-                <span className={styles.promoteRowName}>{row.unit_number}</span>
-                <span className={styles.promoteRowMeta}>
-                  {row.size} · {row.damage}
-                </span>
-                {checked && (
-                  <span className={styles.promoteRowMap}>
-                    → line {order + 1}
-                    {mappedLine?.description
-                      ? `: ${mappedLine.description}`
-                      : ' (no quote line — blank pricing)'}
+        <div className={styles.promoteSection}>
+          <div className={styles.promoteSectionHead}>1. Containers</div>
+          <p className={styles.promoteHint}>
+            Pick up to {quote.lines.length} container
+            {quote.lines.length === 1 ? '' : 's'}. The quote's line pricing
+            (sale price, trucking, modifications) is copied onto them in order —
+            the 1st container selected takes the 1st quote line, and so on. The
+            quote stays as-is and can be promoted again.
+          </p>
+          <input
+            type="search"
+            className={styles.promoteSearch}
+            value={containerSearch}
+            onChange={(e) => setContainerSearch(e.target.value)}
+            placeholder="Search unit #, size, condition…"
+          />
+          <div className={styles.promoteList}>
+            {filteredAvailable.length === 0 && (
+              <div className={styles.empty}>
+                {availableLoaded
+                  ? 'No available containers match the search.'
+                  : 'Loading available containers…'}
+              </div>
+            )}
+            {filteredAvailable.map((row) => {
+              const order = promoteIds.indexOf(row.id);
+              const checked = order !== -1;
+              const mappedLine = checked ? quote.lines[order] : undefined;
+              const atCap =
+                !checked && promoteIds.length >= quote.lines.length;
+              return (
+                <button
+                  key={row.id}
+                  type="button"
+                  disabled={atCap}
+                  className={`${styles.promoteRow} ${
+                    checked ? styles.promoteRowChecked : ''
+                  }`}
+                  onClick={() => togglePromote(row.id)}
+                >
+                  <input type="checkbox" checked={checked} readOnly tabIndex={-1} />
+                  <span className={styles.promoteRowName}>{row.unit_number}</span>
+                  <span className={styles.promoteRowMeta}>
+                    {row.size} · {row.damage}
                   </span>
-                )}
-              </button>
-            );
-          })}
+                  {checked && (
+                    <span className={styles.promoteRowMap}>
+                      → line {order + 1}
+                      {mappedLine?.description ? `: ${mappedLine.description}` : ''}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
+
+        {promoteIds.length > 0 && (
+          <>
+            <div className={styles.promoteSection}>
+              <div className={styles.promoteSectionHead}>2. Ship-to</div>
+              <label className={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={shipSameAsBilling}
+                  onChange={(e) => setShipSameAsBilling(e.target.checked)}
+                />
+                Same as billing
+              </label>
+              {!shipSameAsBilling && (
+                <AddressFields
+                  value={shipTo}
+                  onChange={(next) => setShipTo(next)}
+                  nameLabel="Ship to (name)"
+                />
+              )}
+            </div>
+
+            <div className={styles.promoteSection}>
+              <div className={styles.promoteSectionHead}>
+                3. Per-container delivery
+              </div>
+              {promoteIds.map((cid, idx) => {
+                const row = available.find((r) => r.id === cid);
+                const line = quote.lines[idx];
+                const d = deliveryByContainer[cid] ?? EMPTY_DELIVERY;
+                return (
+                  <div key={cid} className={styles.deliveryCard}>
+                    <div className={styles.deliveryHead}>
+                      <strong>{row?.unit_number.trim()}</strong>{' '}
+                      <span className={styles.containerSub}>
+                        {row?.size} · {row?.damage}
+                      </span>
+                      {line?.description && (
+                        <span className={styles.deliveryMap}>
+                          → {line.description}
+                        </span>
+                      )}
+                    </div>
+                    <div className={styles.deliveryGrid}>
+                      <label className={styles.field}>
+                        <span className={styles.fieldLabel}>
+                          Trucking company
+                        </span>
+                        <select
+                          className={styles.input}
+                          value={d.outbound_trucking_company_id ?? ''}
+                          onChange={(e) =>
+                            updateDelivery(cid, {
+                              outbound_trucking_company_id: e.target.value
+                                ? Number(e.target.value)
+                                : null,
+                            })
+                          }
+                        >
+                          <option value="">— none —</option>
+                          {truckingCompanies.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.company_name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className={styles.field}>
+                        <span className={styles.fieldLabel}>
+                          Door orientation
+                        </span>
+                        <DoorOrientationField
+                          className={styles.input}
+                          value={d.door_orientation}
+                          onChange={(v) =>
+                            updateDelivery(cid, { door_orientation: v })
+                          }
+                        />
+                      </label>
+                    </div>
+                    {d.delivery_same_as_ship ? (
+                      <button
+                        type="button"
+                        className={styles.linkBtn}
+                        onClick={() =>
+                          updateDelivery(cid, { delivery_same_as_ship: false })
+                        }
+                      >
+                        + Add separate shipping address
+                      </button>
+                    ) : (
+                      <div>
+                        <AddressFields
+                          value={{
+                            name: d.delivery_name,
+                            street: d.delivery_street,
+                            city: d.delivery_city,
+                            state: d.delivery_state,
+                            zip: d.delivery_zip,
+                          }}
+                          onChange={(next) =>
+                            updateDelivery(cid, {
+                              delivery_name: next.name,
+                              delivery_street: next.street,
+                              delivery_city: next.city,
+                              delivery_state: next.state,
+                              delivery_zip: next.zip,
+                            })
+                          }
+                          nameLabel="Deliver to (name)"
+                        />
+                        <button
+                          type="button"
+                          className={styles.linkBtn}
+                          onClick={() =>
+                            updateDelivery(cid, {
+                              delivery_same_as_ship: true,
+                              delivery_name: '',
+                              delivery_street: '',
+                              delivery_city: '',
+                              delivery_state: '',
+                              delivery_zip: '',
+                            })
+                          }
+                        >
+                          Use shipping address instead
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className={styles.promoteSection}>
+              <div className={styles.promoteSectionHead}>4. Invoice preview</div>
+              <table className={styles.previewTable}>
+                <thead>
+                  <tr>
+                    <th>Line</th>
+                    <th>Container</th>
+                    <th>Description</th>
+                    <th className={styles.previewMoney}>Sale</th>
+                    <th className={styles.previewMoney}>Trucking</th>
+                    <th className={styles.previewMoney}>Mods</th>
+                    <th className={styles.previewMoney}>Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {quote.lines.map((line, i) => {
+                    const cid = promoteIds[i];
+                    const container = cid != null
+                      ? available.find((r) => r.id === cid)
+                      : null;
+                    const sale = Number(line.sale_price ?? 0);
+                    const trk = Number(line.trucking_rate ?? 0);
+                    const mods = line.modifications.reduce(
+                      (s, m) => s + Number(m.price ?? 0),
+                      0,
+                    );
+                    const sub = container ? sale + trk + mods : 0;
+                    return (
+                      <tr
+                        key={line.id}
+                        className={container ? '' : styles.previewDropped}
+                      >
+                        <td>{i + 1}</td>
+                        <td>
+                          {container ? (
+                            container.unit_number.trim()
+                          ) : (
+                            <em>(dropped — no container)</em>
+                          )}
+                        </td>
+                        <td>{line.description || '—'}</td>
+                        <td className={styles.previewMoney}>
+                          {container ? fmtCurrency(sale) : '—'}
+                        </td>
+                        <td className={styles.previewMoney}>
+                          {container ? fmtCurrency(trk) : '—'}
+                        </td>
+                        <td className={styles.previewMoney}>
+                          {container ? fmtCurrency(mods) : '—'}
+                        </td>
+                        <td className={styles.previewMoney}>
+                          {container ? fmtCurrency(sub) : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
         <div className={styles.promoteFooter}>
           <span className={styles.promoteRowMeta}>
-            {promoteIds.length} container{promoteIds.length === 1 ? '' : 's'}{' '}
-            selected · {quote.lines.length} quote line
-            {quote.lines.length === 1 ? '' : 's'}
+            {promoteIds.length} of {quote.lines.length} line
+            {quote.lines.length === 1 ? '' : 's'} assigned
           </span>
           <div className={styles.promoteFooterActions}>
             <Button variant="secondary" onClick={() => setPromoteOpen(false)}>

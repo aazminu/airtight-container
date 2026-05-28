@@ -264,7 +264,28 @@ export interface PromoteQuoteBody {
   // the quote's lines. Optionally a line_id can be pinned to a container
   // for an explicit (non-positional) mapping; any container without a
   // line_id falls back to positional pairing.
-  containers: Array<{ inventory_id: number; line_id?: number | null }>;
+  containers: Array<{
+    inventory_id: number;
+    line_id?: number | null;
+    // Pass-thru delivery fields collected on the promote modal — these
+    // land on the sold row when updateInvoiceFull runs. All optional.
+    outbound_trucking_company_id?: number | null;
+    door_orientation?: string | null;
+    delivery_name?: string | null;
+    delivery_street?: string | null;
+    delivery_city?: string | null;
+    delivery_state?: string | null;
+    delivery_zip?: string | null;
+  }>;
+  // Invoice-level ship-to override (also collected on the promote modal).
+  // Same cascade as a normal invoice: when ship_to_same_as_billing is
+  // true (default), the ship-to fields are ignored.
+  ship_to_same_as_billing?: boolean;
+  ship_to_name?: string | null;
+  ship_to_street?: string | null;
+  ship_to_city?: string | null;
+  ship_to_state?: string | null;
+  ship_to_zip?: string | null;
 }
 
 interface QuotePromoteRow {
@@ -381,7 +402,16 @@ export async function promoteQuoteToInvoice(
       sale_price: line?.sale_price ?? null,
       trucking_rate: line?.trucking_rate ?? null,
       modification_price: null,
-      destination: line?.destination ?? null,
+      // destination is server-derived from the address cascade; we don't
+      // carry the quote line's text over (the operator picks the real
+      // shipping address on the promote modal).
+      outbound_trucking_company_id: c.outbound_trucking_company_id ?? null,
+      door_orientation: c.door_orientation ?? null,
+      delivery_name: c.delivery_name ?? null,
+      delivery_street: c.delivery_street ?? null,
+      delivery_city: c.delivery_city ?? null,
+      delivery_state: c.delivery_state ?? null,
+      delivery_zip: c.delivery_zip ?? null,
       modifications: line ? modsByLine.get(line.id) ?? [] : [],
     };
   });
@@ -395,6 +425,12 @@ export async function promoteQuoteToInvoice(
 
   await updateInvoiceFull(client, created.id, {
     client_id: quote.client_id,
+    ship_to_same_as_billing: body.ship_to_same_as_billing,
+    ship_to_name: body.ship_to_name,
+    ship_to_street: body.ship_to_street,
+    ship_to_city: body.ship_to_city,
+    ship_to_state: body.ship_to_state,
+    ship_to_zip: body.ship_to_zip,
     containers: invoiceContainers,
   });
 
