@@ -69,9 +69,17 @@ interface ContainerRow {
   destination: string | null;
   invoice_notes: string | null;
   invoice_client_id: number | null;
+  // Invoice-level ship-to (delivery epic). When ship_to_same_as_billing
+  // is true the rest are null and the cascade falls to client billing.
+  invoice_ship_to_same_as_billing: boolean | null;
+  invoice_ship_to_name: string | null;
+  invoice_ship_to_street: string | null;
+  invoice_ship_to_city: string | null;
+  invoice_ship_to_state: string | null;
+  invoice_ship_to_zip: string | null;
   // Per-box delivery snapshot from the delivery epic (migration 0017).
   // Operators capture the actual delivery target on the sold row; these
-  // win over the form-param override and the client's billing address.
+  // win over the invoice ship-to and the client's billing address.
   sold_door_orientation: string | null;
   delivery_name: string | null;
   delivery_street: string | null;
@@ -174,6 +182,12 @@ async function resolveSalesDelivery(
       s.destination,
       s.invoice_notes,
       i.client_id         AS invoice_client_id,
+      i.ship_to_same_as_billing AS invoice_ship_to_same_as_billing,
+      i.ship_to_name      AS invoice_ship_to_name,
+      i.ship_to_street    AS invoice_ship_to_street,
+      i.ship_to_city      AS invoice_ship_to_city,
+      i.ship_to_state     AS invoice_ship_to_state,
+      i.ship_to_zip       AS invoice_ship_to_zip,
       s.door_orientation  AS sold_door_orientation,
       s.delivery_name,
       s.delivery_street,
@@ -209,21 +223,39 @@ async function resolveSalesDelivery(
   }
   const cl = await loadClient(clientId);
 
-  // Precedence for the delivery target: the per-box snapshot captured on
-  // the sold row (delivery epic) wins, then the form-param override, then
-  // the legacy destination / client billing fallback.
+  // Precedence for the delivery target, top wins:
+  //   1. per-box snapshot on the sold row (delivery epic)
+  //   2. form-param override (rare — sheet-time override)
+  //   3. invoice ship-to override (when ship_to_same_as_billing is false)
+  //   4. client billing
+  // The legacy `ctr.destination` is intentionally NOT a fallback here —
+  // it's a derived city+state string, never a real street.
   const boxLocality = buildLocalityParts(
     ctr.delivery_city,
     ctr.delivery_state,
     ctr.delivery_zip,
   );
+  const useInvoiceShipTo =
+    ctr.invoice_ship_to_same_as_billing === false;
+  const invoiceShipLocality = useInvoiceShipTo
+    ? buildLocalityParts(
+        ctr.invoice_ship_to_city,
+        ctr.invoice_ship_to_state,
+        ctr.invoice_ship_to_zip,
+      )
+    : null;
+  const invoiceShipName = useInvoiceShipTo ? ctr.invoice_ship_to_name : null;
+  const invoiceShipStreet = useInvoiceShipTo
+    ? ctr.invoice_ship_to_street
+    : null;
+
   const addrOverride = params.delivery_address ?? {};
   const resolvedName =
-    ctr.delivery_name ?? addrOverride.name ?? null;
+    ctr.delivery_name ?? addrOverride.name ?? invoiceShipName ?? null;
   const resolvedStreet =
-    ctr.delivery_street ?? addrOverride.street ?? ctr.destination ?? cl.street;
+    ctr.delivery_street ?? addrOverride.street ?? invoiceShipStreet ?? cl.street;
   const resolvedLocality =
-    boxLocality ?? addrOverride.locality ?? buildLocality(cl);
+    boxLocality ?? addrOverride.locality ?? invoiceShipLocality ?? buildLocality(cl);
 
   const trucking = ctr.trucking_company_name
     ? {
