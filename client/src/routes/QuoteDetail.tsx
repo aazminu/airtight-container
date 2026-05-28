@@ -6,12 +6,20 @@ import {
   AddressFields,
   Badge,
   Button,
+  Flow,
+  FlowStep,
   Modal,
+  Stepper,
   useConfirm,
   usePrompt,
 } from '../components/ui';
 import { DoorOrientationField } from '../components/forms/DoorOrientationField';
-import { fmtCurrency, fmtDate } from '../components/templates/quote/format';
+import { fmtDate } from '../components/templates/quote/format';
+import InvoiceTemplate from '../components/templates/invoice/InvoiceTemplate';
+import type {
+  InvoiceData,
+  InvoiceLineContainer,
+} from '../components/templates/invoice/types';
 import { userContext } from '../context/userContext';
 import QuoteEditor from '../components/forms/QuoteEditor';
 import styles from './QuoteDetail.module.css';
@@ -92,6 +100,7 @@ export default function QuoteDetail() {
   const [editing, setEditing] = useState(false);
   const [action, setAction] = useState<ActionState>({ kind: 'idle' });
   const [promoteOpen, setPromoteOpen] = useState(false);
+  const [promoteStep, setPromoteStep] = useState(0);
   const [available, setAvailable] = useState<InventoryRow[]>([]);
   const [availableLoaded, setAvailableLoaded] = useState(false);
   const [containerSearch, setContainerSearch] = useState('');
@@ -274,6 +283,7 @@ export default function QuoteDetail() {
     setShipSameAsBilling(true);
     setShipTo(EMPTY_SHIP_TO);
     setDeliveryByContainer({});
+    setPromoteStep(0);
     setPromoteOpen(true);
     if (!availableLoaded) {
       try {
@@ -388,6 +398,116 @@ export default function QuoteDetail() {
       });
     }
   };
+
+  // Build a full InvoiceData snapshot for step 4's preview, so the
+  // operator sees the exact same template the spawned invoice will
+  // render. Mirrors what the server will compute via updateInvoiceFull.
+  const previewInvoice = useMemo<InvoiceData | null>(() => {
+    if (!quote || promoteIds.length === 0) return null;
+    const taxRate = Number(quote.tax_rate ?? 0);
+    const ccRate = Number(quote.cc_fee_rate ?? 0);
+    const containers: InvoiceLineContainer[] = promoteIds.map((cid, idx) => {
+      const inv = available.find((r) => r.id === cid);
+      const line = quote.lines[idx];
+      const d = deliveryByContainer[cid] ?? EMPTY_DELIVERY;
+      // Match the server's deriveDestination cascade.
+      const cityRaw = !d.delivery_same_as_ship
+        ? d.delivery_city
+        : shipSameAsBilling
+          ? quote.customer.city ?? ''
+          : shipTo.city;
+      const stateRaw = !d.delivery_same_as_ship
+        ? d.delivery_state
+        : shipSameAsBilling
+          ? quote.customer.state ?? ''
+          : shipTo.state;
+      const dest =
+        cityRaw || stateRaw
+          ? [cityRaw, stateRaw].filter(Boolean).join(', ')
+          : null;
+      return {
+        inventory_id: cid,
+        sold_id: null,
+        unit_number: inv?.unit_number ?? '',
+        state: 'sold',
+        size: inv?.size ?? '',
+        damage: inv?.damage ?? '',
+        destination: dest,
+        trucking_rate: line?.trucking_rate ?? null,
+        sale_price: line?.sale_price ?? null,
+        modification_price: null,
+        outbound_date: null,
+        invoice_notes: null,
+        outbound_trucking_company_id: d.outbound_trucking_company_id,
+        door_orientation: d.door_orientation || null,
+        delivery_name: d.delivery_same_as_ship ? null : d.delivery_name || null,
+        delivery_street: d.delivery_same_as_ship ? null : d.delivery_street || null,
+        delivery_city: d.delivery_same_as_ship ? null : d.delivery_city || null,
+        delivery_state: d.delivery_same_as_ship ? null : d.delivery_state || null,
+        delivery_zip: d.delivery_same_as_ship ? null : d.delivery_zip || null,
+        modifications: (line?.modifications ?? []).map((m, mi) => ({
+          id: -mi - 1,
+          sold_id: -1,
+          description: m.description,
+          price: m.price ?? '0',
+          position: mi,
+        })),
+      };
+    });
+    let subtotal = 0;
+    for (const c of containers) {
+      subtotal += Number(c.sale_price ?? 0);
+      subtotal += Number(c.trucking_rate ?? 0);
+      subtotal += c.modifications.reduce((s, m) => s + Number(m.price ?? 0), 0);
+    }
+    const taxAmount = quote.quote_taxed ? subtotal * taxRate : 0;
+    const ccAmount = quote.quote_credit ? (subtotal + taxAmount) * ccRate : 0;
+    const total = subtotal + taxAmount + ccAmount;
+    return {
+      invoice_id: 0,
+      invoice_number: 'PREVIEW',
+      invoice_taxed: quote.quote_taxed,
+      invoice_credit: quote.quote_credit,
+      invoice_date: new Date().toISOString(),
+      sent_at: null,
+      pdf_s3_key: null,
+      deleted_at: null,
+      status: 'draft',
+      status_changed_at: null,
+      status_changed_by_user_id: null,
+      subtotal: subtotal.toFixed(2),
+      tax_rate: quote.tax_rate,
+      tax_amount: taxAmount.toFixed(2),
+      cc_fee_rate: quote.cc_fee_rate,
+      cc_fee_amount: ccAmount.toFixed(2),
+      total: total.toFixed(2),
+      ship_to_same_as_billing: shipSameAsBilling,
+      ship_to_name: shipSameAsBilling ? null : shipTo.name || null,
+      ship_to_street: shipSameAsBilling ? null : shipTo.street || null,
+      ship_to_city: shipSameAsBilling ? null : shipTo.city || null,
+      ship_to_state: shipSameAsBilling ? null : shipTo.state || null,
+      ship_to_zip: shipSameAsBilling ? null : shipTo.zip || null,
+      customer: {
+        id: quote.customer.id,
+        client_name: quote.customer.client_name,
+        business_name: quote.customer.business_name,
+        contact_email: quote.customer.contact_email,
+        contact_phone: quote.customer.contact_phone,
+        street: quote.customer.street,
+        city: quote.customer.city,
+        state: quote.customer.state,
+        zip: quote.customer.zip,
+      },
+      containers,
+    };
+  }, [
+    quote,
+    promoteIds,
+    available,
+    deliveryByContainer,
+    shipSameAsBilling,
+    shipTo,
+  ]);
 
   const filteredAvailable = useMemo(() => {
     if (!containerSearch.trim()) return available;
@@ -532,67 +652,85 @@ export default function QuoteDetail() {
         title="Promote to invoice"
         size="lg"
       >
-        <div className={styles.promoteSection}>
-          <div className={styles.promoteSectionHead}>1. Containers</div>
-          <p className={styles.promoteHint}>
-            Pick up to {quote.lines.length} container
-            {quote.lines.length === 1 ? '' : 's'}. The quote's line pricing
-            (sale price, trucking, modifications) is copied onto them in order —
-            the 1st container selected takes the 1st quote line, and so on. The
-            quote stays as-is and can be promoted again.
-          </p>
-          <input
-            type="search"
-            className={styles.promoteSearch}
-            value={containerSearch}
-            onChange={(e) => setContainerSearch(e.target.value)}
-            placeholder="Search unit #, size, condition…"
-          />
-          <div className={styles.promoteList}>
-            {filteredAvailable.length === 0 && (
-              <div className={styles.empty}>
-                {availableLoaded
-                  ? 'No available containers match the search.'
-                  : 'Loading available containers…'}
-              </div>
-            )}
-            {filteredAvailable.map((row) => {
-              const order = promoteIds.indexOf(row.id);
-              const checked = order !== -1;
-              const mappedLine = checked ? quote.lines[order] : undefined;
-              const atCap =
-                !checked && promoteIds.length >= quote.lines.length;
-              return (
-                <button
-                  key={row.id}
-                  type="button"
-                  disabled={atCap}
-                  className={`${styles.promoteRow} ${
-                    checked ? styles.promoteRowChecked : ''
-                  }`}
-                  onClick={() => togglePromote(row.id)}
-                >
-                  <input type="checkbox" checked={checked} readOnly tabIndex={-1} />
-                  <span className={styles.promoteRowName}>{row.unit_number}</span>
-                  <span className={styles.promoteRowMeta}>
-                    {row.size} · {row.damage}
-                  </span>
-                  {checked && (
-                    <span className={styles.promoteRowMap}>
-                      → line {order + 1}
-                      {mappedLine?.description ? `: ${mappedLine.description}` : ''}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <Stepper
+          labels={['Containers', 'Shipping', 'Per-container', 'Preview']}
+          current={promoteStep}
+          ariaLabel="Promote-to-invoice progress"
+        />
 
-        {promoteIds.length > 0 && (
-          <>
-            <div className={styles.promoteSection}>
-              <div className={styles.promoteSectionHead}>2. Ship-to</div>
+        <div className={styles.promoteStepBody}>
+          <Flow step={promoteStep}>
+            <FlowStep>
+              <p className={styles.promoteHint}>
+                Pick up to {quote.lines.length} container
+                {quote.lines.length === 1 ? '' : 's'}. The quote's line pricing
+                (sale price, trucking, modifications) is copied onto them in
+                order — the 1st container selected takes the 1st quote line,
+                and so on. The quote stays as-is and can be promoted again.
+              </p>
+              <input
+                type="search"
+                className={styles.promoteSearch}
+                value={containerSearch}
+                onChange={(e) => setContainerSearch(e.target.value)}
+                placeholder="Search unit #, size, condition…"
+              />
+              <div className={styles.promoteList}>
+                {filteredAvailable.length === 0 && (
+                  <div className={styles.empty}>
+                    {availableLoaded
+                      ? 'No available containers match the search.'
+                      : 'Loading available containers…'}
+                  </div>
+                )}
+                {filteredAvailable.map((row) => {
+                  const order = promoteIds.indexOf(row.id);
+                  const checked = order !== -1;
+                  const mappedLine = checked ? quote.lines[order] : undefined;
+                  const atCap =
+                    !checked && promoteIds.length >= quote.lines.length;
+                  return (
+                    <button
+                      key={row.id}
+                      type="button"
+                      disabled={atCap}
+                      className={`${styles.promoteRow} ${
+                        checked ? styles.promoteRowChecked : ''
+                      }`}
+                      onClick={() => togglePromote(row.id)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        readOnly
+                        tabIndex={-1}
+                      />
+                      <span className={styles.promoteRowName}>
+                        {row.unit_number}
+                      </span>
+                      <span className={styles.promoteRowMeta}>
+                        {row.size} · {row.damage}
+                      </span>
+                      {checked && (
+                        <span className={styles.promoteRowMap}>
+                          → line {order + 1}
+                          {mappedLine?.description
+                            ? `: ${mappedLine.description}`
+                            : ''}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </FlowStep>
+
+            <FlowStep>
+              <p className={styles.promoteHint}>
+                Where the invoice itself is mailed / billed to. Defaults to
+                the client's address on file; override here if it's going
+                somewhere different.
+              </p>
               <label className={styles.checkRow}>
                 <input
                   type="checkbox"
@@ -600,6 +738,13 @@ export default function QuoteDetail() {
                   onChange={(e) => setShipSameAsBilling(e.target.checked)}
                 />
                 Same as billing
+                {shipSameAsBilling && quote.customer.city && (
+                  <span className={styles.containerSub}>
+                    {' '}
+                    ({quote.customer.city}
+                    {quote.customer.state ? `, ${quote.customer.state}` : ''})
+                  </span>
+                )}
               </label>
               {!shipSameAsBilling && (
                 <AddressFields
@@ -608,12 +753,18 @@ export default function QuoteDetail() {
                   nameLabel="Ship to (name)"
                 />
               )}
-            </div>
+            </FlowStep>
 
-            <div className={styles.promoteSection}>
-              <div className={styles.promoteSectionHead}>
-                3. Per-container delivery
-              </div>
+            <FlowStep>
+              <p className={styles.promoteHint}>
+                Per-box delivery details. All optional — anything you don't
+                set here can be filled in on the delivery sheet later.
+              </p>
+              {promoteIds.length === 0 && (
+                <p className={styles.empty}>
+                  No containers selected yet. Go back to step 1.
+                </p>
+              )}
               {promoteIds.map((cid, idx) => {
                 const row = available.find((r) => r.id === cid);
                 const line = quote.lines[idx];
@@ -720,69 +871,26 @@ export default function QuoteDetail() {
                   </div>
                 );
               })}
-            </div>
+            </FlowStep>
 
-            <div className={styles.promoteSection}>
-              <div className={styles.promoteSectionHead}>4. Invoice preview</div>
-              <table className={styles.previewTable}>
-                <thead>
-                  <tr>
-                    <th>Line</th>
-                    <th>Container</th>
-                    <th>Description</th>
-                    <th className={styles.previewMoney}>Sale</th>
-                    <th className={styles.previewMoney}>Trucking</th>
-                    <th className={styles.previewMoney}>Mods</th>
-                    <th className={styles.previewMoney}>Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {quote.lines.map((line, i) => {
-                    const cid = promoteIds[i];
-                    const container = cid != null
-                      ? available.find((r) => r.id === cid)
-                      : null;
-                    const sale = Number(line.sale_price ?? 0);
-                    const trk = Number(line.trucking_rate ?? 0);
-                    const mods = line.modifications.reduce(
-                      (s, m) => s + Number(m.price ?? 0),
-                      0,
-                    );
-                    const sub = container ? sale + trk + mods : 0;
-                    return (
-                      <tr
-                        key={line.id}
-                        className={container ? '' : styles.previewDropped}
-                      >
-                        <td>{i + 1}</td>
-                        <td>
-                          {container ? (
-                            container.unit_number.trim()
-                          ) : (
-                            <em>(dropped — no container)</em>
-                          )}
-                        </td>
-                        <td>{line.description || '—'}</td>
-                        <td className={styles.previewMoney}>
-                          {container ? fmtCurrency(sale) : '—'}
-                        </td>
-                        <td className={styles.previewMoney}>
-                          {container ? fmtCurrency(trk) : '—'}
-                        </td>
-                        <td className={styles.previewMoney}>
-                          {container ? fmtCurrency(mods) : '—'}
-                        </td>
-                        <td className={styles.previewMoney}>
-                          {container ? fmtCurrency(sub) : '—'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+            <FlowStep>
+              <p className={styles.promoteHint}>
+                This is the invoice the operator will see once it's spawned.
+                Click <strong>Create invoice</strong> to commit; the quote
+                itself stays untouched and can be promoted again.
+              </p>
+              {previewInvoice ? (
+                <div className={styles.previewSheetWrap}>
+                  <InvoiceTemplate data={previewInvoice} />
+                </div>
+              ) : (
+                <p className={styles.empty}>
+                  Pick at least one container on step 1 to see a preview.
+                </p>
+              )}
+            </FlowStep>
+          </Flow>
+        </div>
 
         <div className={styles.promoteFooter}>
           <span className={styles.promoteRowMeta}>
@@ -790,12 +898,27 @@ export default function QuoteDetail() {
             {quote.lines.length === 1 ? '' : 's'} assigned
           </span>
           <div className={styles.promoteFooterActions}>
-            <Button variant="secondary" onClick={() => setPromoteOpen(false)}>
-              Cancel
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (promoteStep === 0) setPromoteOpen(false);
+                else setPromoteStep((s) => s - 1);
+              }}
+            >
+              {promoteStep === 0 ? 'Cancel' : '← Back'}
             </Button>
-            <Button onClick={handlePromote} disabled={promoteIds.length === 0}>
-              Create invoice
-            </Button>
+            {promoteStep < 3 ? (
+              <Button
+                onClick={() => setPromoteStep((s) => s + 1)}
+                disabled={promoteIds.length === 0}
+              >
+                Next →
+              </Button>
+            ) : (
+              <Button onClick={handlePromote} disabled={promoteIds.length === 0}>
+                Create invoice
+              </Button>
+            )}
           </div>
         </div>
       </Modal>
