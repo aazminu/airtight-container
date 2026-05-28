@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Badge, Button, Flow, FlowStep, Stepper } from '../components/ui';
+import {
+  AddressFields,
+  Badge,
+  Button,
+  Flow,
+  FlowStep,
+  Stepper,
+} from '../components/ui';
 import DeliveryTemplate from '../components/templates/delivery/DeliveryTemplate';
 import type { DeliveryData } from '../components/templates/delivery/types';
 import styles from './CreateReport.module.css';
@@ -187,21 +194,16 @@ interface DeliveryParamState {
   client_id: string;            // string so empty stays empty
   delivery_date_date: string;   // YYYY-MM-DD (date picker)
   delivery_date_time: string;   // HH:MM (time picker)
-  delivery_company: string;
   onsite_contact: string;
-  door_orientation: string;
   payment_details: string;
   receipt_note: string;
   receipt_summary: string;
   addr_name: string;
   addr_street: string;
-  addr_locality: string;
+  addr_city: string;
+  addr_state: string;
+  addr_zip: string;
   notes: string;
-  // Driver-receipt contact (PR 9.6). Optional — operator can skip
-  // this step and get prompted at Send-to-Driver time on ReportDetail.
-  driver_name: string;
-  driver_phone: string;
-  driver_email: string;
 }
 
 const EMPTY_DELIVERY: DeliveryParamState = {
@@ -210,22 +212,19 @@ const EMPTY_DELIVERY: DeliveryParamState = {
   client_id: '',
   delivery_date_date: '',
   delivery_date_time: '',
-  delivery_company: '',
   onsite_contact: '',
-  door_orientation: '',
   payment_details: '',
   receipt_note: '',
   receipt_summary: '',
   addr_name: '',
   addr_street: '',
-  addr_locality: '',
+  addr_city: '',
+  addr_state: '',
+  addr_zip: '',
   notes: '',
-  driver_name: '',
-  driver_phone: '',
-  driver_email: '',
 };
 
-const STEP_NAMES = ['Container', 'Customer', 'Details', 'Driver', 'Preview', 'Done'] as const;
+const STEP_NAMES = ['Container', 'Customer', 'Details', 'Preview', 'Done'] as const;
 
 function buildDeliveryParams(s: DeliveryParamState): Record<string, unknown> {
   const params: Record<string, unknown> = {};
@@ -246,9 +245,7 @@ function buildDeliveryParams(s: DeliveryParamState): Record<string, unknown> {
     }
   }
 
-  if (s.delivery_company.trim()) params.delivery_company = s.delivery_company.trim();
   if (s.onsite_contact.trim()) params.onsite_contact = s.onsite_contact.trim();
-  if (s.door_orientation.trim()) params.door_orientation = s.door_orientation.trim();
   if (s.payment_details.trim()) params.payment_details = s.payment_details.trim();
   if (s.receipt_note.trim()) params.receipt_note = s.receipt_note.trim();
   if (s.receipt_summary.trim()) params.receipt_summary = s.receipt_summary.trim();
@@ -256,17 +253,14 @@ function buildDeliveryParams(s: DeliveryParamState): Record<string, unknown> {
   const addr: Record<string, string> = {};
   if (s.addr_name.trim()) addr.name = s.addr_name.trim();
   if (s.addr_street.trim()) addr.street = s.addr_street.trim();
-  if (s.addr_locality.trim()) addr.locality = s.addr_locality.trim();
+  const locality = [
+    s.addr_city.trim(),
+    [s.addr_state.trim(), s.addr_zip.trim()].filter(Boolean).join(' '),
+  ]
+    .filter(Boolean)
+    .join(', ');
+  if (locality) addr.locality = locality;
   if (Object.keys(addr).length > 0) params.delivery_address = addr;
-
-  // Driver contact — only emit the sub-object when at least one field
-  // is filled, so an empty step submits as no driver-contact at all
-  // (and the Send-to-Driver modal prompts at send time).
-  const dc: Record<string, string> = {};
-  if (s.driver_name.trim()) dc.name = s.driver_name.trim();
-  if (s.driver_phone.trim()) dc.phone = s.driver_phone.trim();
-  if (s.driver_email.trim()) dc.email = s.driver_email.trim();
-  if (Object.keys(dc).length > 0) params.driver_contact = dc;
 
   return params;
 }
@@ -279,9 +273,16 @@ const NO_INVOICE_MARKER = 'has no invoice and no client_id';
 function DeliveryFlow() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  // Invoice-detail's "Make delivery sheet" button deep-links here with
-  // ?container_id=<id> (the sales container). When present we preselect
-  // it and skip the picker so the operator lands on the Customer step.
+  // Header "Make delivery sheet" button on InvoiceDetail deep-links here
+  // with ?invoice_id=<N>. When present the picker is scoped to that
+  // invoice's containers only — operator can't escape to global inventory.
+  // Legacy ?container_id=<id> entry (preselect + skip picker) still works.
+  const prefillInvoiceId = useMemo(() => {
+    const raw = searchParams.get('invoice_id');
+    if (raw == null) return null;
+    const n = parseInt(raw, 10);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  }, [searchParams]);
   const prefillContainerId = useMemo(() => {
     const raw = searchParams.get('container_id');
     if (raw == null) return null;
@@ -298,6 +299,7 @@ function DeliveryFlow() {
       ? { ...EMPTY_DELIVERY, container_id: prefillContainerId }
       : EMPTY_DELIVERY,
   );
+  const [addrOverrideOpen, setAddrOverrideOpen] = useState(false);
 
   const [preview, setPreview] = useState<DeliveryData | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -310,13 +312,49 @@ function DeliveryFlow() {
     | { kind: 'done'; id: number; at_number: string | null }
   >({ kind: 'idle' });
 
-  // Load both sales inventory (sold/outbound) and S&H boxes (in_storage).
-  // Delivery sheets only make sense for boxes that are about to leave
-  // the yard — available containers aren't bound to a customer yet.
+  // Invoice-scoped: pull only that invoice's containers.
+  // Global: pull all sold/outbound sales + S&H boxes (legacy entry point).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        if (prefillInvoiceId != null) {
+          const res = await fetch(`/api/v2/invoice/${prefillInvoiceId}`, {
+            credentials: 'include',
+          });
+          const body = res.ok ? await res.json() : null;
+          if (cancelled) return;
+          const inv = body?.data?.invoices?.[0];
+          const list: PickerOption[] = (inv?.containers ?? []).map(
+            (c: {
+              inventory_id: number;
+              unit_number: string;
+              size: string;
+              damage: string | null;
+              state: string;
+            }) => ({
+              source: 'sales' as const,
+              id: c.inventory_id,
+              unit_number: c.unit_number,
+              size: c.size,
+              damage: c.damage,
+              state_label: c.state,
+              client_label: null,
+            }),
+          );
+          setOptions(list);
+          // Auto-pick when there's only one box on the invoice — operator
+          // hits Next on a pre-selected option instead of having to click.
+          if (list.length === 1 && prefillContainerId == null) {
+            setParams((p) => ({
+              ...p,
+              container_id: list[0].id,
+              sh_box_id: null,
+            }));
+          }
+          return;
+        }
+
         const [salesRes, shRes] = await Promise.all([
           fetch('/api/v1/inventory', { credentials: 'include' }),
           fetch('/api/v2/sh-inventory', { credentials: 'include' }),
@@ -366,7 +404,7 @@ function DeliveryFlow() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [prefillInvoiceId, prefillContainerId]);
 
   const filteredOptions = useMemo(() => {
     const q = containerSearch.trim().toLowerCase();
@@ -466,11 +504,10 @@ function DeliveryFlow() {
 
   const goNext = async () => {
     const next = Math.min(STEP_NAMES.length - 1, step + 1);
-    // Preview slot moved from step 3 → step 4 after the Driver step
-    // was inserted. Step 1 (Customer) also runs the resolver so the
-    // customer-resolution check can short-circuit before the operator
-    // fills in form data.
-    if (next === 1 || next === 4) {
+    // Customer (1) resolves the customer so we can short-circuit before
+    // any form data is entered; Preview (3) resolves again to render the
+    // sheet exactly as it will print.
+    if (next === 1 || next === 3) {
       await fetchPreview();
     }
     setStep(next);
@@ -488,7 +525,7 @@ function DeliveryFlow() {
       return;
     }
     setSubmitState({ kind: 'done', id: result.id, at_number: result.at_number });
-    setStep(5);
+    setStep(4);
   };
 
   return (
@@ -622,42 +659,62 @@ function DeliveryFlow() {
               </div>
             )}
 
-            <div className={styles.addressCard}>
-              <div className={styles.addressCardHead}>
-                Delivery address override
+            {!addrOverrideOpen ? (
+              <button
+                type="button"
+                className={styles.linkBtn}
+                onClick={() => setAddrOverrideOpen(true)}
+              >
+                + Add separate shipping address
+              </button>
+            ) : (
+              <div className={styles.addressCard}>
+                <div className={styles.addressCardHead}>
+                  Delivery address override
+                </div>
+                <p className={styles.addressCardHint}>
+                  The customer's billing address is auto-filled at preview time
+                  from the resolver. Fill these in only when the container is
+                  going somewhere different.
+                </p>
+                <AddressFields
+                  value={{
+                    name: params.addr_name,
+                    street: params.addr_street,
+                    city: params.addr_city,
+                    state: params.addr_state,
+                    zip: params.addr_zip,
+                  }}
+                  onChange={(next) => {
+                    setParams((p) => ({
+                      ...p,
+                      addr_name: next.name,
+                      addr_street: next.street,
+                      addr_city: next.city,
+                      addr_state: next.state,
+                      addr_zip: next.zip,
+                    }));
+                  }}
+                />
+                <button
+                  type="button"
+                  className={styles.linkBtn}
+                  onClick={() => {
+                    setAddrOverrideOpen(false);
+                    setParams((p) => ({
+                      ...p,
+                      addr_name: '',
+                      addr_street: '',
+                      addr_city: '',
+                      addr_state: '',
+                      addr_zip: '',
+                    }));
+                  }}
+                >
+                  Use customer's billing address instead
+                </button>
               </div>
-              <p className={styles.addressCardHint}>
-                The customer's billing address is auto-filled at preview time
-                from the resolver. Fill these in only when the container is
-                going somewhere different.
-              </p>
-              <div className={styles.fieldGrid}>
-                <Field label="Recipient name on site">
-                  <input
-                    className={styles.input}
-                    value={params.addr_name}
-                    onChange={(e) => updateField('addr_name', e.target.value)}
-                    placeholder="John Doe"
-                  />
-                </Field>
-                <Field label="Street">
-                  <input
-                    className={styles.input}
-                    value={params.addr_street}
-                    onChange={(e) => updateField('addr_street', e.target.value)}
-                    placeholder="418 Shoreline Dr"
-                  />
-                </Field>
-                <Field label="City, State Zip" wide>
-                  <input
-                    className={styles.input}
-                    value={params.addr_locality}
-                    onChange={(e) => updateField('addr_locality', e.target.value)}
-                    placeholder="Toms River, NJ 08753"
-                  />
-                </Field>
-              </div>
-            </div>
+            )}
 
             <button
               type="button"
@@ -675,8 +732,9 @@ function DeliveryFlow() {
           {/* Step 2 — Details */}
           <FlowStep>
             <p className={styles.hint}>
-              Operator-entered details for the driver and receiver. All optional —
-              anything left blank just won't appear on the sheet.
+              Operator-entered details for the receiver. All optional — anything
+              left blank just won't appear on the sheet. Carrier + door
+              orientation come from the invoice.
             </p>
             <div className={styles.fieldGrid}>
               <Field label="Delivery date">
@@ -699,28 +757,12 @@ function DeliveryFlow() {
                   }
                 />
               </Field>
-              <Field label="Delivery company">
-                <input
-                  className={styles.input}
-                  value={params.delivery_company}
-                  onChange={(e) => updateField('delivery_company', e.target.value)}
-                  placeholder="JT Hauling Co."
-                />
-              </Field>
               <Field label="On-site contact">
                 <input
                   className={styles.input}
                   value={params.onsite_contact}
                   onChange={(e) => updateField('onsite_contact', e.target.value)}
                   placeholder="John Doe · 555-0142"
-                />
-              </Field>
-              <Field label="Door orientation">
-                <input
-                  className={styles.input}
-                  value={params.door_orientation}
-                  onChange={(e) => updateField('door_orientation', e.target.value)}
-                  placeholder="Doors facing road"
                 />
               </Field>
               <Field label="Payment details" wide>
@@ -770,61 +812,7 @@ function DeliveryFlow() {
             />
           </FlowStep>
 
-          {/* Step 3 — Driver contact (optional) */}
-          <FlowStep>
-            <p className={styles.hint}>
-              <strong>Optional.</strong> Capture the driver's contact info now
-              and the Send-to-Driver button on the next page will be ready to
-              go. Leave blank and you'll be prompted when you hit Send.
-            </p>
-            <p className={styles.hint}>
-              <strong>SMS consent:</strong> capturing a phone number here does
-              not authorize an SMS — the Send-to-Driver dialog walks you
-              through the disclosure and the required attestation at the
-              moment the message goes out. Full policy at{' '}
-              <a href="/sms-terms" target="_blank" rel="noreferrer">
-                /sms-terms
-              </a>
-              .
-            </p>
-            <div className={styles.fieldGrid}>
-              <Field label="Driver name">
-                <input
-                  className={styles.input}
-                  value={params.driver_name}
-                  onChange={(e) => updateField('driver_name', e.target.value)}
-                  placeholder="John Smith"
-                />
-              </Field>
-              <Field
-                label="Driver phone"
-                hint="For SMS receipt — any US format works"
-              >
-                <input
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="off"
-                  className={styles.input}
-                  value={params.driver_phone}
-                  onChange={(e) => updateField('driver_phone', e.target.value)}
-                  placeholder="(732) 555-0142"
-                />
-              </Field>
-              <Field label="Driver email" wide hint="For email receipt — optional">
-                <input
-                  type="email"
-                  inputMode="email"
-                  autoComplete="off"
-                  className={styles.input}
-                  value={params.driver_email}
-                  onChange={(e) => updateField('driver_email', e.target.value)}
-                  placeholder="driver@example.com"
-                />
-              </Field>
-            </div>
-          </FlowStep>
-
-          {/* Step 4 — Preview */}
+          {/* Step 3 — Preview */}
           <FlowStep>
             <p className={styles.hint}>
               Review the delivery sheet as it will print. Click "Create delivery
@@ -853,7 +841,7 @@ function DeliveryFlow() {
             </div>
           </FlowStep>
 
-          {/* Step 5 — Done */}
+          {/* Step 4 — Done */}
           <FlowStep>
             <div className={styles.doneCard}>
               <Badge tone="success">Created</Badge>
@@ -891,7 +879,7 @@ function DeliveryFlow() {
         </Flow>
       </div>
 
-      {step < 5 && (
+      {step < 4 && (
         <div className={styles.actions}>
           <Button
             variant="secondary"
@@ -901,7 +889,7 @@ function DeliveryFlow() {
             ← Back
           </Button>
           <div className={styles.actionsRight}>
-            {step === 4 ? (
+            {step === 3 ? (
               <Button
                 onClick={submit}
                 disabled={submitState.kind === 'submitting' || !preview}

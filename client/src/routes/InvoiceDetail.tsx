@@ -355,6 +355,18 @@ export default function InvoiceDetail() {
               </Button>
             )}
             {isAdmin && <Button onClick={handleEmail}>Email</Button>}
+            {isAdmin && invoice.containers.length > 0 && (
+              <Button
+                variant="danger"
+                onClick={() =>
+                  navigate(
+                    `/reports/new/delivery_sheet?invoice_id=${invoice.invoice_id}`,
+                  )
+                }
+              >
+                Make delivery sheet
+              </Button>
+            )}
             {isAdmin && (
               <Button variant="danger" onClick={handleDelete}>
                 Delete
@@ -420,38 +432,6 @@ export default function InvoiceDetail() {
       )}
       {action.kind === 'err' && (
         <div className={styles.error}>{action.message}</div>
-      )}
-
-      {!isDeleted && !editing && invoice.containers.length > 0 && (
-        <div className={styles.deliveries}>
-          <div className={styles.deliveriesHead}>Delivery sheets</div>
-          <p className={styles.deliveriesHint}>
-            Create a driver delivery sheet for a container on this invoice. The
-            box, customer, and shipping address pre-fill from the sale.
-          </p>
-          <div className={styles.deliveriesList}>
-            {invoice.containers.map((c) => (
-              <div key={c.inventory_id} className={styles.deliveryRow}>
-                <span className={styles.deliveryUnit}>
-                  {c.unit_number.trim()}
-                </span>
-                <span className={styles.deliveryMeta}>
-                  {c.size} · {c.damage || '—'}
-                </span>
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    navigate(
-                      `/reports/new/delivery_sheet?container_id=${c.inventory_id}&invoice_id=${invoice.invoice_id}`,
-                    )
-                  }
-                >
-                  Make delivery sheet
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
       )}
 
       {isDeleted ? (

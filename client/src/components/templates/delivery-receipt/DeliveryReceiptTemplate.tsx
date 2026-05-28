@@ -41,6 +41,7 @@ export default function DeliveryReceiptTemplate({ data }: Props) {
   const deliverToStreet = data.delivery_address.street || '—';
   const deliverToLocality = data.delivery_address.locality || '';
   const driverName = data.driver_contact?.name;
+  const carrier = data.trucking?.company_name ?? null;
 
   return (
     <div className={styles.receipt}>
@@ -91,7 +92,7 @@ export default function DeliveryReceiptTemplate({ data }: Props) {
         )}
       </div>
 
-      {(driverName || data.delivery_company || data.door_orientation) && (
+      {(driverName || carrier || data.door_orientation) && (
         <>
           <hr className={styles.rule} />
           {driverName && (
@@ -100,10 +101,10 @@ export default function DeliveryReceiptTemplate({ data }: Props) {
               <span className={styles.value}>{driverName}</span>
             </div>
           )}
-          {data.delivery_company && (
+          {carrier && (
             <div className={styles.metaRow}>
               <span className={styles.label}>Carrier</span>
-              <span className={styles.value}>{data.delivery_company}</span>
+              <span className={styles.value}>{carrier}</span>
             </div>
           )}
           {data.door_orientation && (

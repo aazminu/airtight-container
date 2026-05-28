@@ -111,11 +111,7 @@ export default function DeliveryTemplate({ data }: { data: DeliveryData }) {
       <SectionTitle>Delivery</SectionTitle>
 
       <dl className={styles.detailGrid}>
-        <DetailLine
-          label="Trucking company"
-          value={truckingValue(data.trucking)}
-        />
-        <DetailLine label="Delivery company" value={data.delivery_company} />
+        <DetailLine label="Carrier" value={truckingValue(data.trucking)} />
         <DetailLine label="On-site contact" value={data.onsite_contact} />
         <DetailLine
           label="Door orientation"

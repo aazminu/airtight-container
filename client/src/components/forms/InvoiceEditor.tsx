@@ -4,13 +4,14 @@ import type {
   InvoiceLineContainer,
   InvoiceModification,
 } from '../templates/invoice/types';
-import { Button, CurrencyInput } from '../ui';
+import { AddressFields, Button, CurrencyInput } from '../ui';
 import { fmtCurrency } from '../templates/invoice/format';
 import {
   MODIFICATION_DATALIST_ID,
   useModPresetLabels,
   useModPresets,
 } from './modificationPresets';
+import { DoorOrientationField } from './DoorOrientationField';
 import styles from './InvoiceEditor.module.css';
 
 interface ClientSummary {
@@ -145,7 +146,24 @@ export default function InvoiceEditor({
     return null;
   };
 
-  const DOOR_ORIENTATION_DATALIST_ID = 'invedit-door-orientations';
+  // Per-container "delivery override expanded?" UI state. Seeded from
+  // whichever boxes already have any delivery_* fields populated, so
+  // existing data stays visible on open.
+  const [openOverrides, setOpenOverrides] = useState<Set<number>>(
+    () =>
+      new Set(
+        initial.containers
+          .filter(
+            (c) =>
+              c.delivery_name ||
+              c.delivery_street ||
+              c.delivery_city ||
+              c.delivery_state ||
+              c.delivery_zip,
+          )
+          .map((c) => c.inventory_id),
+      ),
+  );
 
   // Recompute totals on the fly as the draft changes. Server will
   // recompute authoritatively at save time; this preview is just so
@@ -342,10 +360,6 @@ export default function InvoiceEditor({
           <option key={d} value={d} />
         ))}
       </datalist>
-      <datalist id={DOOR_ORIENTATION_DATALIST_ID}>
-        <option value="Doors to Cab" />
-        <option value="Doors to Rear" />
-      </datalist>
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Invoice</h2>
@@ -478,48 +492,23 @@ export default function InvoiceEditor({
           Same as billing address
         </label>
         {!draft.ship_to_same_as_billing && (
-          <div className={styles.fieldGrid}>
-            <label className={styles.field}>
-              <span className={styles.label}>Ship to (name)</span>
-              <input
-                className={styles.input}
-                value={draft.ship_to_name ?? ''}
-                onChange={(e) => updateInvoice('ship_to_name', e.target.value)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>Street</span>
-              <input
-                className={styles.input}
-                value={draft.ship_to_street ?? ''}
-                onChange={(e) => updateInvoice('ship_to_street', e.target.value)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>City</span>
-              <input
-                className={styles.input}
-                value={draft.ship_to_city ?? ''}
-                onChange={(e) => updateInvoice('ship_to_city', e.target.value)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>State</span>
-              <input
-                className={styles.input}
-                value={draft.ship_to_state ?? ''}
-                onChange={(e) => updateInvoice('ship_to_state', e.target.value)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>ZIP</span>
-              <input
-                className={styles.input}
-                value={draft.ship_to_zip ?? ''}
-                onChange={(e) => updateInvoice('ship_to_zip', e.target.value)}
-              />
-            </label>
-          </div>
+          <AddressFields
+            value={{
+              name: draft.ship_to_name ?? '',
+              street: draft.ship_to_street ?? '',
+              city: draft.ship_to_city ?? '',
+              state: draft.ship_to_state ?? '',
+              zip: draft.ship_to_zip ?? '',
+            }}
+            onChange={(next) => {
+              updateInvoice('ship_to_name', next.name);
+              updateInvoice('ship_to_street', next.street);
+              updateInvoice('ship_to_city', next.city);
+              updateInvoice('ship_to_state', next.state);
+              updateInvoice('ship_to_zip', next.zip);
+            }}
+            nameLabel="Ship to (name)"
+          />
         )}
       </section>
 
@@ -607,53 +596,12 @@ export default function InvoiceEditor({
               </label>
               <label className={styles.field}>
                 <span className={styles.label}>Door orientation</span>
-                <input
+                <DoorOrientationField
                   className={styles.input}
-                  list={DOOR_ORIENTATION_DATALIST_ID}
                   value={c.door_orientation ?? ''}
-                  onChange={(e) =>
-                    updateContainer(ctIdx, { door_orientation: e.target.value })
+                  onChange={(v) =>
+                    updateContainer(ctIdx, { door_orientation: v })
                   }
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Deliver to (name)</span>
-                <input
-                  className={styles.input}
-                  value={c.delivery_name ?? ''}
-                  onChange={(e) => updateContainer(ctIdx, { delivery_name: e.target.value })}
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Delivery street</span>
-                <input
-                  className={styles.input}
-                  value={c.delivery_street ?? ''}
-                  onChange={(e) => updateContainer(ctIdx, { delivery_street: e.target.value })}
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Delivery city</span>
-                <input
-                  className={styles.input}
-                  value={c.delivery_city ?? ''}
-                  onChange={(e) => updateContainer(ctIdx, { delivery_city: e.target.value })}
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Delivery state</span>
-                <input
-                  className={styles.input}
-                  value={c.delivery_state ?? ''}
-                  onChange={(e) => updateContainer(ctIdx, { delivery_state: e.target.value })}
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Delivery ZIP</span>
-                <input
-                  className={styles.input}
-                  value={c.delivery_zip ?? ''}
-                  onChange={(e) => updateContainer(ctIdx, { delivery_zip: e.target.value })}
                 />
               </label>
               {c.modifications.length === 0 && (
@@ -672,6 +620,63 @@ export default function InvoiceEditor({
                 </label>
               )}
             </div>
+            {openOverrides.has(c.inventory_id) ? (
+              <div>
+                <AddressFields
+                  value={{
+                    name: c.delivery_name ?? '',
+                    street: c.delivery_street ?? '',
+                    city: c.delivery_city ?? '',
+                    state: c.delivery_state ?? '',
+                    zip: c.delivery_zip ?? '',
+                  }}
+                  onChange={(next) =>
+                    updateContainer(ctIdx, {
+                      delivery_name: next.name,
+                      delivery_street: next.street,
+                      delivery_city: next.city,
+                      delivery_state: next.state,
+                      delivery_zip: next.zip,
+                    })
+                  }
+                  nameLabel="Deliver to (name)"
+                />
+                <button
+                  type="button"
+                  className={styles.linkBtn}
+                  onClick={() => {
+                    updateContainer(ctIdx, {
+                      delivery_name: null,
+                      delivery_street: null,
+                      delivery_city: null,
+                      delivery_state: null,
+                      delivery_zip: null,
+                    });
+                    setOpenOverrides((prev) => {
+                      const next = new Set(prev);
+                      next.delete(c.inventory_id);
+                      return next;
+                    });
+                  }}
+                >
+                  Use shipping address instead
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={styles.linkBtn}
+                onClick={() =>
+                  setOpenOverrides((prev) => {
+                    const next = new Set(prev);
+                    next.add(c.inventory_id);
+                    return next;
+                  })
+                }
+              >
+                + Add separate shipping address
+              </button>
+            )}
             <div className={styles.modsList}>
               <div className={styles.modsHeader}>
                 <span className={styles.label}>Per-modification line items</span>

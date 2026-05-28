@@ -1,0 +1,35 @@
+.wrap {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.label {
+  font-size: 0.75rem;
+  color: var(--text-muted, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.input {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border, #ccc);
+  border-radius: 4px;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.placePicker {
+  width: 100%;
+}

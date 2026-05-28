@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge, Button, CurrencyInput, Flow, FlowStep, Stepper } from '../components/ui';
+import {
+  AddressFields,
+  Badge,
+  Button,
+  CurrencyInput,
+  Flow,
+  FlowStep,
+  Stepper,
+} from '../components/ui';
 import { AddClientModal } from '../components/forms/AddClientModal';
+import { DoorOrientationField } from '../components/forms/DoorOrientationField';
 import { useDirtyForm } from '../lib/useDirtyForm';
 import InvoiceTemplate from '../components/templates/invoice/InvoiceTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/invoice/format';
@@ -75,9 +84,6 @@ interface ShipTo {
   state: string;
   zip: string;
 }
-
-const DOOR_ORIENTATIONS = ['Doors to Cab', 'Doors to Rear'] as const;
-const DOOR_ORIENTATION_DATALIST_ID = 'door-orientation-options';
 
 const STEP_NAMES = ['Containers', 'Customer', 'Details', 'Preview', 'Done'] as const;
 
@@ -840,11 +846,6 @@ export default function CreateInvoice() {
                 <option key={d} value={d} />
               ))}
             </datalist>
-            <datalist id={DOOR_ORIENTATION_DATALIST_ID}>
-              {DOOR_ORIENTATIONS.map((o) => (
-                <option key={o} value={o} />
-              ))}
-            </datalist>
 
             <div className={styles.containerCard}>
               <div className={styles.containerHead}>
@@ -865,48 +866,11 @@ export default function CreateInvoice() {
                 )}
               </label>
               {!shipSameAsBilling && (
-                <div className={styles.fieldGrid}>
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>Ship to (name)</span>
-                    <input
-                      className={styles.input}
-                      value={shipTo.name}
-                      onChange={(e) => setShipTo((s) => ({ ...s, name: e.target.value }))}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>Street</span>
-                    <input
-                      className={styles.input}
-                      value={shipTo.street}
-                      onChange={(e) => setShipTo((s) => ({ ...s, street: e.target.value }))}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>City</span>
-                    <input
-                      className={styles.input}
-                      value={shipTo.city}
-                      onChange={(e) => setShipTo((s) => ({ ...s, city: e.target.value }))}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>State</span>
-                    <input
-                      className={styles.input}
-                      value={shipTo.state}
-                      onChange={(e) => setShipTo((s) => ({ ...s, state: e.target.value }))}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>ZIP</span>
-                    <input
-                      className={styles.input}
-                      value={shipTo.zip}
-                      onChange={(e) => setShipTo((s) => ({ ...s, zip: e.target.value }))}
-                    />
-                  </label>
-                </div>
+                <AddressFields
+                  value={shipTo}
+                  onChange={(next) => setShipTo(next)}
+                  nameLabel="Ship to (name)"
+                />
               )}
             </div>
 
@@ -976,69 +940,63 @@ export default function CreateInvoice() {
                     </label>
                     <label className={styles.field}>
                       <span className={styles.fieldLabel}>Door orientation</span>
-                      <input
+                      <DoorOrientationField
                         className={styles.input}
-                        list={DOOR_ORIENTATION_DATALIST_ID}
                         value={d.door_orientation}
-                        onChange={(e) =>
-                          updateDraft(id, { door_orientation: e.target.value })
+                        onChange={(v) =>
+                          updateDraft(id, { door_orientation: v })
                         }
                       />
                     </label>
                   </div>
 
-                  <label className={styles.checkRow}>
-                    <input
-                      type="checkbox"
-                      checked={d.delivery_same_as_ship}
-                      onChange={(e) =>
-                        updateDraft(id, { delivery_same_as_ship: e.target.checked })
+                  {d.delivery_same_as_ship ? (
+                    <button
+                      type="button"
+                      className={styles.linkBtn}
+                      onClick={() =>
+                        updateDraft(id, { delivery_same_as_ship: false })
                       }
-                    />
-                    Delivery address same as shipping
-                  </label>
-                  {!d.delivery_same_as_ship && (
-                    <div className={styles.fieldGrid}>
-                      <label className={styles.field}>
-                        <span className={styles.fieldLabel}>Deliver to (name)</span>
-                        <input
-                          className={styles.input}
-                          value={d.delivery_name}
-                          onChange={(e) => updateDraft(id, { delivery_name: e.target.value })}
-                        />
-                      </label>
-                      <label className={styles.field}>
-                        <span className={styles.fieldLabel}>Street</span>
-                        <input
-                          className={styles.input}
-                          value={d.delivery_street}
-                          onChange={(e) => updateDraft(id, { delivery_street: e.target.value })}
-                        />
-                      </label>
-                      <label className={styles.field}>
-                        <span className={styles.fieldLabel}>City</span>
-                        <input
-                          className={styles.input}
-                          value={d.delivery_city}
-                          onChange={(e) => updateDraft(id, { delivery_city: e.target.value })}
-                        />
-                      </label>
-                      <label className={styles.field}>
-                        <span className={styles.fieldLabel}>State</span>
-                        <input
-                          className={styles.input}
-                          value={d.delivery_state}
-                          onChange={(e) => updateDraft(id, { delivery_state: e.target.value })}
-                        />
-                      </label>
-                      <label className={styles.field}>
-                        <span className={styles.fieldLabel}>ZIP</span>
-                        <input
-                          className={styles.input}
-                          value={d.delivery_zip}
-                          onChange={(e) => updateDraft(id, { delivery_zip: e.target.value })}
-                        />
-                      </label>
+                    >
+                      + Add separate shipping address
+                    </button>
+                  ) : (
+                    <div>
+                      <AddressFields
+                        value={{
+                          name: d.delivery_name,
+                          street: d.delivery_street,
+                          city: d.delivery_city,
+                          state: d.delivery_state,
+                          zip: d.delivery_zip,
+                        }}
+                        onChange={(next) =>
+                          updateDraft(id, {
+                            delivery_name: next.name,
+                            delivery_street: next.street,
+                            delivery_city: next.city,
+                            delivery_state: next.state,
+                            delivery_zip: next.zip,
+                          })
+                        }
+                        nameLabel="Deliver to (name)"
+                      />
+                      <button
+                        type="button"
+                        className={styles.linkBtn}
+                        onClick={() =>
+                          updateDraft(id, {
+                            delivery_same_as_ship: true,
+                            delivery_name: '',
+                            delivery_street: '',
+                            delivery_city: '',
+                            delivery_state: '',
+                            delivery_zip: '',
+                          })
+                        }
+                      >
+                        Use shipping address instead
+                      </button>
                     </div>
                   )}
 
