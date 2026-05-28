@@ -7,7 +7,7 @@
 // future sheets / invoice views see the latest values.
 
 import express from "express";
-import { pool } from "../../db/pool.js";
+import pool from "../../db/pool.js";
 import { checkEmployee } from "../../middleware/auth.js";
 
 const router = express.Router();
