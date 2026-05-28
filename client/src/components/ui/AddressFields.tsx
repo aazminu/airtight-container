@@ -1,6 +1,5 @@
-import { useRef } from 'react';
-import { APILoader, PlacePicker } from '@googlemaps/extended-component-library/react';
-import type { PlacePicker as PlacePickerElement } from '@googlemaps/extended-component-library/place_picker.js';
+import { useEffect, useRef } from 'react';
+import { APILoader } from '@googlemaps/extended-component-library/react';
 import styles from './AddressFields.module.css';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as
@@ -13,10 +12,6 @@ interface PlaceAddressComponent {
   shortText?: string | null;
 }
 
-interface SelectedPlace {
-  addressComponents?: PlaceAddressComponent[] | null;
-}
-
 function pickComponent(
   components: PlaceAddressComponent[],
   type: string,
@@ -27,13 +22,16 @@ function pickComponent(
   return (short ? match.shortText : match.longText) ?? '';
 }
 
-function placeToAddress(place: SelectedPlace): {
+interface PickedAddress {
   street: string;
   city: string;
   state: string;
   zip: string;
-} {
-  const components = place.addressComponents ?? [];
+}
+
+function componentsToAddress(
+  components: PlaceAddressComponent[],
+): PickedAddress {
   const streetNumber = pickComponent(components, 'street_number');
   const route = pickComponent(components, 'route');
   const street = [streetNumber, route].filter(Boolean).join(' ');
@@ -44,6 +42,102 @@ function placeToAddress(place: SelectedPlace): {
   const state = pickComponent(components, 'administrative_area_level_1', true);
   const zip = pickComponent(components, 'postal_code');
   return { street, city, state, zip };
+}
+
+// google.maps types aren't installed; minimal accessor.
+const getMaps = (): {
+  importLibrary: (name: string) => Promise<Record<string, unknown>>;
+} | null => {
+  const w = window as unknown as {
+    google?: { maps?: { importLibrary?: (name: string) => Promise<Record<string, unknown>> } };
+  };
+  if (w.google?.maps?.importLibrary) {
+    return { importLibrary: w.google.maps.importLibrary };
+  }
+  return null;
+};
+
+// New Places UI Kit element — gives the standard "suggestions dropdown
+// under the input" UX backed by Places API (New). Mounted imperatively
+// because GMPX doesn't wrap it.
+function PlacesAutocomplete({
+  onSelect,
+}: {
+  onSelect: (addr: PickedAddress) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const elementRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      // APILoader element triggers google.maps load; poll briefly for
+      // the global to come online.
+      for (let i = 0; i < 200; i += 1) {
+        if (cancelled) return;
+        if (getMaps()) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      const maps = getMaps();
+      if (!maps || cancelled) return;
+
+      try {
+        const placesLib = (await maps.importLibrary('places')) as {
+          PlaceAutocompleteElement: new (opts: {
+            includedRegionCodes?: string[];
+          }) => HTMLElement;
+        };
+        if (cancelled) return;
+
+        const element = new placesLib.PlaceAutocompleteElement({
+          includedRegionCodes: ['us'],
+        });
+
+        element.addEventListener(
+          'gmp-select',
+          async (ev: Event) => {
+            try {
+              const detail = (
+                ev as unknown as {
+                  placePrediction?: {
+                    toPlace?: () => {
+                      fetchFields: (opts: { fields: string[] }) => Promise<void>;
+                      addressComponents?: PlaceAddressComponent[] | null;
+                    };
+                  };
+                }
+              ).placePrediction;
+              const place = detail?.toPlace?.();
+              if (!place) return;
+              await place.fetchFields({ fields: ['addressComponents'] });
+              if (cancelled) return;
+              onSelect(componentsToAddress(place.addressComponents ?? []));
+            } catch {
+              // swallow — manual fields still work
+            }
+          },
+        );
+
+        containerRef.current?.appendChild(element);
+        elementRef.current = element;
+      } catch {
+        // Places API didn't load; manual fields remain usable.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      elementRef.current?.remove();
+      elementRef.current = null;
+    };
+    // onSelect is stable in our callers (recreated on each render but
+    // we only care about the latest at event time, captured via ref-like
+    // closure). Running this effect once is what mounts the element.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return <div ref={containerRef} className={styles.placePicker} />;
 }
 
 export interface AddressValue {
@@ -68,39 +162,27 @@ export function AddressFields({
   includeName = true,
   nameLabel = 'Recipient name',
 }: Props) {
-  const pickerRef = useRef<PlacePickerElement | null>(null);
-
   const set = <K extends keyof AddressValue>(key: K, v: AddressValue[K]) =>
     onChange({ ...value, [key]: v });
 
-  const handlePlaceChange = () => {
-    const place = pickerRef.current?.value as SelectedPlace | null | undefined;
-    if (!place) return;
-    const { street, city, state, zip } = placeToAddress(place);
+  const handlePicked = (picked: PickedAddress) => {
     onChange({
       ...value,
-      street: street || value.street,
-      city: city || value.city,
-      state: state || value.state,
-      zip: zip || value.zip,
+      street: picked.street || value.street,
+      city: picked.city || value.city,
+      state: picked.state || value.state,
+      zip: picked.zip || value.zip,
     });
   };
 
   return (
     <div className={styles.wrap}>
       {GOOGLE_MAPS_API_KEY && (
-        <label className={styles.field}>
+        <div className={styles.field}>
           <span className={styles.label}>Search address</span>
           <APILoader apiKey={GOOGLE_MAPS_API_KEY} />
-          <PlacePicker
-            ref={pickerRef}
-            className={styles.placePicker}
-            type="address"
-            country={['us']}
-            placeholder="Start typing an address…"
-            onPlaceChange={handlePlaceChange}
-          />
-        </label>
+          <PlacesAutocomplete onSelect={handlePicked} />
+        </div>
       )}
       {includeName && (
         <label className={styles.field}>

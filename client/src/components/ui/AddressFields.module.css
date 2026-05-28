@@ -31,5 +31,12 @@
 }
 
 .placePicker {
+  display: block;
+  width: 100%;
+}
+
+/* gmp-place-autocomplete renders its own input; size to match siblings */
+.placePicker gmp-place-autocomplete {
+  display: block;
   width: 100%;
 }
