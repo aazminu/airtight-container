@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Badge,
   Button,
@@ -93,6 +94,7 @@ const validEmail = (raw: string): boolean => {
 };
 
 export default function Outbound() {
+  const { t } = useTranslation();
   const [smsEnabled, setSmsEnabled] = useState<boolean | null>(null);
   const [step, setStep] = useState(0);
   const [report, setReport] = useState<ReportRow | null>(null);
@@ -120,11 +122,11 @@ export default function Outbound() {
   // FlowStep order in the JSX below must stay in sync with this array.
   const steps: { id: StepId; label: string }[] = (() => {
     const base: { id: StepId; label: string }[] = [
-      { id: 'pick', label: 'Pick sheet' },
-      { id: 'confirm', label: 'Confirm' },
+      { id: 'pick', label: t('outbound.steps.pick') },
+      { id: 'confirm', label: t('outbound.steps.confirm') },
     ];
-    if (smsEnabled) base.push({ id: 'sms', label: 'Driver SMS' });
-    base.push({ id: 'print', label: 'Mark outbound' });
+    if (smsEnabled) base.push({ id: 'sms', label: t('outbound.steps.sms') });
+    base.push({ id: 'print', label: t('outbound.steps.print') });
     return base;
   })();
 
@@ -169,7 +171,7 @@ export default function Outbound() {
       }
       return body?.data?.report as ReportRow;
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load sheet');
+      setError(e instanceof Error ? e.message : t('outbound.errors.load_failed'));
       return null;
     }
   };
@@ -230,7 +232,7 @@ export default function Outbound() {
       seedSmsFromReport(r);
       setStep(1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lookup failed');
+      setError(err instanceof Error ? err.message : t('outbound.errors.lookup_failed'));
     } finally {
       setSearching(false);
     }
@@ -251,11 +253,11 @@ export default function Outbound() {
   const sendSms = async () => {
     if (!report) return;
     if (!validPhone(smsPhone)) {
-      setError('Enter a valid US phone number.');
+      setError(t('outbound.sms.invalid_phone'));
       return;
     }
     if (!validEmail(smsEmail)) {
-      setError('Email looks invalid.');
+      setError(t('outbound.sms.invalid_email'));
       return;
     }
     setSmsBusy(true);
@@ -287,7 +289,7 @@ export default function Outbound() {
       const refreshed = await loadFullReport(report.id);
       if (refreshed) setReport(refreshed);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'SMS send failed');
+      setError(e instanceof Error ? e.message : t('outbound.sms.failed'));
     } finally {
       setSmsBusy(false);
     }
@@ -318,7 +320,7 @@ export default function Outbound() {
       setPending((prev) => prev.filter((r) => r.id !== report.id));
       window.open(`/reports/${report.id}/print`, '_blank', 'noopener');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not complete pickup');
+      setError(err instanceof Error ? err.message : t('outbound.print.failed'));
     } finally {
       setCompleting(false);
     }
@@ -330,18 +332,14 @@ export default function Outbound() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1>Outbound</h1>
-        <p className={styles.sub}>
-          Pick a scheduled delivery sheet, confirm its details, capture the
-          driver, and mark the container outbound. Printing the receipt is
-          what stamps the outbound event.
-        </p>
+        <h1>{t('outbound.title')}</h1>
+        <p className={styles.sub}>{t('outbound.subtitle')}</p>
       </header>
 
       <Stepper
         labels={steps.map((s) => s.label)}
         current={step}
-        ariaLabel="Outbound flow progress"
+        ariaLabel={t('outbound.aria_progress')}
       />
 
       {error && <div className={styles.error}>{error}</div>}
@@ -353,26 +351,28 @@ export default function Outbound() {
               <form className={styles.searchRow} onSubmit={searchByNumber}>
                 <input
                   className={styles.search}
-                  placeholder="AT number, e.g. AT202605001"
+                  placeholder={t('outbound.pick.search_placeholder')}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   autoFocus
                   spellCheck={false}
                 />
                 <Button type="submit" disabled={searching || !query.trim()}>
-                  {searching ? 'Searching…' : 'Search'}
+                  {searching ? t('outbound.pick.searching') : t('outbound.pick.search')}
                 </Button>
               </form>
 
               <div className={styles.pendingHead}>
-                <h2 className={styles.pendingTitle}>Pending pickups</h2>
+                <h2 className={styles.pendingTitle}>
+                  {t('outbound.pick.pending_heading')}
+                </h2>
                 <span className={styles.pendingCount}>
                   {pendingLoading ? '…' : `${pending.length}`}
                 </span>
               </div>
               {pendingLoading ? null : pending.length === 0 ? (
                 <p className={styles.pendingEmpty}>
-                  No delivery sheets are waiting for pickup.
+                  {t('outbound.pick.pending_empty')}
                 </p>
               ) : (
                 <div className={styles.pendingList}>
@@ -417,22 +417,20 @@ export default function Outbound() {
                     </span>
                     {container && (
                       <Badge tone={alreadyPickedUp ? 'success' : 'info'}>
-                        {alreadyPickedUp ? 'Picked up' : container.state}
+                        {alreadyPickedUp
+                          ? t('outbound.confirm.picked_up_badge')
+                          : container.state}
                       </Badge>
                     )}
                   </div>
-                  <p className={styles.note}>
-                    Confirm the AT number and details match the truck at the
-                    gate. Delivery sheets aren't editable from here — if
-                    something's wrong, fix it on the source invoice.
-                  </p>
+                  <p className={styles.note}>{t('outbound.confirm.note')}</p>
                   {report.resolved_data ? (
                     <div className={styles.previewWrap}>
                       <DeliveryTemplate data={report.resolved_data} />
                     </div>
                   ) : (
                     <p className={styles.note}>
-                      Resolved data is missing on this sheet.
+                      {t('outbound.confirm.resolved_missing')}
                     </p>
                   )}
                 </>
@@ -442,47 +440,43 @@ export default function Outbound() {
           {/* Driver SMS — omitted when SMS isn't configured */}
           {smsEnabled && (
             <FlowStep>
-              <p className={styles.note}>
-                Capture the driver's contact and send them the receipt link
-                by SMS. Email is optional and recorded for the next time
-                they show up.
-              </p>
+              <p className={styles.note}>{t('outbound.sms.note')}</p>
               <div className={styles.smsGrid}>
                 <label className={styles.field}>
-                  <span className={styles.label}>Driver name</span>
+                  <span className={styles.label}>{t('outbound.sms.name_label')}</span>
                   <input
                     type="text"
                     className={styles.input}
                     value={smsName}
                     onChange={(e) => setSmsName(e.target.value)}
-                    placeholder="Jay Smith"
+                    placeholder={t('outbound.sms.name_placeholder')}
                   />
                 </label>
                 <label className={styles.field}>
-                  <span className={styles.label}>Phone (US)</span>
+                  <span className={styles.label}>{t('outbound.sms.phone_label')}</span>
                   <input
                     type="tel"
                     inputMode="tel"
                     className={styles.input}
                     value={smsPhone}
                     onChange={(e) => setSmsPhone(e.target.value)}
-                    placeholder="(732) 555-0142"
+                    placeholder={t('outbound.sms.phone_placeholder')}
                   />
                 </label>
                 <label className={styles.field}>
-                  <span className={styles.label}>Email (optional)</span>
+                  <span className={styles.label}>{t('outbound.sms.email_label')}</span>
                   <input
                     type="email"
                     inputMode="email"
                     className={styles.input}
                     value={smsEmail}
                     onChange={(e) => setSmsEmail(e.target.value)}
-                    placeholder="driver@example.com"
+                    placeholder={t('outbound.sms.email_placeholder')}
                   />
                 </label>
               </div>
               {smsSent && (
-                <p className={styles.success}>SMS sent — re-send if needed.</p>
+                <p className={styles.success}>{t('outbound.sms.sent')}</p>
               )}
               <div className={styles.actions}>
                 <Button
@@ -491,7 +485,11 @@ export default function Outbound() {
                     smsBusy || !validPhone(smsPhone) || !validEmail(smsEmail)
                   }
                 >
-                  {smsBusy ? 'Sending…' : smsSent ? 'Re-send SMS' : 'Send SMS'}
+                  {smsBusy
+                    ? t('outbound.sms.sending')
+                    : smsSent
+                      ? t('outbound.sms.resend')
+                      : t('outbound.sms.send')}
                 </Button>
               </div>
             </FlowStep>
@@ -501,19 +499,14 @@ export default function Outbound() {
           <FlowStep>
               {report && (
                 <>
-                  <p className={styles.note}>
-                    This is the moment the box leaves the yard. Printing the
-                    receipt stamps the outbound date and flips the container
-                    to <em>outbound</em>.
-                  </p>
                   {alreadyPickedUp ? (
                     <>
                       <p className={styles.success}>
-                        Already marked outbound
                         {container?.outbound_date
-                          ? ` on ${fmtDate(container.outbound_date)}`
-                          : ''}
-                        .
+                          ? t('outbound.print.already_marked_with_date', {
+                              date: fmtDate(container.outbound_date),
+                            })
+                          : t('outbound.print.already_marked')}
                       </p>
                       <div className={styles.actions}>
                         <a
@@ -522,10 +515,10 @@ export default function Outbound() {
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          Re-print receipt →
+                          {t('outbound.print.reprint')}
                         </a>
                         <Button variant="secondary" onClick={resetToPick}>
-                          Start another pickup
+                          {t('outbound.print.start_another')}
                         </Button>
                       </div>
                     </>
@@ -538,8 +531,8 @@ export default function Outbound() {
                         disabled={!canPickUp || completing}
                       >
                         {completing
-                          ? 'Marking…'
-                          : 'Mark Outbound & Print Receipt'}
+                          ? t('outbound.print.marking')
+                          : t('outbound.print.primary_button')}
                       </button>
                     </div>
                   )}
@@ -561,11 +554,11 @@ export default function Outbound() {
               }
             }}
           >
-            ← Back
+            {t('outbound.nav.back')}
           </Button>
           {step < steps.length - 1 && (
             <Button onClick={() => setStep((s) => s + 1)} disabled={!report}>
-              Next →
+              {t('outbound.nav.next')}
             </Button>
           )}
         </div>

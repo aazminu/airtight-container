@@ -69,7 +69,7 @@ function Navbar() {
 										<a href="/reports">Reports</a>
 									</li>
 									<li>
-										<a href="/outbound">Outbound</a>
+										<a href="/outbound">{t("navbar.outbound")}</a>
 									</li>
 									<li>
 										<a href="/dashboard">Dashboard</a>
