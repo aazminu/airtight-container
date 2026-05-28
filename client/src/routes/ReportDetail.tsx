@@ -24,6 +24,7 @@ type ReportType =
 interface ReportRow {
   id: number;
   report_type: ReportType;
+  delivery_sheet_number: string | null;
   generated_at: string;
   generated_by: string | null;
   parameters: Record<string, unknown> | null;
@@ -283,7 +284,11 @@ export default function ReportDetail() {
       <header className={styles.header}>
         <div>
           <h1 className={styles.title}>
-            {TYPE_LABELS[report.report_type]} · #{report.id}
+            {TYPE_LABELS[report.report_type]} ·{' '}
+            {report.report_type === 'delivery_sheet' &&
+            report.delivery_sheet_number
+              ? report.delivery_sheet_number
+              : `#${report.id}`}
           </h1>
           <p className={styles.subtitle}>
             Generated {fmtDateTime(report.generated_at)}

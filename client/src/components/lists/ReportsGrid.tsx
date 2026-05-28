@@ -14,6 +14,7 @@ export type ReportType =
 export interface ReportRow {
   id: number;
   report_type: ReportType;
+  delivery_sheet_number: string | null;
   generated_at: string;
   generated_by: string | null;
   parameters: Record<string, unknown> | null;
@@ -316,7 +317,11 @@ function ReportTile({ row, onClick }: ReportTileProps) {
       </div>
       <div className={styles.caption}>
         <div className={styles.captionTop}>
-          <span className={styles.reportNum}>#{row.id}</span>
+          <span className={styles.reportNum}>
+            {row.report_type === 'delivery_sheet' && row.delivery_sheet_number
+              ? row.delivery_sheet_number
+              : `#${row.id}`}
+          </span>
           <span className={styles.reportDate}>{fmtDate(row.generated_at)}</span>
         </div>
         <div className={styles.typeLabel}>{TYPE_LABELS[row.report_type]}</div>
