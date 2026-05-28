@@ -90,30 +90,12 @@ router.get("/", checkEmployee, async (req, res) => {
 	}
 });
 
-router.get("/:id", checkEmployee, async (req, res) => {
-	try {
-		const id = Number(req.params.id);
-		if (!Number.isInteger(id)) {
-			return res.status(400).json({ message: "Invalid id" });
-		}
-		const rows = await drizzleDb
-			.select()
-			.from(reports)
-			.where(eq(reports.id, id));
-		if (rows.length === 0) {
-			return res.status(404).json({ message: "Report not found" });
-		}
-		res.status(200).json({ status: "success", data: { report: rows[0] } });
-	} catch (err) {
-		console.error("reports.get error:", err);
-		res.status(500).json({ message: "Internal server error" });
-	}
-});
-
 // All delivery_sheet reports whose sales container is still 'sold' — i.e.
 // the receipt-print outbound event hasn't happened yet. Powers the
 // Outbound screen's "Pending pickups" list. Sales path only; S&H boxes
 // don't carry a sold row and aren't part of this flow.
+// IMPORTANT: must be declared before "/:id" or Express matches the
+// param route first and treats "pending-pickups" as an id.
 router.get("/pending-pickups", checkEmployee, async (_req, res) => {
 	try {
 		const { rows } = await db.query(
@@ -141,6 +123,26 @@ router.get("/pending-pickups", checkEmployee, async (_req, res) => {
 			.json({ status: "success", results: rows.length, data: { pending: rows } });
 	} catch (err) {
 		console.error("reports.pending-pickups error:", err);
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
+
+router.get("/:id", checkEmployee, async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		if (!Number.isInteger(id)) {
+			return res.status(400).json({ message: "Invalid id" });
+		}
+		const rows = await drizzleDb
+			.select()
+			.from(reports)
+			.where(eq(reports.id, id));
+		if (rows.length === 0) {
+			return res.status(404).json({ message: "Report not found" });
+		}
+		res.status(200).json({ status: "success", data: { report: rows[0] } });
+	} catch (err) {
+		console.error("reports.get error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
