@@ -287,6 +287,7 @@ export default function Outbound() {
 
       {error && <div className={styles.error}>{error}</div>}
 
+      <div className={styles.body}>
       <Flow step={step}>
         {/* Step 0 — Pick sheet */}
         <FlowStep>
@@ -480,6 +481,7 @@ export default function Outbound() {
           )}
         </FlowStep>
       </Flow>
+      </div>
 
       {/* Step navigation */}
       {step > 0 && (
