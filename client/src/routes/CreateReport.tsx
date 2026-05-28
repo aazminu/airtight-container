@@ -8,6 +8,7 @@ import {
   FlowStep,
   Stepper,
 } from '../components/ui';
+import { DoorOrientationField } from '../components/forms/DoorOrientationField';
 import DeliveryTemplate from '../components/templates/delivery/DeliveryTemplate';
 import type { DeliveryData } from '../components/templates/delivery/types';
 import styles from './CreateReport.module.css';
@@ -198,11 +199,6 @@ interface DeliveryParamState {
   payment_details: string;
   receipt_note: string;
   receipt_summary: string;
-  addr_name: string;
-  addr_street: string;
-  addr_city: string;
-  addr_state: string;
-  addr_zip: string;
   notes: string;
 }
 
@@ -216,13 +212,52 @@ const EMPTY_DELIVERY: DeliveryParamState = {
   payment_details: '',
   receipt_note: '',
   receipt_summary: '',
-  addr_name: '',
-  addr_street: '',
-  addr_city: '',
-  addr_state: '',
-  addr_zip: '',
   notes: '',
 };
+
+// Per-container delivery edits collected on step 2 (Details). Writes
+// back to the sold row via PATCH /api/v2/sold/:inventory_id before the
+// report POST, so the invoice's per-box record + future delivery sheets
+// see the same data.
+interface ContainerEdit {
+  door_orientation: string;
+  outbound_trucking_company_id: number | null;
+  delivery_name: string;
+  delivery_street: string;
+  delivery_city: string;
+  delivery_state: string;
+  delivery_zip: string;
+}
+
+const EMPTY_CONTAINER_EDIT: ContainerEdit = {
+  door_orientation: '',
+  outbound_trucking_company_id: null,
+  delivery_name: '',
+  delivery_street: '',
+  delivery_city: '',
+  delivery_state: '',
+  delivery_zip: '',
+};
+
+interface InvoiceContainerData {
+  inventory_id: number;
+  unit_number: string;
+  size: string;
+  damage: string | null;
+  state: string;
+  door_orientation: string | null;
+  outbound_trucking_company_id: number | null;
+  delivery_name: string | null;
+  delivery_street: string | null;
+  delivery_city: string | null;
+  delivery_state: string | null;
+  delivery_zip: string | null;
+}
+
+interface TruckingCompanyRow {
+  id: number;
+  company_name: string;
+}
 
 const STEP_NAMES = ['Container', 'Customer', 'Details', 'Preview', 'Done'] as const;
 
@@ -250,17 +285,6 @@ function buildDeliveryParams(s: DeliveryParamState): Record<string, unknown> {
   if (s.receipt_note.trim()) params.receipt_note = s.receipt_note.trim();
   if (s.receipt_summary.trim()) params.receipt_summary = s.receipt_summary.trim();
   if (s.notes.trim()) params.notes = s.notes.trim();
-  const addr: Record<string, string> = {};
-  if (s.addr_name.trim()) addr.name = s.addr_name.trim();
-  if (s.addr_street.trim()) addr.street = s.addr_street.trim();
-  const locality = [
-    s.addr_city.trim(),
-    [s.addr_state.trim(), s.addr_zip.trim()].filter(Boolean).join(' '),
-  ]
-    .filter(Boolean)
-    .join(', ');
-  if (locality) addr.locality = locality;
-  if (Object.keys(addr).length > 0) params.delivery_address = addr;
 
   return params;
 }
@@ -299,6 +323,16 @@ function DeliveryFlow() {
       ? { ...EMPTY_DELIVERY, container_id: prefillContainerId }
       : EMPTY_DELIVERY,
   );
+
+  // Invoice-scope only: full container records for pre-populating
+  // per-box delivery edits on step 2. Index by inventory_id.
+  const [invoiceContainersById, setInvoiceContainersById] = useState<
+    Map<number, InvoiceContainerData>
+  >(() => new Map());
+  const [truckingCompanies, setTruckingCompanies] = useState<TruckingCompanyRow[]>([]);
+  const [containerEdit, setContainerEdit] = useState<ContainerEdit>(
+    EMPTY_CONTAINER_EDIT,
+  );
   const [addrOverrideOpen, setAddrOverrideOpen] = useState(false);
 
   const [preview, setPreview] = useState<DeliveryData | null>(null);
@@ -319,30 +353,33 @@ function DeliveryFlow() {
     (async () => {
       try {
         if (prefillInvoiceId != null) {
-          const res = await fetch(`/api/v2/invoice/${prefillInvoiceId}`, {
-            credentials: 'include',
-          });
-          const body = res.ok ? await res.json() : null;
+          const [invRes, truckRes] = await Promise.all([
+            fetch(`/api/v2/invoice/${prefillInvoiceId}`, {
+              credentials: 'include',
+            }),
+            fetch('/api/v2/trucking-companies', { credentials: 'include' }),
+          ]);
+          const body = invRes.ok ? await invRes.json() : null;
+          const truckBody = truckRes.ok ? await truckRes.json() : null;
           if (cancelled) return;
           const inv = body?.data?.invoices?.[0];
-          const list: PickerOption[] = (inv?.containers ?? []).map(
-            (c: {
-              inventory_id: number;
-              unit_number: string;
-              size: string;
-              damage: string | null;
-              state: string;
-            }) => ({
-              source: 'sales' as const,
-              id: c.inventory_id,
-              unit_number: c.unit_number,
-              size: c.size,
-              damage: c.damage,
-              state_label: c.state,
-              client_label: null,
-            }),
-          );
+          const containers: InvoiceContainerData[] = inv?.containers ?? [];
+          const list: PickerOption[] = containers.map((c) => ({
+            source: 'sales' as const,
+            id: c.inventory_id,
+            unit_number: c.unit_number,
+            size: c.size,
+            damage: c.damage,
+            state_label: c.state,
+            client_label: null,
+          }));
           setOptions(list);
+          setInvoiceContainersById(
+            new Map(containers.map((c) => [c.inventory_id, c])),
+          );
+          setTruckingCompanies(
+            truckBody?.data?.trucking_companies ?? [],
+          );
           // Auto-pick when there's only one box on the invoice — operator
           // hits Next on a pre-selected option instead of having to click.
           if (list.length === 1 && prefillContainerId == null) {
@@ -440,10 +477,88 @@ function DeliveryFlow() {
     previewError != null &&
     previewError.includes(NO_INVOICE_MARKER);
 
-  const pickSales = (id: number) =>
+  const pickSales = (id: number) => {
     setParams((p) => ({ ...p, container_id: id, sh_box_id: null }));
-  const pickSh = (id: number) =>
+    // In invoice-scope mode, seed the per-container edits from whatever
+    // the invoice has saved for this box. Operator can change anything.
+    const ctr = invoiceContainersById.get(id);
+    if (ctr) {
+      setContainerEdit({
+        door_orientation: ctr.door_orientation ?? '',
+        outbound_trucking_company_id: ctr.outbound_trucking_company_id,
+        delivery_name: ctr.delivery_name ?? '',
+        delivery_street: ctr.delivery_street ?? '',
+        delivery_city: ctr.delivery_city ?? '',
+        delivery_state: ctr.delivery_state ?? '',
+        delivery_zip: ctr.delivery_zip ?? '',
+      });
+      setAddrOverrideOpen(
+        Boolean(
+          ctr.delivery_name ||
+            ctr.delivery_street ||
+            ctr.delivery_city ||
+            ctr.delivery_state ||
+            ctr.delivery_zip,
+        ),
+      );
+    } else {
+      setContainerEdit(EMPTY_CONTAINER_EDIT);
+      setAddrOverrideOpen(false);
+    }
+  };
+  const pickSh = (id: number) => {
     setParams((p) => ({ ...p, sh_box_id: id, container_id: null }));
+    // S&H boxes don't have a sold row — container-edit doesn't apply.
+    setContainerEdit(EMPTY_CONTAINER_EDIT);
+    setAddrOverrideOpen(false);
+  };
+
+  // Seed container-edit on first load when invoice-scope mode auto-picked
+  // a single container (or operator deep-linked with ?container_id).
+  useEffect(() => {
+    if (params.container_id != null) {
+      const ctr = invoiceContainersById.get(params.container_id);
+      if (ctr) {
+        setContainerEdit({
+          door_orientation: ctr.door_orientation ?? '',
+          outbound_trucking_company_id: ctr.outbound_trucking_company_id,
+          delivery_name: ctr.delivery_name ?? '',
+          delivery_street: ctr.delivery_street ?? '',
+          delivery_city: ctr.delivery_city ?? '',
+          delivery_state: ctr.delivery_state ?? '',
+          delivery_zip: ctr.delivery_zip ?? '',
+        });
+        setAddrOverrideOpen(
+          Boolean(
+            ctr.delivery_name ||
+              ctr.delivery_street ||
+              ctr.delivery_city ||
+              ctr.delivery_state ||
+              ctr.delivery_zip,
+          ),
+        );
+      }
+    }
+  }, [params.container_id, invoiceContainersById]);
+
+  const addTruckingCompany = async (name: string): Promise<number | null> => {
+    try {
+      const res = await fetch('/api/v2/trucking-companies', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ company_name: name.trim() }),
+      });
+      const body = await res.json();
+      if (!res.ok) return null;
+      const created: TruckingCompanyRow = body?.data?.trucking_company;
+      if (!created) return null;
+      setTruckingCompanies((prev) => [...prev, created]);
+      return created.id;
+    } catch {
+      return null;
+    }
+  };
 
   const fetchPreview = async () => {
     if (params.container_id == null && params.sh_box_id == null) return;
@@ -516,6 +631,58 @@ function DeliveryFlow() {
   const submit = async () => {
     if (params.container_id == null && params.sh_box_id == null) return;
     setSubmitState({ kind: 'submitting' });
+
+    // Persist any per-container edits back to the sold row first, so
+    // the resolver picks them up and the invoice + future sheets see
+    // the same values. Sales path + invoice-scope only.
+    if (params.container_id != null && prefillInvoiceId != null) {
+      try {
+        const patchRes = await fetch(
+          `/api/v2/sold/${params.container_id}`,
+          {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              door_orientation: containerEdit.door_orientation,
+              outbound_trucking_company_id:
+                containerEdit.outbound_trucking_company_id,
+              delivery_name: addrOverrideOpen
+                ? containerEdit.delivery_name
+                : '',
+              delivery_street: addrOverrideOpen
+                ? containerEdit.delivery_street
+                : '',
+              delivery_city: addrOverrideOpen
+                ? containerEdit.delivery_city
+                : '',
+              delivery_state: addrOverrideOpen
+                ? containerEdit.delivery_state
+                : '',
+              delivery_zip: addrOverrideOpen
+                ? containerEdit.delivery_zip
+                : '',
+            }),
+          },
+        );
+        if (!patchRes.ok) {
+          const body = await patchRes.json().catch(() => null);
+          setSubmitState({
+            kind: 'error',
+            message:
+              body?.message ?? `Container update failed (HTTP ${patchRes.status})`,
+          });
+          return;
+        }
+      } catch (e) {
+        setSubmitState({
+          kind: 'error',
+          message: e instanceof Error ? e.message : 'Container update failed',
+        });
+        return;
+      }
+    }
+
     const result = await submitReport(
       'delivery_sheet',
       buildDeliveryParams(params),
@@ -608,8 +775,8 @@ function DeliveryFlow() {
                 <>
                   Selected: <strong>{selected.unit_number.trim()}</strong> (
                   {selected.size}
-                  {selected.source === 'sh' ? ', S&H box' : ''}). Customer +
-                  delivery address auto-pulled — override below if needed.
+                  {selected.source === 'sh' ? ', S&H box' : ''}). Customer
+                  auto-pulled. Override delivery details on the next step.
                 </>
               ) : (
                 'Pick a container first.'
@@ -659,63 +826,6 @@ function DeliveryFlow() {
               </div>
             )}
 
-            {!addrOverrideOpen ? (
-              <button
-                type="button"
-                className={styles.linkBtn}
-                onClick={() => setAddrOverrideOpen(true)}
-              >
-                + Add separate shipping address
-              </button>
-            ) : (
-              <div className={styles.addressCard}>
-                <div className={styles.addressCardHead}>
-                  Delivery address override
-                </div>
-                <p className={styles.addressCardHint}>
-                  The customer's billing address is auto-filled at preview time
-                  from the resolver. Fill these in only when the container is
-                  going somewhere different.
-                </p>
-                <AddressFields
-                  value={{
-                    name: params.addr_name,
-                    street: params.addr_street,
-                    city: params.addr_city,
-                    state: params.addr_state,
-                    zip: params.addr_zip,
-                  }}
-                  onChange={(next) => {
-                    setParams((p) => ({
-                      ...p,
-                      addr_name: next.name,
-                      addr_street: next.street,
-                      addr_city: next.city,
-                      addr_state: next.state,
-                      addr_zip: next.zip,
-                    }));
-                  }}
-                />
-                <button
-                  type="button"
-                  className={styles.linkBtn}
-                  onClick={() => {
-                    setAddrOverrideOpen(false);
-                    setParams((p) => ({
-                      ...p,
-                      addr_name: '',
-                      addr_street: '',
-                      addr_city: '',
-                      addr_state: '',
-                      addr_zip: '',
-                    }));
-                  }}
-                >
-                  Use customer's billing address instead
-                </button>
-              </div>
-            )}
-
             <button
               type="button"
               className={styles.linkBtn}
@@ -732,10 +842,127 @@ function DeliveryFlow() {
           {/* Step 2 — Details */}
           <FlowStep>
             <p className={styles.hint}>
-              Operator-entered details for the receiver. All optional — anything
-              left blank just won't appear on the sheet. Carrier + door
-              orientation come from the invoice.
+              All fields optional — anything left blank just won't appear
+              on the sheet. Carrier + door orientation + delivery address
+              pre-fill from the invoice; edit them here if anything was
+              blank or has changed. Edits save back to the invoice's
+              per-box record.
             </p>
+
+            {params.container_id != null && prefillInvoiceId != null && (
+              <>
+                <div className={styles.sectionTitle}>Container delivery</div>
+                <div className={styles.fieldGrid}>
+                  <Field label="Carrier">
+                    <select
+                      className={styles.input}
+                      value={containerEdit.outbound_trucking_company_id ?? ''}
+                      onChange={async (e) => {
+                        if (e.target.value === '__add__') {
+                          const name = window.prompt('New trucking company name');
+                          if (name && name.trim()) {
+                            const newId = await addTruckingCompany(name);
+                            if (newId)
+                              setContainerEdit((c) => ({
+                                ...c,
+                                outbound_trucking_company_id: newId,
+                              }));
+                          }
+                          return;
+                        }
+                        setContainerEdit((c) => ({
+                          ...c,
+                          outbound_trucking_company_id: e.target.value
+                            ? Number(e.target.value)
+                            : null,
+                        }));
+                      }}
+                    >
+                      <option value="">— none —</option>
+                      {truckingCompanies.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.company_name}
+                        </option>
+                      ))}
+                      <option value="__add__">+ Add new company…</option>
+                    </select>
+                  </Field>
+                  <Field label="Door orientation">
+                    <DoorOrientationField
+                      className={styles.input}
+                      value={containerEdit.door_orientation}
+                      onChange={(v) =>
+                        setContainerEdit((c) => ({
+                          ...c,
+                          door_orientation: v,
+                        }))
+                      }
+                    />
+                  </Field>
+                </div>
+
+                {!addrOverrideOpen ? (
+                  <button
+                    type="button"
+                    className={styles.linkBtn}
+                    onClick={() => setAddrOverrideOpen(true)}
+                  >
+                    + Add separate shipping address
+                  </button>
+                ) : (
+                  <div className={styles.addressCard}>
+                    <div className={styles.addressCardHead}>
+                      Per-box delivery address
+                    </div>
+                    <p className={styles.addressCardHint}>
+                      Defaults to the invoice ship-to (which itself defaults
+                      to the client's billing address). Fill these in only
+                      when this box is going somewhere different.
+                    </p>
+                    <AddressFields
+                      value={{
+                        name: containerEdit.delivery_name,
+                        street: containerEdit.delivery_street,
+                        city: containerEdit.delivery_city,
+                        state: containerEdit.delivery_state,
+                        zip: containerEdit.delivery_zip,
+                      }}
+                      onChange={(next) =>
+                        setContainerEdit((c) => ({
+                          ...c,
+                          delivery_name: next.name,
+                          delivery_street: next.street,
+                          delivery_city: next.city,
+                          delivery_state: next.state,
+                          delivery_zip: next.zip,
+                        }))
+                      }
+                      nameLabel="Deliver to (name)"
+                    />
+                    <button
+                      type="button"
+                      className={styles.linkBtn}
+                      onClick={() => {
+                        setAddrOverrideOpen(false);
+                        setContainerEdit((c) => ({
+                          ...c,
+                          delivery_name: '',
+                          delivery_street: '',
+                          delivery_city: '',
+                          delivery_state: '',
+                          delivery_zip: '',
+                        }));
+                      }}
+                    >
+                      Use shipping address instead
+                    </button>
+                  </div>
+                )}
+
+                <div className={styles.sectionTitle}>Receiver</div>
+              </>
+            )}
+
             <div className={styles.fieldGrid}>
               <Field label="Delivery date">
                 <input

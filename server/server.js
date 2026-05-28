@@ -24,6 +24,7 @@ import modPresetsRoute from "./routes/v2/mod_presets.js";
 import sizePresetsRoute from "./routes/v2/size_presets.js";
 import damagePresetsRoute from "./routes/v2/damage_presets.js";
 import truckingCompaniesRoute from "./routes/v2/trucking_companies.js";
+import soldV2Route from "./routes/v2/sold.js";
 import publicReceiptRoute from "./routes/public/receipt.js";
 import { generateShMonthEnd, priorMonth } from "./lib/sh-month-end.js";
 import { applyOutboundFromDeliverySheets } from "./lib/outbound-from-delivery.js";
@@ -85,6 +86,7 @@ app.use("/api/v2/mod-presets", modPresetsRoute);
 app.use("/api/v2/size-presets", sizePresetsRoute);
 app.use("/api/v2/damage-presets", damagePresetsRoute);
 app.use("/api/v2/trucking-companies", truckingCompaniesRoute);
+app.use("/api/v2/sold", soldV2Route);
 
 // Public-facing receipt-link route. Unauthenticated by design — the
 // 128-bit token in the URL is the access credential. Mounted at /r,
