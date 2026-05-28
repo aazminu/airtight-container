@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge, Button, Flow, FlowStep, IconButton, Stepper } from '../components/ui';
+import {
+  Badge,
+  Button,
+  CurrencyInput,
+  Flow,
+  FlowStep,
+  IconButton,
+  Stepper,
+} from '../components/ui';
 import { AddClientModal } from '../components/forms/AddClientModal';
 import { DestinationField } from '../components/forms/DestinationField';
 import { useDirtyForm } from '../lib/useDirtyForm';
@@ -521,15 +529,12 @@ export default function CreateQuote() {
                           updateMod(l.key, mIdx, { description: e.target.value })
                         }
                       />
-                      <input
-                        className={styles.input}
-                        type="number"
-                        step="0.01"
-                        placeholder="Price"
+                      <CurrencyInput
                         value={m.price}
-                        onChange={(e) =>
-                          updateMod(l.key, mIdx, { price: e.target.value })
+                        onChange={(v) =>
+                          updateMod(l.key, mIdx, { price: v })
                         }
+                        placeholder="0.00"
                       />
                       <IconButton
                         icon="trash"

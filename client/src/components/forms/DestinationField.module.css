@@ -7,13 +7,16 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* Match the standard text-input height — same padding + border the
+     rest of the form inputs use, no min-height padding-out. */
   padding: 0.5rem 0.625rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-input);
   color: var(--text);
-  min-height: 2.25rem;
-  font-size: 0.95rem;
+  font-size: inherit;
+  line-height: 1.4;
+  box-sizing: border-box;
 }
 
 .summaryText {

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Button, IconButton } from '../ui';
+import { useEffect, useMemo, useState } from 'react';
+import { Button, CurrencyInput, IconButton } from '../ui';
 import type { QuoteData } from '../templates/quote/types';
 import { fmtCurrency } from '../templates/quote/format';
 import {
@@ -9,6 +9,18 @@ import {
 } from './modificationPresets';
 import { DestinationField } from './DestinationField';
 import styles from '../../routes/CreateQuote.module.css';
+
+interface ClientSummary {
+  id: number;
+  client_name: string;
+  business_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+}
 
 interface QuoteEditorProps {
   initial: QuoteData;
@@ -23,8 +35,47 @@ interface QuoteEditorProps {
 export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorProps) {
   const [draft, setDraft] = useState<QuoteData>(() => structuredClone(initial));
   const [saving, setSaving] = useState(false);
+  const [clients, setClients] = useState<ClientSummary[]>([]);
   const modPresetLabels = useModPresetLabels();
   const modPresets = useModPresets();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/v2/clients', { credentials: 'include' });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (cancelled) return;
+        setClients(body?.data?.clients ?? []);
+      } catch {
+        // Non-fatal — current customer renders via the read-only fallback.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const updateCustomer = (clientId: number) => {
+    const c = clients.find((cl) => cl.id === clientId);
+    if (!c) return;
+    setDraft((d) => ({
+      ...d,
+      customer: {
+        ...d.customer,
+        id: c.id,
+        client_name: c.client_name,
+        business_name: c.business_name,
+        contact_email: c.contact_email,
+        contact_phone: c.contact_phone,
+        street: c.street,
+        city: c.city,
+        state: c.state,
+        zip: c.zip,
+      },
+    }));
+  };
 
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -157,6 +208,31 @@ export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorPr
         ))}
       </datalist>
 
+      <div className={styles.containerCard}>
+        <div className={styles.containerHead}>
+          <strong>Customer</strong>
+        </div>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Customer</span>
+          <select
+            className={styles.input}
+            value={draft.customer.id}
+            onChange={(e) => updateCustomer(Number(e.target.value))}
+          >
+            {!clients.some((c) => c.id === draft.customer.id) && (
+              <option value={draft.customer.id}>
+                {draft.customer.business_name || draft.customer.client_name}
+              </option>
+            )}
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.business_name || c.client_name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       {draft.lines.map((l) => (
         <div key={l.id} className={styles.containerCard}>
           <div className={styles.containerHead}>
@@ -225,13 +301,10 @@ export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorPr
                     updateMod(l.id, mIdx, { description: e.target.value })
                   }
                 />
-                <input
-                  className={styles.input}
-                  type="number"
-                  step="0.01"
-                  placeholder="Price"
+                <CurrencyInput
                   value={m.price}
-                  onChange={(e) => updateMod(l.id, mIdx, { price: e.target.value })}
+                  onChange={(v) => updateMod(l.id, mIdx, { price: v })}
+                  placeholder="0.00"
                 />
                 <IconButton
                   icon="trash"
