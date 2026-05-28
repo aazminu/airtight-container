@@ -110,6 +110,41 @@ router.get("/:id", checkEmployee, async (req, res) => {
 	}
 });
 
+// All delivery_sheet reports whose sales container is still 'sold' — i.e.
+// the receipt-print outbound event hasn't happened yet. Powers the
+// Outbound screen's "Pending pickups" list. Sales path only; S&H boxes
+// don't carry a sold row and aren't part of this flow.
+router.get("/pending-pickups", checkEmployee, async (_req, res) => {
+	try {
+		const { rows } = await db.query(
+			`SELECT r.id,
+			        r.delivery_sheet_number,
+			        r.parameters,
+			        r.generated_at,
+			        i.id AS container_id,
+			        i.unit_number,
+			        i.size,
+			        i.state,
+			        s.destination
+			 FROM reports r
+			 JOIN inventory i
+			   ON i.id = ((r.parameters ->> 'container_id')::int)
+			 LEFT JOIN sold s ON s.inventory_id = i.id
+			 WHERE r.report_type = 'delivery_sheet'
+			   AND r.parameters ? 'container_id'
+			   AND i.state = 'sold'
+			 ORDER BY r.generated_at DESC
+			 LIMIT 200`,
+		);
+		res
+			.status(200)
+			.json({ status: "success", results: rows.length, data: { pending: rows } });
+	} catch (err) {
+		console.error("reports.pending-pickups error:", err);
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
+
 // Look up a delivery sheet by its AT number (ATYYYYMM###). Powers the
 // outbound screen's search. Returns the report plus the linked sales
 // container's current state so the screen can decide whether pickup is

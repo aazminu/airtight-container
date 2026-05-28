@@ -69,7 +69,10 @@ export default function DeliveryTemplate({ data }: { data: DeliveryData }) {
       <BrandHeader
         title="Delivery"
         meta={[
-          { label: 'Number', value: data.delivery_id },
+          {
+            label: 'Number',
+            value: data.delivery_sheet_number ?? data.delivery_id,
+          },
           { label: 'Issued', value: fmtDate(data.generated_at) },
           { label: 'Delivery', value: fmtDateTime(data.delivery_date) },
         ]}

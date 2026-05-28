@@ -53,7 +53,9 @@ export default function DeliveryReceiptTemplate({ data }: Props) {
 
       <div className={styles.metaRow}>
         <span className={styles.label}>Sheet</span>
-        <span className={styles.value}>#{data.delivery_id}</span>
+        <span className={styles.value}>
+          {data.delivery_sheet_number ?? `#${data.delivery_id}`}
+        </span>
       </div>
       <div className={styles.metaRow}>
         <span className={styles.label}>Date</span>

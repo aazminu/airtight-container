@@ -6,8 +6,12 @@
 // at generation time and persisted in reports.parameters jsonb.
 
 export interface DeliveryData {
-  /** Display id (e.g. 'D-202604009'); appears in the meta block. */
+  /** Internal report row id — used for fallback display only. */
   delivery_id: number | string;
+  /** Sequenced AT number (ATYYYYMM###) stamped at create time on the
+   *  reports row. Preferred over delivery_id for display. Null for
+   *  pre-migration-0016 records that were never backfilled. */
+  delivery_sheet_number?: string | null;
   generated_at: string;
   /** Day + time the box is going out. Datetime so the template can show
    *  both date and clock time, the way the legacy doc did. */

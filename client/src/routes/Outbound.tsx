@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button } from '../components/ui';
 import styles from './Outbound.module.css';
 
@@ -35,6 +35,18 @@ interface LookupResult {
   container: ContainerRow | null;
 }
 
+interface PendingPickup {
+  id: number;
+  delivery_sheet_number: string | null;
+  parameters: ReportRow['parameters'];
+  generated_at: string;
+  container_id: number;
+  unit_number: string;
+  size: string | null;
+  state: ContainerRow['state'];
+  destination: string | null;
+}
+
 const fmtDate = (iso: string | null | undefined): string => {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -53,6 +65,45 @@ export default function Outbound() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<LookupResult | null>(null);
   const [completing, setCompleting] = useState(false);
+  const [pending, setPending] = useState<PendingPickup[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(true);
+
+  const loadPending = async () => {
+    try {
+      const res = await fetch('/api/v2/report/pending-pickups', {
+        credentials: 'include',
+      });
+      const body = await res.json().catch(() => null);
+      if (res.ok) setPending(body?.data?.pending ?? []);
+    } catch {
+      // Non-fatal; the search box still works.
+    } finally {
+      setPendingLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadPending();
+  }, []);
+
+  const pickPending = (row: PendingPickup) => {
+    setError(null);
+    setResult({
+      report: {
+        id: row.id,
+        delivery_sheet_number: row.delivery_sheet_number,
+        parameters: row.parameters,
+      },
+      container: {
+        id: row.container_id,
+        unit_number: row.unit_number,
+        size: row.size,
+        state: row.state,
+        outbound_date: null,
+        destination: row.destination,
+      },
+    });
+  };
 
   const search = async (e: FormEvent) => {
     e.preventDefault();
@@ -104,6 +155,8 @@ export default function Outbound() {
             }
           : prev,
       );
+      // Drop the now-completed sheet from the pending list.
+      setPending((prev) => prev.filter((r) => r.id !== result.report.id));
       window.open(`/reports/${result.report.id}/print`, '_blank', 'noopener');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not complete pickup');
@@ -141,6 +194,49 @@ export default function Outbound() {
       </form>
 
       {error && <div className={styles.error}>{error}</div>}
+
+      <div className={styles.pendingHead}>
+        <h2 className={styles.pendingTitle}>Pending pickups</h2>
+        <span className={styles.pendingCount}>
+          {pendingLoading ? '…' : `${pending.length}`}
+        </span>
+      </div>
+      {pendingLoading ? null : pending.length === 0 ? (
+        <p className={styles.pendingEmpty}>
+          No delivery sheets are waiting for pickup.
+        </p>
+      ) : (
+        <div className={styles.pendingList}>
+          {pending.map((row) => {
+            const selected = report?.id === row.id;
+            const label = [
+              row.unit_number?.trim(),
+              row.size ? `· ${row.size}` : '',
+              row.destination ? `· ${row.destination}` : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
+            return (
+              <button
+                key={row.id}
+                type="button"
+                className={`${styles.pendingRow} ${selected ? styles.selected : ''}`}
+                onClick={() => pickPending(row)}
+              >
+                <span className={styles.pendingAt}>
+                  {row.delivery_sheet_number ?? `#${row.id}`}
+                </span>
+                <span className={styles.pendingMeta}>{label || '—'}</span>
+                <span className={styles.pendingDate}>
+                  {fmtDate(row.parameters?.delivery_date) === '—'
+                    ? fmtDate(row.generated_at)
+                    : fmtDate(row.parameters?.delivery_date)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {report && (
         <section className={styles.card}>
