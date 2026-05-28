@@ -43,20 +43,20 @@ describe('getNextQuoteNumber', () => {
     expect(queries[1]).toContain('quote_number LIKE');
   });
 
-  it('returns Q-YYYYMM-0001 for a month with no quotes', async () => {
+  it('returns QYYYYMM001 for a month with no quotes', async () => {
     const { client } = fakeClient(0);
     const n = await getNextQuoteNumber(client, '202605');
-    expect(n).toBe('Q-202605-0001');
+    expect(n).toBe('Q202605001');
   });
 
-  it('zero-pads the suffix to 4 digits and increments the max', async () => {
+  it('zero-pads the suffix to 3 digits and increments the max', async () => {
     const { client } = fakeClient(9);
     const n = await getNextQuoteNumber(client, '202605');
-    expect(n).toBe('Q-202605-0010');
+    expect(n).toBe('Q202605010');
   });
 
-  it('throws when the monthly suffix is exhausted at 9999', async () => {
-    const { client } = fakeClient(9999);
+  it('throws when the monthly suffix is exhausted at 999', async () => {
+    const { client } = fakeClient(999);
     await expect(getNextQuoteNumber(client, '202605')).rejects.toThrow(
       /exhausted/,
     );

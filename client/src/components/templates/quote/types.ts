@@ -40,7 +40,7 @@ export const QUOTE_STATUSES: readonly QuoteStatus[] = ['draft', 'sent'] as const
 export interface QuoteData {
   id: number;
   // Accepts string for the create-flow preview, which shows a
-  // placeholder until the server assigns the real Q-YYYYMM-NNNN number.
+  // placeholder until the server assigns the real QYYYYMM### number.
   quote_number: string;
   quote_taxed: boolean;
   quote_credit: boolean;
