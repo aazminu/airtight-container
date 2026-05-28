@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button } from '../ui';
+import { Button, IconButton } from '../ui';
 import type { QuoteData } from '../templates/quote/types';
 import { fmtCurrency } from '../templates/quote/format';
 import {
@@ -7,6 +7,7 @@ import {
   useModPresetLabels,
   useModPresets,
 } from './modificationPresets';
+import { DestinationField } from './DestinationField';
 import styles from '../../routes/CreateQuote.module.css';
 
 interface QuoteEditorProps {
@@ -160,14 +161,12 @@ export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorPr
         <div key={l.id} className={styles.containerCard}>
           <div className={styles.containerHead}>
             <strong>Line item</strong>
-            <button
-              type="button"
-              className={styles.iconBtn}
+            <IconButton
+              icon="trash"
+              tone="danger"
+              label="Remove line"
               onClick={() => removeLine(l.id)}
-              aria-label="Remove line"
-            >
-              ×
-            </button>
+            />
           </div>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Description *</span>
@@ -204,12 +203,9 @@ export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorPr
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Destination</span>
-              <input
-                className={styles.input}
-                value={l.destination ?? ''}
-                onChange={(e) =>
-                  updateLine(l.id, { destination: e.target.value || null })
-                }
+              <DestinationField
+                value={l.destination}
+                onChange={(v) => updateLine(l.id, { destination: v })}
               />
             </label>
           </div>
@@ -217,13 +213,6 @@ export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorPr
           <div className={styles.modsSection}>
             <div className={styles.modsHeader}>
               <span className={styles.fieldLabel}>Modifications</span>
-              <button
-                type="button"
-                className={styles.linkBtn}
-                onClick={() => addMod(l.id)}
-              >
-                + Add modification
-              </button>
             </div>
             {l.modifications.map((m, mIdx) => (
               <div key={m.id} className={styles.modRow}>
@@ -244,23 +233,32 @@ export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorPr
                   value={m.price}
                   onChange={(e) => updateMod(l.id, mIdx, { price: e.target.value })}
                 />
-                <button
-                  type="button"
-                  className={styles.iconBtn}
+                <IconButton
+                  icon="trash"
+                  tone="danger"
+                  label="Remove modification"
                   onClick={() => removeMod(l.id, mIdx)}
-                  aria-label="Remove modification"
-                >
-                  ×
-                </button>
+                />
               </div>
             ))}
+            <button
+              type="button"
+              className={styles.addRow}
+              onClick={() => addMod(l.id)}
+            >
+              + Add modification
+            </button>
           </div>
         </div>
       ))}
 
-      <Button variant="secondary" onClick={addLine}>
+      <button
+        type="button"
+        className={`${styles.addRow} ${styles.addRowFull}`}
+        onClick={addLine}
+      >
         + Add line item
-      </Button>
+      </button>
 
       <div className={styles.invoiceMetaGrid}>
         <label className={styles.field}>

@@ -21,3 +21,4 @@ export type { StepperProps } from './Stepper';
 export { PhotoLightbox } from './PhotoLightbox';
 export { AddressFields } from './AddressFields';
 export type { AddressValue } from './AddressFields';
+export { IconButton } from './IconButton';

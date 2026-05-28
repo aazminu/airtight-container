@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge, Button, Flow, FlowStep, Stepper } from '../components/ui';
+import { Badge, Button, Flow, FlowStep, IconButton, Stepper } from '../components/ui';
 import { AddClientModal } from '../components/forms/AddClientModal';
+import { DestinationField } from '../components/forms/DestinationField';
 import { useDirtyForm } from '../lib/useDirtyForm';
 import QuoteTemplate from '../components/templates/quote/QuoteTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/quote/format';
@@ -447,15 +448,13 @@ export default function CreateQuote() {
               <div key={l.key} className={styles.containerCard}>
                 <div className={styles.containerHead}>
                   <strong>Line item</strong>
-                  <button
-                    type="button"
-                    className={styles.iconBtn}
+                  <IconButton
+                    icon="trash"
+                    tone="danger"
+                    label="Remove line"
                     onClick={() => removeLine(l.key)}
-                    aria-label="Remove line"
                     disabled={lines.length === 1}
-                  >
-                    ×
-                  </button>
+                  />
                 </div>
                 <label className={styles.field}>
                   <span className={styles.fieldLabel}>Description *</span>
@@ -465,7 +464,7 @@ export default function CreateQuote() {
                     onChange={(e) =>
                       updateLine(l.key, { description: e.target.value })
                     }
-                    placeholder="e.g. 40ft High Cube, one-trip"
+                    placeholder="40'HC WWT"
                   />
                 </label>
                 <div className={styles.fieldGrid}>
@@ -495,12 +494,9 @@ export default function CreateQuote() {
                   </label>
                   <label className={styles.field}>
                     <span className={styles.fieldLabel}>Destination</span>
-                    <input
-                      className={styles.input}
-                      value={l.destination}
-                      onChange={(e) =>
-                        updateLine(l.key, { destination: e.target.value })
-                      }
+                    <DestinationField
+                      value={l.destination || null}
+                      onChange={(v) => updateLine(l.key, { destination: v })}
                     />
                   </label>
                 </div>
@@ -508,18 +504,10 @@ export default function CreateQuote() {
                 <div className={styles.modsSection}>
                   <div className={styles.modsHeader}>
                     <span className={styles.fieldLabel}>Modifications</span>
-                    <button
-                      type="button"
-                      className={styles.linkBtn}
-                      onClick={() => addMod(l.key)}
-                    >
-                      + Add modification
-                    </button>
                   </div>
                   {l.modifications.length === 0 && (
                     <p className={styles.modsEmpty}>
-                      No modifications. Click + Add modification to add a
-                      billable item.
+                      No modifications yet.
                     </p>
                   )}
                   {l.modifications.map((m, mIdx) => (
@@ -543,23 +531,32 @@ export default function CreateQuote() {
                           updateMod(l.key, mIdx, { price: e.target.value })
                         }
                       />
-                      <button
-                        type="button"
-                        className={styles.iconBtn}
+                      <IconButton
+                        icon="trash"
+                        tone="danger"
+                        label="Remove modification"
                         onClick={() => removeMod(l.key, mIdx)}
-                        aria-label="Remove modification"
-                      >
-                        ×
-                      </button>
+                      />
                     </div>
                   ))}
+                  <button
+                    type="button"
+                    className={styles.addRow}
+                    onClick={() => addMod(l.key)}
+                  >
+                    + Add modification
+                  </button>
                 </div>
               </div>
             ))}
 
-            <Button variant="secondary" onClick={addLine}>
+            <button
+              type="button"
+              className={`${styles.addRow} ${styles.addRowFull}`}
+              onClick={addLine}
+            >
               + Add line item
-            </Button>
+            </button>
 
             <div className={styles.summary}>
               <div className={styles.summaryRow}>
