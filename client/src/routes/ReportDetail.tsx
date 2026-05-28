@@ -11,12 +11,6 @@ import type { PnLData } from '../components/templates/pnl/types';
 import type { ReleaseSummaryData } from '../components/templates/release-summary/types';
 import type { ShStatementData } from '../components/templates/sh-statement/types';
 import { Badge, useConfirm, usePrompt } from '../components/ui';
-import { SendSmsDialog } from '../components/forms/SendSmsDialog';
-import type { SendSmsResult } from '../components/forms/SendSmsDialog';
-import {
-  EditDeliverySheetDialog,
-  type DeliverySheetParameters,
-} from '../components/forms/EditDeliverySheetDialog';
 import { userContext } from '../context/userContext';
 import styles from './ReportDetail.module.css';
 
@@ -100,8 +94,6 @@ export default function ReportDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<ActionState>({ kind: 'idle' });
-  const [smsDialogOpen, setSmsDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -230,36 +222,6 @@ export default function ReportDetail() {
     }
   };
 
-  // Send the delivery-sheet receipt link to the driver by SMS.
-  // A2P 10DLC requires that we show the driver the consent disclosure
-  // at the point their phone is captured and log the attestation; the
-  // dialog handles both. Server refuses dispatch without a valid
-  // attestation payload — see server/lib/sms-consent.ts.
-  const handleSendSmsConfirm = async (result: SendSmsResult) => {
-    if (!report) return;
-    setSmsDialogOpen(false);
-    setAction({ kind: 'busy', label: 'Sending SMS…' });
-    try {
-      const res = await fetch(`/api/v2/report/${report.id}/sms`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: result.to, consent: result.consent }),
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`);
-      setAction({
-        kind: 'ok',
-        message: `SMS sent to ${body?.to ?? result.to}.`,
-      });
-      await load();
-    } catch (e) {
-      setAction({
-        kind: 'err',
-        message: e instanceof Error ? e.message : 'SMS send failed',
-      });
-    }
-  };
 
   const handleDelete = async () => {
     if (!report) return;
@@ -395,25 +357,6 @@ export default function ReportDetail() {
               <button
                 type="button"
                 className={styles.btn}
-                onClick={() => setEditDialogOpen(true)}
-              >
-                Edit…
-              </button>
-            )}
-            {report.report_type === 'delivery_sheet' && (
-              <button
-                type="button"
-                className={styles.btn}
-                onClick={() => setSmsDialogOpen(true)}
-                disabled={!report.resolved_data}
-              >
-                SMS…
-              </button>
-            )}
-            {report.report_type === 'delivery_sheet' && (
-              <button
-                type="button"
-                className={styles.btn}
                 onClick={() =>
                   window.open(`/reports/${report.id}/print`, '_blank')
                 }
@@ -448,27 +391,6 @@ export default function ReportDetail() {
         </div>
       </div>
 
-      {report.report_type === 'delivery_sheet' && (
-        <SendSmsDialog
-          open={smsDialogOpen}
-          defaultPhone={getDriverContact(report.resolved_data)?.phone ?? ''}
-          driverName={getDriverContact(report.resolved_data)?.name ?? null}
-          onCancel={() => setSmsDialogOpen(false)}
-          onConfirm={handleSendSmsConfirm}
-        />
-      )}
-      {report.report_type === 'delivery_sheet' && (
-        <EditDeliverySheetDialog
-          open={editDialogOpen}
-          reportId={report.id}
-          initial={(report.parameters ?? {}) as DeliverySheetParameters}
-          onCancel={() => setEditDialogOpen(false)}
-          onSaved={() => {
-            setEditDialogOpen(false);
-            void load();
-          }}
-        />
-      )}
     </div>
   );
 }

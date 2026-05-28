@@ -52,14 +52,17 @@ export default function DeliveryReceiptTemplate({ data }: Props) {
       </header>
 
       <div className={styles.metaRow}>
-        <span className={styles.label}>Sheet</span>
+        <span className={styles.label}>Pickup Number</span>
         <span className={styles.value}>
           {data.delivery_sheet_number ?? `#${data.delivery_id}`}
         </span>
       </div>
       <div className={styles.metaRow}>
         <span className={styles.label}>Date</span>
-        <span className={styles.value}>{fmtDateTime(data.delivery_date)}</span>
+        {/* Receipt's date = print time, not the delivery_date param.
+           Re-prints will carry their own timestamp; that's intentional
+           (the actual print is what stamps the outbound event). */}
+        <span className={styles.value}>{fmtDateTime(new Date().toISOString())}</span>
       </div>
 
       <hr className={styles.rule} />

@@ -70,6 +70,16 @@ const SEND_BCC = (process.env.SEND_BCC ?? "")
 	.map((s) => s.trim())
 	.filter(Boolean);
 
+// Tiny config probe the Outbound stepper hits on mount so it can hide
+// the Driver SMS step entirely when Twilio creds aren't set on the
+// server (local dev, prod awaiting A2P 10DLC campaign approval, etc.).
+router.get("/config/sms", checkEmployee, async (_req, res) => {
+	res.status(200).json({
+		status: "success",
+		data: { enabled: isSmsConfigured() },
+	});
+});
+
 router.get("/", checkEmployee, async (req, res) => {
 	try {
 		const typeFilter = req.query.report_type;
@@ -776,6 +786,47 @@ router.post("/:id/sms", checkAdmin, async (req, res) => {
 				.status(400)
 				.json({ message: "Report has no resolved data" });
 		}
+		// Persist driver_contact captured by the Outbound stepper into
+		// parameters + resolved_data before sending, so the receipt
+		// prints the driver name and a re-render reflects the latest
+		// contact. Whitelisted to {name, phone, email}; empty strings
+		// become null. Skipped if the body does not carry one.
+		const dc = req.body?.driver_contact;
+		if (dc && typeof dc === "object" && !Array.isArray(dc)) {
+			const cleaned = {};
+			for (const k of ["name", "phone", "email"]) {
+				if (k in dc) {
+					const v = dc[k];
+					cleaned[k] = typeof v === "string" && v.trim() ? v.trim() : null;
+				}
+			}
+			const mergedParams = { ...(row.parameters ?? {}), driver_contact: cleaned };
+			try {
+				const reResolved = await resolveReport(
+					row.report_type,
+					mergedParams,
+					row.id,
+				);
+				const reResolvedData = row.delivery_sheet_number
+					? { ...reResolved.data, delivery_sheet_number: row.delivery_sheet_number }
+					: reResolved.data;
+				await drizzleDb
+					.update(reports)
+					.set({
+						parameters: mergedParams,
+						resolved_data: reResolvedData,
+						pdf_s3_key: null,
+						pdf_generated_at: null,
+					})
+					.where(eq(reports.id, row.id));
+				row.parameters = mergedParams;
+				row.resolved_data = reResolvedData;
+				row.pdf_s3_key = null;
+			} catch (e) {
+				console.error("reports.sms driver_contact persist error:", e);
+			}
+		}
+
 		// PDF must already exist (or be regenerable) — the SMS body
 		// links to it. Lazy-render if missing, same pattern as /email.
 		let pdfKey = row.pdf_s3_key;

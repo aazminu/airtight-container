@@ -226,13 +226,97 @@
 }
 
 .previewWrap {
-  max-height: 60vh;
-  overflow: auto;
+  /* Render the full delivery sheet inline — no inner scrollbar; the
+     page scrolls if the doc is taller than the viewport. */
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 1rem;
   background: var(--bg-surface);
   margin: 0.5rem 0 1rem;
+}
+
+.smsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.smsGrid > *:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.input {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  background: var(--bg-input);
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+/* The "Mark Outbound & Print Receipt" button is the consequential
+   moment in this flow — supersize it so it can't be misclicked. */
+.bigActionRow {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0;
+}
+
+.bigPrimary {
+  appearance: none;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-fg);
+  padding: 1rem 2rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: background-color 120ms, transform 120ms;
+}
+
+.bigPrimary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.bigPrimary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.bigPrimary:disabled {
+  background: var(--border-strong);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+@media (max-width: 560px) {
+  .smsGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
