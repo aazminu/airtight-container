@@ -44,12 +44,13 @@ function componentsToAddress(
   return { street, city, state, zip };
 }
 
-// google.maps types aren't installed; minimal accessor.
 const getMaps = (): {
   importLibrary: (name: string) => Promise<Record<string, unknown>>;
 } | null => {
   const w = window as unknown as {
-    google?: { maps?: { importLibrary?: (name: string) => Promise<Record<string, unknown>> } };
+    google?: {
+      maps?: { importLibrary?: (name: string) => Promise<Record<string, unknown>> };
+    };
   };
   if (w.google?.maps?.importLibrary) {
     return { importLibrary: w.google.maps.importLibrary };
@@ -57,9 +58,8 @@ const getMaps = (): {
   return null;
 };
 
-// New Places UI Kit element — gives the standard "suggestions dropdown
-// under the input" UX backed by Places API (New). Mounted imperatively
-// because GMPX doesn't wrap it.
+// Mounts the native <gmp-place-autocomplete> element (Places API New) into a
+// container div. Emits the parsed address parts on selection.
 function PlacesAutocomplete({
   onSelect,
 }: {
@@ -67,13 +67,15 @@ function PlacesAutocomplete({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const elementRef = useRef<HTMLElement | null>(null);
+  // Pin the latest onSelect so we don't rebind the listener on every render.
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      // APILoader element triggers google.maps load; poll briefly for
-      // the global to come online.
+      // APILoader element triggers google.maps load; poll briefly for it.
       for (let i = 0; i < 200; i += 1) {
         if (cancelled) return;
         if (getMaps()) break;
@@ -94,35 +96,34 @@ function PlacesAutocomplete({
           includedRegionCodes: ['us'],
         });
 
-        element.addEventListener(
-          'gmp-select',
-          async (ev: Event) => {
-            try {
-              const detail = (
-                ev as unknown as {
-                  placePrediction?: {
-                    toPlace?: () => {
-                      fetchFields: (opts: { fields: string[] }) => Promise<void>;
-                      addressComponents?: PlaceAddressComponent[] | null;
-                    };
+        element.addEventListener('gmp-select', async (ev: Event) => {
+          try {
+            const detail = (
+              ev as unknown as {
+                placePrediction?: {
+                  toPlace?: () => {
+                    fetchFields: (opts: { fields: string[] }) => Promise<void>;
+                    addressComponents?: PlaceAddressComponent[] | null;
                   };
-                }
-              ).placePrediction;
-              const place = detail?.toPlace?.();
-              if (!place) return;
-              await place.fetchFields({ fields: ['addressComponents'] });
-              if (cancelled) return;
-              onSelect(componentsToAddress(place.addressComponents ?? []));
-            } catch {
-              // swallow — manual fields still work
-            }
-          },
-        );
+                };
+              }
+            ).placePrediction;
+            const place = detail?.toPlace?.();
+            if (!place) return;
+            await place.fetchFields({ fields: ['addressComponents'] });
+            if (cancelled) return;
+            onSelectRef.current(
+              componentsToAddress(place.addressComponents ?? []),
+            );
+          } catch {
+            // swallow — user can pick a different match
+          }
+        });
 
         containerRef.current?.appendChild(element);
         elementRef.current = element;
       } catch {
-        // Places API didn't load; manual fields remain usable.
+        // Places API didn't load; nothing to render.
       }
     })();
 
@@ -131,10 +132,6 @@ function PlacesAutocomplete({
       elementRef.current?.remove();
       elementRef.current = null;
     };
-    // onSelect is stable in our callers (recreated on each render but
-    // we only care about the latest at event time, captured via ref-like
-    // closure). Running this effect once is what mounts the element.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <div ref={containerRef} className={styles.placePicker} />;
@@ -151,10 +148,15 @@ export interface AddressValue {
 interface Props {
   value: AddressValue;
   onChange: (next: AddressValue) => void;
-  // When true, render a "Recipient name" field above the address.
+  // When true, render a recipient-name field above the address picker.
   includeName?: boolean;
   nameLabel?: string;
 }
+
+const formatSummary = (v: AddressValue): string =>
+  [v.street, [v.city, v.state].filter(Boolean).join(', '), v.zip]
+    .filter(Boolean)
+    .join(' · ');
 
 export function AddressFields({
   value,
@@ -162,28 +164,27 @@ export function AddressFields({
   includeName = true,
   nameLabel = 'Recipient name',
 }: Props) {
-  const set = <K extends keyof AddressValue>(key: K, v: AddressValue[K]) =>
-    onChange({ ...value, [key]: v });
+  const hasAddress = Boolean(
+    value.street || value.city || value.state || value.zip,
+  );
 
   const handlePicked = (picked: PickedAddress) => {
     onChange({
       ...value,
-      street: picked.street || value.street,
-      city: picked.city || value.city,
-      state: picked.state || value.state,
-      zip: picked.zip || value.zip,
+      street: picked.street,
+      city: picked.city,
+      state: picked.state,
+      zip: picked.zip,
     });
+  };
+
+  const clearAddress = () => {
+    onChange({ ...value, street: '', city: '', state: '', zip: '' });
   };
 
   return (
     <div className={styles.wrap}>
-      {GOOGLE_MAPS_API_KEY && (
-        <div className={styles.field}>
-          <span className={styles.label}>Search address</span>
-          <APILoader apiKey={GOOGLE_MAPS_API_KEY} />
-          <PlacesAutocomplete onSelect={handlePicked} />
-        </div>
-      )}
+      {GOOGLE_MAPS_API_KEY && <APILoader apiKey={GOOGLE_MAPS_API_KEY} />}
       {includeName && (
         <label className={styles.field}>
           <span className={styles.label}>{nameLabel}</span>
@@ -191,48 +192,31 @@ export function AddressFields({
             type="text"
             className={styles.input}
             value={value.name}
-            onChange={(e) => set('name', e.target.value)}
+            onChange={(e) => onChange({ ...value, name: e.target.value })}
           />
         </label>
       )}
-      <label className={styles.field}>
-        <span className={styles.label}>Street</span>
-        <input
-          type="text"
-          className={styles.input}
-          value={value.street}
-          onChange={(e) => set('street', e.target.value)}
-        />
-      </label>
-      <div className={styles.row}>
-        <label className={styles.field}>
-          <span className={styles.label}>City</span>
-          <input
-            type="text"
-            className={styles.input}
-            value={value.city}
-            onChange={(e) => set('city', e.target.value)}
-          />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.label}>State</span>
-          <input
-            type="text"
-            className={styles.input}
-            value={value.state}
-            onChange={(e) => set('state', e.target.value)}
-            maxLength={2}
-          />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.label}>ZIP</span>
-          <input
-            type="text"
-            className={styles.input}
-            value={value.zip}
-            onChange={(e) => set('zip', e.target.value)}
-          />
-        </label>
+      <div className={styles.field}>
+        <span className={styles.label}>Address</span>
+        {hasAddress ? (
+          <div className={styles.summary}>
+            <span className={styles.summaryText}>{formatSummary(value)}</span>
+            <button
+              type="button"
+              className={styles.changeBtn}
+              onClick={clearAddress}
+            >
+              Change
+            </button>
+          </div>
+        ) : GOOGLE_MAPS_API_KEY ? (
+          <PlacesAutocomplete onSelect={handlePicked} />
+        ) : (
+          <div className={styles.notice}>
+            Address autofill unavailable. Set VITE_GOOGLE_MAPS_API_KEY to
+            enable.
+          </div>
+        )}
       </div>
     </div>
   );
