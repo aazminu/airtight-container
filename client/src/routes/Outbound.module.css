@@ -186,6 +186,34 @@
   padding: 0.5rem 0;
 }
 
+.stepNav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.success {
+  color: var(--success-fg, #0a3622);
+  background: var(--success-bg, #dafbe1);
+  border: 1px solid var(--success, #2da44e);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
+}
+
+.previewWrap {
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  background: var(--bg-surface);
+  margin: 0.5rem 0 1rem;
+}
+
 @media (max-width: 560px) {
   .details {
     grid-template-columns: 1fr;

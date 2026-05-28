@@ -23,7 +23,6 @@ import {
 import { deleteObject } from "../../lib/s3.js";
 import { isSmsConfigured, sendSms, toE164 } from "../../lib/sms.js";
 import { validateSmsConsent } from "../../lib/sms-consent.js";
-import { applyOutboundFromDeliverySheets } from "../../lib/outbound-from-delivery.js";
 import { allocateDeliverySheetNumber } from "../../lib/delivery-sheet-number.js";
 
 const router = express.Router();
@@ -284,21 +283,10 @@ router.post(
 					.set({ resolved_data: resolvedData })
 					.where(eq(reports.id, row.id))
 					.returning();
-				// PR 9.7: if this is a delivery sheet whose date is now
-				// in the past, flip the linked container to 'outbound'.
-				// Sales path only — sh_box_id reports are skipped by the
-				// helper. Non-fatal — log and continue; the daily cron
-				// catches anything this missed.
-				if (row.report_type === "delivery_sheet") {
-					const cid = row.parameters?.container_id;
-					if (Number.isInteger(cid)) {
-						try {
-							await applyOutboundFromDeliverySheets({ containerId: cid });
-						} catch (e) {
-							console.error("reports.create outbound-flip error:", e);
-						}
-					}
-				}
+				// Outbound state flip is owned exclusively by the Outbound
+				// stepper's final step (POST /:id/complete-pickup). Creating
+				// a delivery sheet only schedules — it never declares the
+				// container delivered, regardless of the date entered.
 				return res
 					.status(201)
 					.json({ status: "success", data: { report: updated[0] } });
@@ -321,6 +309,77 @@ router.post(
 		}
 	},
 );
+
+// Merge new operator-typed params onto an existing report and re-resolve.
+// Covers the Edit button on a delivery sheet view: date/time, on-site
+// contact, payment details, receipt note/summary, notes, driver_contact.
+// Container-level fields (carrier, door, delivery address) live on the
+// sold row — PATCH /api/v2/sold/:inventory_id for those, not here.
+router.patch("/:id", checkAdmin, async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		if (!Number.isInteger(id)) {
+			return res.status(400).json({ message: "Invalid id" });
+		}
+		const rows = await drizzleDb
+			.select()
+			.from(reports)
+			.where(eq(reports.id, id));
+		if (rows.length === 0) {
+			return res.status(404).json({ message: "Report not found" });
+		}
+		const row = rows[0];
+
+		// Whitelist fields the editor is allowed to set; ignore anything else.
+		// Each field can be set to null (clears) or a value. Missing keys are
+		// left unchanged — shallow merge.
+		const allowed = [
+			"delivery_date",
+			"onsite_contact",
+			"payment_details",
+			"receipt_note",
+			"receipt_summary",
+			"notes",
+			"driver_contact",
+			"delivery_address",
+		];
+		const incoming = req.body?.parameters ?? {};
+		if (typeof incoming !== "object" || Array.isArray(incoming)) {
+			return res
+				.status(400)
+				.json({ message: "parameters must be an object" });
+		}
+		const merged = { ...(row.parameters ?? {}) };
+		for (const k of allowed) {
+			if (k in incoming) merged[k] = incoming[k];
+		}
+
+		const resolved = await resolveReport(row.report_type, merged, row.id);
+		const resolvedData = row.delivery_sheet_number
+			? { ...resolved.data, delivery_sheet_number: row.delivery_sheet_number }
+			: resolved.data;
+
+		const updated = await drizzleDb
+			.update(reports)
+			.set({
+				parameters: merged,
+				resolved_data: resolvedData,
+				// Bust any cached PDF — body no longer matches it.
+				pdf_s3_key: null,
+				pdf_generated_at: null,
+			})
+			.where(eq(reports.id, row.id))
+			.returning();
+		res
+			.status(200)
+			.json({ status: "success", data: { report: updated[0] } });
+	} catch (err) {
+		console.error("reports.patch error:", err);
+		res.status(500).json({
+			message: err instanceof Error ? err.message : "Internal server error",
+		});
+	}
+});
 
 // Re-run the resolver against current DB state. Use when the operator
 // fixes a typo in the underlying invoice/client and wants the saved
@@ -357,22 +416,9 @@ router.post("/:id/regenerate", checkAdmin, async (req, res) => {
 			})
 			.where(eq(reports.id, row.id))
 			.returning();
-		// PR 9.7: re-check outbound state after a regenerate. The
-		// operator may have edited the delivery_date forward or
-		// backward; we only flip sold → outbound (one-way), so a
-		// forward edit that moves the date past today still triggers
-		// correctly, and a date pushed into the future on an already-
-		// outbound row stays outbound.
-		if (row.report_type === "delivery_sheet") {
-			const cid = row.parameters?.container_id;
-			if (Number.isInteger(cid)) {
-				try {
-					await applyOutboundFromDeliverySheets({ containerId: cid });
-				} catch (e) {
-					console.error("reports.regenerate outbound-flip error:", e);
-				}
-			}
-		}
+		// Outbound state flip is owned exclusively by the Outbound
+		// stepper's final step. Regenerate refreshes the document
+		// snapshot only.
 		res.status(200).json({ status: "success", data: { report: updated[0] } });
 	} catch (err) {
 		console.error("reports.regenerate error:", err);

@@ -1,24 +1,52 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Badge, Button } from '../components/ui';
+import {
+  Badge,
+  Button,
+  Flow,
+  FlowStep,
+  Stepper,
+} from '../components/ui';
+import { SendSmsDialog } from '../components/forms/SendSmsDialog';
+import type { SendSmsResult } from '../components/forms/SendSmsDialog';
+import {
+  EditDeliverySheetDialog,
+  type DeliverySheetParameters,
+} from '../components/forms/EditDeliverySheetDialog';
+import DeliveryTemplate from '../components/templates/delivery/DeliveryTemplate';
+import type { DeliveryData } from '../components/templates/delivery/types';
 import styles from './Outbound.module.css';
 
-// Outbound flow: the operator searches a scheduled delivery sheet by its
-// AT number, confirms the details, and marks the container picked up —
-// which prints the receipt and stamps sold.outbound_date = now. This is
-// the authoritative outbound event (the date-based auto-flip cron is only
-// a fallback). Driver SMS lives on the delivery-sheet detail page, which
-// already carries the A2P consent machinery — we link out to it.
+// Outbound stepper. The operator picks a scheduled delivery sheet,
+// confirms its details (with an Edit affordance), captures the driver
+// SMS, and finishes by printing the receipt — which is the moment the
+// container flips sold → outbound (sold.outbound_date = now). No other
+// UI action triggers that flip; this is the source of truth.
 
 interface ReportRow {
   id: number;
+  report_type: string;
   delivery_sheet_number: string | null;
-  parameters: {
-    container_id?: number;
-    delivery_date?: string | null;
-    delivery_company?: string | null;
-    onsite_contact?: string | null;
-    door_orientation?: string | null;
+  parameters: ReportParameters | null;
+  resolved_data: DeliveryData | null;
+}
+
+interface ReportParameters {
+  container_id?: number;
+  sh_box_id?: number;
+  delivery_date?: string | null;
+  delivery_company?: string | null;
+  onsite_contact?: string | null;
+  door_orientation?: string | null;
+  payment_details?: string | null;
+  receipt_note?: string | null;
+  receipt_summary?: string | null;
+  notes?: string | null;
+  driver_contact?: {
+    name?: string | null;
+    phone?: string | null;
+    email?: string | null;
   } | null;
+  delivery_address?: unknown;
 }
 
 interface ContainerRow {
@@ -30,15 +58,10 @@ interface ContainerRow {
   destination: string | null;
 }
 
-interface LookupResult {
-  report: ReportRow;
-  container: ContainerRow | null;
-}
-
 interface PendingPickup {
   id: number;
   delivery_sheet_number: string | null;
-  parameters: ReportRow['parameters'];
+  parameters: ReportParameters;
   generated_at: string;
   container_id: number;
   unit_number: string;
@@ -46,6 +69,8 @@ interface PendingPickup {
   state: ContainerRow['state'];
   destination: string | null;
 }
+
+const STEP_NAMES = ['Pick sheet', 'Confirm', 'Driver SMS', 'Print receipt'] as const;
 
 const fmtDate = (iso: string | null | undefined): string => {
   if (!iso) return '—';
@@ -60,13 +85,27 @@ const fmtDate = (iso: string | null | undefined): string => {
 };
 
 export default function Outbound() {
-  const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState(0);
+  const [report, setReport] = useState<ReportRow | null>(null);
+  const [container, setContainer] = useState<ContainerRow | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<LookupResult | null>(null);
-  const [completing, setCompleting] = useState(false);
+
+  // Step 0 state
+  const [query, setQuery] = useState('');
+  const [searching, setSearching] = useState(false);
   const [pending, setPending] = useState<PendingPickup[]>([]);
   const [pendingLoading, setPendingLoading] = useState(true);
+
+  // Step 1 state
+  const [editOpen, setEditOpen] = useState(false);
+
+  // Step 2 state
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsSent, setSmsSent] = useState(false);
+  const [smsBusy, setSmsBusy] = useState(false);
+
+  // Step 3 state
+  const [completing, setCompleting] = useState(false);
 
   const loadPending = async () => {
     try {
@@ -76,7 +115,7 @@ export default function Outbound() {
       const body = await res.json().catch(() => null);
       if (res.ok) setPending(body?.data?.pending ?? []);
     } catch {
-      // Non-fatal; the search box still works.
+      // Non-fatal; search still works.
     } finally {
       setPendingLoading(false);
     }
@@ -86,32 +125,57 @@ export default function Outbound() {
     void loadPending();
   }, []);
 
-  const pickPending = (row: PendingPickup) => {
-    setError(null);
-    setResult({
-      report: {
-        id: row.id,
-        delivery_sheet_number: row.delivery_sheet_number,
-        parameters: row.parameters,
-      },
-      container: {
-        id: row.container_id,
-        unit_number: row.unit_number,
-        size: row.size,
-        state: row.state,
-        outbound_date: null,
-        destination: row.destination,
-      },
-    });
+  const loadFullReport = async (id: number): Promise<ReportRow | null> => {
+    try {
+      const res = await fetch(`/api/v2/report/${id}`, { credentials: 'include' });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      }
+      return body?.data?.report as ReportRow;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load sheet');
+      return null;
+    }
   };
 
-  const search = async (e: FormEvent) => {
+  const loadContainerForReport = async (
+    cid: number | undefined,
+  ): Promise<ContainerRow | null> => {
+    if (cid == null) return null;
+    try {
+      const res = await fetch(`/api/v1/inventory`, { credentials: 'include' });
+      const body = await res.json().catch(() => null);
+      const rows: ContainerRow[] = body?.data?.inventory ?? [];
+      const inv = rows.find((r) => r.id === cid);
+      if (!inv) return null;
+      // /api/v1/inventory rows lack destination + outbound_date; for the
+      // current state check the inventory row is enough. The Confirm
+      // step shows what it has; missing dest renders "—".
+      return inv;
+    } catch {
+      return null;
+    }
+  };
+
+  const pickReport = async (id: number) => {
+    setError(null);
+    const full = await loadFullReport(id);
+    if (!full) return;
+    const cid = full.parameters?.container_id;
+    const cont = await loadContainerForReport(cid);
+    setReport(full);
+    setContainer(cont);
+    setSmsSent(false);
+    setStep(1);
+  };
+
+  const searchByNumber = async (e: FormEvent) => {
     e.preventDefault();
     const q = query.trim().toUpperCase();
     if (!q) return;
-    setLoading(true);
+    setSearching(true);
     setError(null);
-    setResult(null);
     try {
       const res = await fetch(
         `/api/v2/report/by-number/${encodeURIComponent(q)}`,
@@ -121,43 +185,76 @@ export default function Outbound() {
       if (!res.ok) {
         throw new Error(body?.message ?? `Lookup failed (${res.status})`);
       }
-      setResult(body.data as LookupResult);
+      const r = body?.data?.report as ReportRow;
+      const c = body?.data?.container as ContainerRow | null;
+      setReport(r);
+      setContainer(c);
+      setSmsSent(false);
+      setStep(1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lookup failed');
     } finally {
-      setLoading(false);
+      setSearching(false);
+    }
+  };
+
+  const resetToPick = () => {
+    setReport(null);
+    setContainer(null);
+    setError(null);
+    setSmsSent(false);
+    setStep(0);
+    void loadPending();
+  };
+
+  const sendSms = async (result: SendSmsResult) => {
+    if (!report) return;
+    setSmsOpen(false);
+    setSmsBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/v2/report/${report.id}/sms`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: result.to, consent: result.consent }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.message ?? `SMS failed (${res.status})`);
+      }
+      setSmsSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'SMS send failed');
+    } finally {
+      setSmsBusy(false);
     }
   };
 
   const completePickup = async () => {
-    if (!result) return;
+    if (!report) return;
     setCompleting(true);
     setError(null);
     try {
       const res = await fetch(
-        `/api/v2/report/${result.report.id}/complete-pickup`,
+        `/api/v2/report/${report.id}/complete-pickup`,
         { method: 'POST', credentials: 'include' },
       );
       const body = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(body?.message ?? `Could not complete pickup (${res.status})`);
       }
-      // Reflect the new state locally, then open the printable receipt.
-      setResult((prev) =>
-        prev && prev.container
+      setContainer((prev) =>
+        prev
           ? {
               ...prev,
-              container: {
-                ...prev.container,
-                state: 'outbound',
-                outbound_date: body.data?.outbound_date ?? new Date().toISOString(),
-              },
+              state: 'outbound',
+              outbound_date: body.data?.outbound_date ?? new Date().toISOString(),
             }
           : prev,
       );
-      // Drop the now-completed sheet from the pending list.
-      setPending((prev) => prev.filter((r) => r.id !== result.report.id));
-      window.open(`/reports/${result.report.id}/print`, '_blank', 'noopener');
+      setPending((prev) => prev.filter((r) => r.id !== report.id));
+      window.open(`/reports/${report.id}/print`, '_blank', 'noopener');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not complete pickup');
     } finally {
@@ -165,154 +262,270 @@ export default function Outbound() {
     }
   };
 
-  const report = result?.report;
-  const container = result?.container;
   const params = report?.parameters ?? {};
+  const driverPhone = params.driver_contact?.phone ?? '';
+  const driverName = params.driver_contact?.name ?? null;
+  const alreadyPickedUp = container?.state === 'outbound';
+  const canPickUp = container?.state === 'sold';
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <h1>Outbound</h1>
         <p className={styles.sub}>
-          Find a scheduled delivery sheet by its AT number, confirm the
-          details, and mark the container picked up.
+          Pick a scheduled delivery sheet, confirm the details, capture the
+          driver SMS, and print the receipt. Printing the receipt is what
+          marks the container picked up.
         </p>
       </header>
 
-      <form className={styles.searchRow} onSubmit={search}>
-        <input
-          className={styles.search}
-          placeholder="AT number, e.g. AT202605001"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          autoFocus
-          spellCheck={false}
-        />
-        <Button type="submit" disabled={loading || !query.trim()}>
-          {loading ? 'Searching…' : 'Search'}
-        </Button>
-      </form>
+      <Stepper
+        labels={STEP_NAMES}
+        current={step}
+        ariaLabel="Outbound flow progress"
+      />
 
       {error && <div className={styles.error}>{error}</div>}
 
-      <div className={styles.pendingHead}>
-        <h2 className={styles.pendingTitle}>Pending pickups</h2>
-        <span className={styles.pendingCount}>
-          {pendingLoading ? '…' : `${pending.length}`}
-        </span>
-      </div>
-      {pendingLoading ? null : pending.length === 0 ? (
-        <p className={styles.pendingEmpty}>
-          No delivery sheets are waiting for pickup.
-        </p>
-      ) : (
-        <div className={styles.pendingList}>
-          {pending.map((row) => {
-            const selected = report?.id === row.id;
-            const label = [
-              row.unit_number?.trim(),
-              row.size ? `· ${row.size}` : '',
-              row.destination ? `· ${row.destination}` : '',
-            ]
-              .filter(Boolean)
-              .join(' ');
-            return (
-              <button
-                key={row.id}
-                type="button"
-                className={`${styles.pendingRow} ${selected ? styles.selected : ''}`}
-                onClick={() => pickPending(row)}
-              >
-                <span className={styles.pendingAt}>
-                  {row.delivery_sheet_number ?? `#${row.id}`}
+      <Flow step={step}>
+        {/* Step 0 — Pick sheet */}
+        <FlowStep>
+          <form className={styles.searchRow} onSubmit={searchByNumber}>
+            <input
+              className={styles.search}
+              placeholder="AT number, e.g. AT202605001"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              autoFocus
+              spellCheck={false}
+            />
+            <Button type="submit" disabled={searching || !query.trim()}>
+              {searching ? 'Searching…' : 'Search'}
+            </Button>
+          </form>
+
+          <div className={styles.pendingHead}>
+            <h2 className={styles.pendingTitle}>Pending pickups</h2>
+            <span className={styles.pendingCount}>
+              {pendingLoading ? '…' : `${pending.length}`}
+            </span>
+          </div>
+          {pendingLoading ? null : pending.length === 0 ? (
+            <p className={styles.pendingEmpty}>
+              No delivery sheets are waiting for pickup.
+            </p>
+          ) : (
+            <div className={styles.pendingList}>
+              {pending.map((row) => {
+                const label = [
+                  row.unit_number?.trim(),
+                  row.size ? `· ${row.size}` : '',
+                  row.destination ? `· ${row.destination}` : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ');
+                return (
+                  <button
+                    key={row.id}
+                    type="button"
+                    className={styles.pendingRow}
+                    onClick={() => void pickReport(row.id)}
+                  >
+                    <span className={styles.pendingAt}>
+                      {row.delivery_sheet_number ?? `#${row.id}`}
+                    </span>
+                    <span className={styles.pendingMeta}>{label || '—'}</span>
+                    <span className={styles.pendingDate}>
+                      {fmtDate(row.parameters?.delivery_date) === '—'
+                        ? fmtDate(row.generated_at)
+                        : fmtDate(row.parameters?.delivery_date)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </FlowStep>
+
+        {/* Step 1 — Confirm */}
+        <FlowStep>
+          {report && (
+            <>
+              <div className={styles.cardHead}>
+                <span className={styles.atNumber}>
+                  {report.delivery_sheet_number ?? `#${report.id}`}
                 </span>
-                <span className={styles.pendingMeta}>{label || '—'}</span>
-                <span className={styles.pendingDate}>
-                  {fmtDate(row.parameters?.delivery_date) === '—'
-                    ? fmtDate(row.generated_at)
-                    : fmtDate(row.parameters?.delivery_date)}
-                </span>
-              </button>
-            );
-          })}
+                {container && (
+                  <Badge tone={alreadyPickedUp ? 'success' : 'info'}>
+                    {alreadyPickedUp ? 'Picked up' : container.state}
+                  </Badge>
+                )}
+              </div>
+              {alreadyPickedUp && (
+                <p className={styles.note}>
+                  This box has already been picked up
+                  {container?.outbound_date
+                    ? ` on ${fmtDate(container.outbound_date)}`
+                    : ''}
+                  . Re-print the receipt below if needed.
+                </p>
+              )}
+              {report.resolved_data ? (
+                <div className={styles.previewWrap}>
+                  <DeliveryTemplate data={report.resolved_data} />
+                </div>
+              ) : (
+                <p className={styles.note}>
+                  Resolved data is missing on this sheet.
+                </p>
+              )}
+              <div className={styles.actions}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setEditOpen(true)}
+                >
+                  Edit details
+                </Button>
+              </div>
+            </>
+          )}
+        </FlowStep>
+
+        {/* Step 2 — Driver SMS */}
+        <FlowStep>
+          {report && (
+            <>
+              <p className={styles.note}>
+                Send the driver an SMS with the receipt link. The send-SMS
+                dialog walks you through the A2P 10DLC consent disclosure
+                and captures attestation before the message goes out.
+              </p>
+              <dl className={styles.details}>
+                <div>
+                  <dt>Driver</dt>
+                  <dd>{driverName ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>Phone</dt>
+                  <dd>{driverPhone || '—'}</dd>
+                </div>
+              </dl>
+              {smsSent && (
+                <p className={styles.success}>
+                  SMS sent. You can re-send if needed.
+                </p>
+              )}
+              <div className={styles.actions}>
+                <Button
+                  onClick={() => setSmsOpen(true)}
+                  disabled={smsBusy || !report.resolved_data}
+                >
+                  {smsSent ? 'Re-send SMS…' : 'Send SMS…'}
+                </Button>
+                {!driverPhone && (
+                  <Button variant="secondary" onClick={() => setEditOpen(true)}>
+                    Edit driver info
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+        </FlowStep>
+
+        {/* Step 3 — Print receipt */}
+        <FlowStep>
+          {report && (
+            <>
+              <p className={styles.note}>
+                Hitting <strong>Mark picked up &amp; print receipt</strong> is
+                what stamps the outbound date and flips the container to{' '}
+                <em>outbound</em>. The receipt opens in a new tab and prints.
+              </p>
+              {alreadyPickedUp ? (
+                <p className={styles.note}>
+                  Already marked picked up
+                  {container?.outbound_date
+                    ? ` (${fmtDate(container.outbound_date)})`
+                    : ''}
+                  .
+                </p>
+              ) : (
+                <div className={styles.actions}>
+                  <Button
+                    onClick={completePickup}
+                    disabled={!canPickUp || completing}
+                  >
+                    {completing
+                      ? 'Marking…'
+                      : 'Mark picked up & print receipt'}
+                  </Button>
+                </div>
+              )}
+              {alreadyPickedUp && (
+                <div className={styles.actions}>
+                  <a
+                    className={styles.linkBtn}
+                    href={`/reports/${report.id}/print`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Re-print receipt →
+                  </a>
+                  <Button variant="secondary" onClick={resetToPick}>
+                    Start another pickup
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </FlowStep>
+      </Flow>
+
+      {/* Step navigation */}
+      {step > 0 && (
+        <div className={styles.stepNav}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              if (step === 1) {
+                resetToPick();
+              } else {
+                setStep((s) => Math.max(0, s - 1));
+              }
+            }}
+          >
+            ← Back
+          </Button>
+          {step < STEP_NAMES.length - 1 && (
+            <Button onClick={() => setStep((s) => s + 1)} disabled={!report}>
+              Next →
+            </Button>
+          )}
         </div>
       )}
 
-      {report && (
-        <section className={styles.card}>
-          <div className={styles.cardHead}>
-            <span className={styles.atNumber}>{report.delivery_sheet_number}</span>
-            {container && (
-              <Badge tone={container.state === 'outbound' ? 'success' : 'info'}>
-                {container.state === 'outbound' ? 'Picked up' : container.state}
-              </Badge>
-            )}
-          </div>
-
-          {!container ? (
-            <p className={styles.note}>
-              This delivery sheet isn’t linked to a sales container (S&amp;H
-              box deliveries are handled from the S&amp;H screens).
-            </p>
-          ) : (
-            <dl className={styles.details}>
-              <div>
-                <dt>Container</dt>
-                <dd>
-                  {container.unit_number.trim()}
-                  {container.size ? ` · ${container.size}` : ''}
-                </dd>
-              </div>
-              <div>
-                <dt>Destination</dt>
-                <dd>{container.destination || '—'}</dd>
-              </div>
-              <div>
-                <dt>Scheduled</dt>
-                <dd>{fmtDate(params.delivery_date)}</dd>
-              </div>
-              <div>
-                <dt>Trucking co.</dt>
-                <dd>{params.delivery_company || '—'}</dd>
-              </div>
-              <div>
-                <dt>On-site contact</dt>
-                <dd>{params.onsite_contact || '—'}</dd>
-              </div>
-              <div>
-                <dt>Door orientation</dt>
-                <dd>{params.door_orientation || '—'}</dd>
-              </div>
-              {container.state === 'outbound' && (
-                <div>
-                  <dt>Picked up</dt>
-                  <dd>{fmtDate(container.outbound_date)}</dd>
-                </div>
-              )}
-            </dl>
-          )}
-
-          <div className={styles.actions}>
-            {container?.state === 'sold' && (
-              <Button type="button" onClick={completePickup} disabled={completing}>
-                {completing ? 'Marking…' : 'Mark picked up & print receipt'}
-              </Button>
-            )}
-            {container?.state === 'outbound' && (
-              <a
-                className={styles.linkBtn}
-                href={`/reports/${report.id}/print`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Reprint receipt →
-              </a>
-            )}
-            <a className={styles.linkBtn} href={`/reports/${report.id}`}>
-              Open delivery sheet (send to driver, edit) →
-            </a>
-          </div>
-        </section>
+      {/* Modals */}
+      {report?.report_type === 'delivery_sheet' && (
+        <EditDeliverySheetDialog
+          open={editOpen}
+          reportId={report.id}
+          initial={(report.parameters ?? {}) as DeliverySheetParameters}
+          onCancel={() => setEditOpen(false)}
+          onSaved={async () => {
+            setEditOpen(false);
+            const refreshed = await loadFullReport(report.id);
+            if (refreshed) setReport(refreshed);
+          }}
+        />
+      )}
+      {report?.report_type === 'delivery_sheet' && (
+        <SendSmsDialog
+          open={smsOpen}
+          defaultPhone={driverPhone}
+          driverName={driverName}
+          onCancel={() => setSmsOpen(false)}
+          onConfirm={sendSms}
+        />
       )}
     </div>
   );

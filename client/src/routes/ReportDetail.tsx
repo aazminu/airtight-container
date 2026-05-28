@@ -13,6 +13,10 @@ import type { ShStatementData } from '../components/templates/sh-statement/types
 import { Badge, useConfirm, usePrompt } from '../components/ui';
 import { SendSmsDialog } from '../components/forms/SendSmsDialog';
 import type { SendSmsResult } from '../components/forms/SendSmsDialog';
+import {
+  EditDeliverySheetDialog,
+  type DeliverySheetParameters,
+} from '../components/forms/EditDeliverySheetDialog';
 import { userContext } from '../context/userContext';
 import styles from './ReportDetail.module.css';
 
@@ -97,6 +101,7 @@ export default function ReportDetail() {
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<ActionState>({ kind: 'idle' });
   const [smsDialogOpen, setSmsDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -390,6 +395,15 @@ export default function ReportDetail() {
               <button
                 type="button"
                 className={styles.btn}
+                onClick={() => setEditDialogOpen(true)}
+              >
+                Edit…
+              </button>
+            )}
+            {report.report_type === 'delivery_sheet' && (
+              <button
+                type="button"
+                className={styles.btn}
                 onClick={() => setSmsDialogOpen(true)}
                 disabled={!report.resolved_data}
               >
@@ -441,6 +455,18 @@ export default function ReportDetail() {
           driverName={getDriverContact(report.resolved_data)?.name ?? null}
           onCancel={() => setSmsDialogOpen(false)}
           onConfirm={handleSendSmsConfirm}
+        />
+      )}
+      {report.report_type === 'delivery_sheet' && (
+        <EditDeliverySheetDialog
+          open={editDialogOpen}
+          reportId={report.id}
+          initial={(report.parameters ?? {}) as DeliverySheetParameters}
+          onCancel={() => setEditDialogOpen(false)}
+          onSaved={() => {
+            setEditDialogOpen(false);
+            void load();
+          }}
         />
       )}
     </div>
