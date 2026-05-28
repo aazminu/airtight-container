@@ -100,15 +100,21 @@ describe('promoteQuoteToInvoice', () => {
     });
     expect(result.id).toBe(7);
     expect(typeof result.invoice_number).toBe('number');
+    // sale_price + trucking_rate flow through from the quote line.
+    // destination is server-derived from the invoice ship-to → client
+    // billing cascade in updateInvoiceFull; the fake doesn't populate
+    // either, so derive() returns null. (Quote-level destination is
+    // not carried — the operator picks an address on the spawned
+    // invoice if it differs from the client's billing.)
     expect(soldInsertFor(calls, 11)).toEqual({
       sale_price: '1000',
       trucking_rate: '200',
-      destination: 'NJ',
+      destination: null,
     });
     expect(soldInsertFor(calls, 22)).toEqual({
       sale_price: '1500',
       trucking_rate: '250',
-      destination: 'NY',
+      destination: null,
     });
   });
 

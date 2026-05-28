@@ -24,7 +24,6 @@ export interface IncomingContainer {
   sale_price?: string | number | null;
   trucking_rate?: string | number | null;
   modification_price?: string | number | null;
-  destination?: string | null;
   invoice_notes?: string | null;
   // Per-container delivery (migration 0017). The UI cascades defaults from
   // the invoice ship-to; these are the resolved per-box values.
@@ -225,6 +224,42 @@ export async function updateInvoiceFull(
     ],
   );
 
+  // Resolve the effective shipping city/state once — used to derive each
+  // container's destination from the address cascade
+  // (per-box delivery → invoice ship-to → client billing). Operator no
+  // longer types destination; it's inferred from whichever address the
+  // box is actually going to.
+  const { rows: shipRows } = await client.query<{
+    ship_to_same_as_billing: boolean;
+    ship_to_city: string | null;
+    ship_to_state: string | null;
+    client_city: string | null;
+    client_state: string | null;
+  }>(
+    `SELECT i.ship_to_same_as_billing,
+            i.ship_to_city, i.ship_to_state,
+            c.city  AS client_city,
+            c.state AS client_state
+     FROM invoices i
+     JOIN clients c ON c.id = i.client_id
+     WHERE i.invoice_id = $1`,
+    [invoiceId],
+  );
+  const shipRow = shipRows[0];
+  const effectiveShipCity = shipRow?.ship_to_same_as_billing
+    ? shipRow.client_city
+    : (shipRow?.ship_to_city ?? null);
+  const effectiveShipState = shipRow?.ship_to_same_as_billing
+    ? shipRow.client_state
+    : (shipRow?.ship_to_state ?? null);
+
+  const deriveDestination = (ct: IncomingContainer): string | null => {
+    const city = ct.delivery_city || effectiveShipCity;
+    const state = ct.delivery_state || effectiveShipState;
+    if (!city && !state) return null;
+    return [city, state].filter(Boolean).join(', ');
+  };
+
   const { rows: existingCt } = await client.query<{ container_id: number }>(
     'SELECT container_id FROM invoice_containers WHERE invoice_id = $1',
     [invoiceId],
@@ -293,7 +328,7 @@ export async function updateInvoiceFull(
         ct.sale_price ?? null,
         ct.trucking_rate ?? null,
         ct.modification_price ?? null,
-        ct.destination ?? null,
+        deriveDestination(ct),
         ct.invoice_notes ?? null,
         ct.outbound_trucking_company_id ?? null,
         ct.door_orientation ?? null,

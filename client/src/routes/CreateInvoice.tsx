@@ -54,7 +54,6 @@ interface ContainerDraft {
   damage: string;
   sale_price: string;
   trucking_rate: string;
-  destination: string;
   invoice_notes: string;
   // Per-box delivery (delivery epic). delivery_same_as_ship true → the box
   // inherits the invoice ship-to (which inherits billing); otherwise the
@@ -93,14 +92,13 @@ const TAX_PRESETS = [
   { label: 'Other', rate: '' },
 ];
 
-const blankDraft = (row: InventoryRow, destination = ''): ContainerDraft => ({
+const blankDraft = (row: InventoryRow): ContainerDraft => ({
   inventory_id: row.id,
   unit_number: row.unit_number,
   size: row.size,
   damage: row.damage,
   sale_price: '',
   trucking_rate: '',
-  destination,
   invoice_notes: '',
   trucking_company_id: null,
   door_orientation: '',
@@ -118,9 +116,6 @@ const customerLabel = (c: ClientRow | null) => {
   return c.business_name || c.client_name || 'Unknown';
 };
 
-// Best-effort default destination from the client record. Prefers
-// city + state; falls back to street if those are empty (lots of
-// historical records have the whole address stuffed into `street`).
 const customerCityState = (c: ClientRow | null): string => {
   if (!c) return '';
   const cityState = [c.city, c.state].filter(Boolean).join(', ');
@@ -285,43 +280,20 @@ export default function CreateInvoice() {
 
   // Sync drafts with selectedIds so we have one ContainerDraft per
   // selected container, preserving any user edits that already exist.
-  // New drafts pre-fill destination with the customer's city/state/zip
-  // (if a customer is already picked) so the common case — delivery
-  // goes to the buyer — types itself.
   useEffect(() => {
     setDrafts((prev) => {
       const next: Record<number, ContainerDraft> = {};
-      const defaultDest = customerCityState(selectedClient);
       for (const id of selectedIds) {
         if (prev[id]) {
           next[id] = prev[id];
         } else {
           const row = available.find((r) => r.id === id);
-          if (row) next[id] = blankDraft(row, defaultDest);
+          if (row) next[id] = blankDraft(row);
         }
       }
       return next;
     });
-  }, [selectedIds, available, selectedClient]);
-
-  // Backfill empty destinations when the customer changes after some
-  // drafts were already built (e.g. user goes back to step 2). Only
-  // touches still-blank destinations so existing edits stick.
-  useEffect(() => {
-    const dest = customerCityState(selectedClient);
-    if (!dest) return;
-    setDrafts((prev) => {
-      let changed = false;
-      const next: Record<number, ContainerDraft> = { ...prev };
-      for (const id of Object.keys(prev).map(Number)) {
-        if (!next[id].destination) {
-          next[id] = { ...next[id], destination: dest };
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [selectedClient]);
+  }, [selectedIds, available]);
 
   const filteredAvailable = useMemo(() => {
     if (!containerSearch.trim()) return available;
@@ -375,7 +347,18 @@ export default function CreateInvoice() {
         state: 'sold',
         size: d?.size ?? '',
         damage: d?.damage ?? '',
-        destination: d?.destination || null,
+        destination: (() => {
+          // Mirror the server's deriveDestination cascade so the preview
+          // shows what the saved sheet will print.
+          const city = d?.delivery_city
+            || (shipSameAsBilling ? selectedClient?.city : shipTo.city)
+            || null;
+          const state = d?.delivery_state
+            || (shipSameAsBilling ? selectedClient?.state : shipTo.state)
+            || null;
+          if (!city && !state) return null;
+          return [city, state].filter(Boolean).join(', ');
+        })(),
         trucking_rate: d?.trucking_rate || null,
         sale_price: d?.sale_price || null,
         modification_price: null,
@@ -563,7 +546,6 @@ export default function CreateInvoice() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               id,
-              destination: d.destination,
               sale_price: d.sale_price,
               release_number: created.invoice_number,
               trucking_rate: d.trucking_rate,
@@ -601,7 +583,6 @@ export default function CreateInvoice() {
               sale_price: d.sale_price || null,
               trucking_rate: d.trucking_rate || null,
               modification_price: null,
-              destination: d.destination || null,
               invoice_notes: d.invoice_notes || null,
               outbound_trucking_company_id: d.trucking_company_id,
               door_orientation: d.door_orientation || null,
@@ -898,14 +879,6 @@ export default function CreateInvoice() {
                       <CurrencyInput
                         value={d.trucking_rate}
                         onChange={(v) => updateDraft(id, { trucking_rate: v })}
-                      />
-                    </label>
-                    <label className={styles.field}>
-                      <span className={styles.fieldLabel}>Destination</span>
-                      <input
-                        className={styles.input}
-                        value={d.destination}
-                        onChange={(e) => updateDraft(id, { destination: e.target.value })}
                       />
                     </label>
                     <label className={styles.field}>

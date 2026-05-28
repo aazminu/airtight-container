@@ -554,14 +554,6 @@ export default function InvoiceEditor({
                 />
               </label>
               <label className={styles.field}>
-                <span className={styles.label}>Destination</span>
-                <input
-                  className={styles.input}
-                  value={c.destination ?? ''}
-                  onChange={(e) => updateContainer(ctIdx, { destination: e.target.value })}
-                />
-              </label>
-              <label className={styles.field}>
                 <span className={styles.label}>Trucking company</span>
                 <select
                   className={styles.input}

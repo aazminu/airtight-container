@@ -260,7 +260,6 @@ export default function InvoiceDetail() {
             sale_price: c.sale_price,
             trucking_rate: c.trucking_rate,
             modification_price: c.modification_price,
-            destination: c.destination,
             invoice_notes: c.invoice_notes,
             // Round-trip per-box delivery so an edit doesn't wipe it.
             outbound_trucking_company_id: c.outbound_trucking_company_id,
