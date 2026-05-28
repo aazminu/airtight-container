@@ -115,7 +115,9 @@ export default function Outbound() {
   // Step 3
   const [completing, setCompleting] = useState(false);
 
-  // Build steps array — drop SMS step when Twilio isn't configured.
+  // Step labels — drop the SMS step entirely when Twilio isn't
+  // configured so the operator never sees a step they can't use.
+  // FlowStep order in the JSX below must stay in sync with this array.
   const steps: { id: StepId; label: string }[] = (() => {
     const base: { id: StepId; label: string }[] = [
       { id: 'pick', label: 'Pick sheet' },
@@ -125,7 +127,6 @@ export default function Outbound() {
     base.push({ id: 'print', label: 'Mark outbound' });
     return base;
   })();
-  const currentStepId: StepId = steps[step]?.id ?? 'pick';
 
   useEffect(() => {
     (async () => {
@@ -348,8 +349,7 @@ export default function Outbound() {
       <div className={styles.body}>
         <Flow step={step}>
           {/* Pick sheet */}
-          {currentStepId === 'pick' && (
-            <FlowStep>
+          <FlowStep>
               <form className={styles.searchRow} onSubmit={searchByNumber}>
                 <input
                   className={styles.search}
@@ -406,11 +406,9 @@ export default function Outbound() {
                 </div>
               )}
             </FlowStep>
-          )}
 
           {/* Confirm — read-only preview */}
-          {currentStepId === 'confirm' && (
-            <FlowStep>
+          <FlowStep>
               {report && (
                 <>
                   <div className={styles.cardHead}>
@@ -440,10 +438,9 @@ export default function Outbound() {
                 </>
               )}
             </FlowStep>
-          )}
 
-          {/* Driver SMS (only when smsEnabled) */}
-          {currentStepId === 'sms' && (
+          {/* Driver SMS — omitted when SMS isn't configured */}
+          {smsEnabled && (
             <FlowStep>
               <p className={styles.note}>
                 Capture the driver's contact and send them the receipt link
@@ -501,8 +498,7 @@ export default function Outbound() {
           )}
 
           {/* Mark outbound + print */}
-          {currentStepId === 'print' && (
-            <FlowStep>
+          <FlowStep>
               {report && (
                 <>
                   <p className={styles.note}>
@@ -550,7 +546,6 @@ export default function Outbound() {
                 </>
               )}
             </FlowStep>
-          )}
         </Flow>
       </div>
 
