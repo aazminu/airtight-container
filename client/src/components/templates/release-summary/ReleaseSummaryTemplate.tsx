@@ -18,11 +18,15 @@ const fmtDate = (iso: string | null | undefined): string => {
 };
 
 const STATE_LABELS: Record<string, string> = {
+  // sales states
   available: 'Available',
   hold: 'On hold',
   sold: 'Sold',
   outbound: 'Outbound',
   pending: 'Pending audit',
+  // S&H states (migration 0021 — S&H boxes share the release row)
+  in_storage: 'In storage',
+  checked_out: 'Checked out',
 };
 
 export default function ReleaseSummaryTemplate({
@@ -88,18 +92,22 @@ export default function ReleaseSummaryTemplate({
           <thead>
             <tr>
               <th className={styles.colUnit}>Unit #</th>
+              <th className={styles.colKind}>Kind</th>
               <th className={styles.colSize}>Size</th>
               <th className={styles.colCondition}>Condition</th>
               <th className={styles.colState}>State</th>
               <th className={styles.colIntake}>Intake</th>
               <th className={styles.colOut}>Outbound</th>
-              <th className={styles.colBuyer}>Buyer</th>
+              <th className={styles.colBuyer}>Buyer / Customer</th>
             </tr>
           </thead>
           <tbody>
             {data.containers.map((c, i) => (
               <tr key={i}>
                 <td className={styles.colUnit}>{c.unit_number.trim()}</td>
+                <td className={styles.colKind}>
+                  {c.kind === 'sh' ? 'Storage' : 'Sales'}
+                </td>
                 <td className={styles.colSize}>{c.size}</td>
                 <td className={styles.colCondition}>{c.damage ?? '—'}</td>
                 <td className={styles.colState}>

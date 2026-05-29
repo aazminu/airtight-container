@@ -137,6 +137,8 @@ export interface ShStatementData {
 }
 
 export interface ReleaseSummaryContainer {
+  /** 'sales' for inventory boxes (sold-out path), 'sh' for stored boxes. */
+  kind: 'sales' | 'sh';
   unit_number: string;
   size: string;
   damage: string | null;

@@ -9,34 +9,37 @@ import {
   DAMAGE_DATALIST_ID,
   useDamagePresetLabels,
 } from '../forms/damagePresets';
+import type { ReleaseOption } from './SalesDetailsStep';
 
 export interface ShIntakeForm {
-  client_id: number | null;
   unit_number: string;
   size: string;
   damage: string;
+  release_number_id: number | null;
   notes: string;
-}
-
-export interface ClientOption {
-  id: number;
-  client_name: string;
-  business_name: string | null;
 }
 
 interface Props {
   value: ShIntakeForm;
   onChange: (patch: Partial<ShIntakeForm>) => void;
+  /** When set, the release picker is locked to this release — the
+   *  unit_number matched a pre-loaded container (sales parity). */
+  lockedRelease?: {
+    release_number_id: number;
+    release_number_value: string;
+    sale_company_name: string;
+  } | null;
   onLoadError?: (msg: string) => void;
 }
 
-// Storage intake details (PR 2.8.1). Rates moved to the audit screen —
-// yard staff doesn't see them. Server fills client.default_* into the
-// row on insert; admin confirms or overrides during audit.
-export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
+// Storage intake details (migration 0020 + 0021). Customer + billing
+// mode + rates are deferred to admin audit. Release picker mirrors
+// sales exactly — required at intake, auto-locked when the unit
+// number matches a pre-loaded container in the release enumeration.
+export function ShDetailsStep({ value, onChange, lockedRelease, onLoadError }: Props) {
   const { t } = useTranslation();
-  const [clients, setClients] = useState<ClientOption[]>([]);
-  const [loadingClients, setLoadingClients] = useState(true);
+  const [releases, setReleases] = useState<ReleaseOption[]>([]);
+  const [loadingReleases, setLoadingReleases] = useState(true);
   const sizeLabels = useSizePresetLabels();
   const damageLabels = useDamagePresetLabels();
 
@@ -44,14 +47,16 @@ export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/v2/clients', { credentials: 'include' });
+        const res = await fetch('/api/v2/release/numbers', {
+          credentials: 'include',
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = (await res.json()) as { data: { clients: ClientOption[] } };
-        if (!cancelled) setClients(body.data.clients);
+        const body = (await res.json()) as { data: { releases: ReleaseOption[] } };
+        if (!cancelled) setReleases(body.data.releases);
       } catch (e) {
         if (!cancelled) onLoadError?.(e instanceof Error ? e.message : 'Load failed');
       } finally {
-        if (!cancelled) setLoadingClients(false);
+        if (!cancelled) setLoadingReleases(false);
       }
     })();
     return () => {
@@ -67,28 +72,6 @@ export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
         <span>{t('sh_details.unit')}</span>
         <span>{value.unit_number || '—'}</span>
       </div>
-
-      <label className={styles.field}>
-        <span className={styles.label}>{t('sh_details.customer')}</span>
-        <select
-          value={value.client_id ?? ''}
-          onChange={(e) =>
-            onChange({ client_id: e.target.value ? Number(e.target.value) : null })
-          }
-          disabled={loadingClients}
-          required
-        >
-          <option value="" disabled>
-            {loadingClients ? t('common.loading') : t('sh_details.customer_placeholder')}
-          </option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.client_name}
-              {c.business_name ? ` — ${c.business_name}` : ''}
-            </option>
-          ))}
-        </select>
-      </label>
 
       <div className={styles.row}>
         <label className={styles.field}>
@@ -126,6 +109,44 @@ export function ShDetailsStep({ value, onChange, onLoadError }: Props) {
           <option key={l} value={l} />
         ))}
       </datalist>
+
+      {lockedRelease ? (
+        <div className={styles.readonlyLine}>
+          <span>{t('sales_details.release')}</span>
+          <span>
+            {lockedRelease.release_number_value}
+            {lockedRelease.sale_company_name
+              ? ` (${lockedRelease.sale_company_name})`
+              : ''}
+          </span>
+        </div>
+      ) : (
+        <label className={styles.field}>
+          <span className={styles.label}>{t('sales_details.release')}</span>
+          <select
+            value={value.release_number_id ?? ''}
+            onChange={(e) =>
+              onChange({
+                release_number_id: e.target.value ? Number(e.target.value) : null,
+              })
+            }
+            disabled={loadingReleases}
+            required
+          >
+            <option value="" disabled>
+              {loadingReleases ? t('common.loading') : t('sales_details.release_placeholder')}
+            </option>
+            {releases.map((r) => (
+              <option key={r.release_number_id} value={r.release_number_id}>
+                {t('sales_details.release_option', {
+                  release: r.release_number_value,
+                  count: r.release_number_count,
+                })}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <label className={styles.field}>
         <span className={styles.label}>{t('sh_details.notes')}</span>

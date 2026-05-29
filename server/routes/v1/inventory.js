@@ -186,13 +186,19 @@ router.post("/add", checkEmployee, async (req, res) => {
 		// decremented. When actual intake overshoots the quota (e.g. an 11th
 		// box logged against a 10-box release), bump the quota to match so the
 		// release summary report can't report a nonsense filled/quota ratio.
+		// Counts BOTH kinds: a release can hold mixed sales + S&H boxes
+		// (migration 0021), so the bump must reflect both.
 		await db.query(
 			`UPDATE release_numbers
 			 SET release_number_count = filled.cnt
 			 FROM (
-			   SELECT COUNT(*)::int AS cnt
-			   FROM inventory
-			   WHERE release_number_id = $1
+			   SELECT (
+			     (SELECT COUNT(*)::int FROM inventory
+			      WHERE release_number_id = $1)
+			     +
+			     (SELECT COUNT(*)::int FROM sh_inventory
+			      WHERE release_number_id = $1)
+			   ) AS cnt
 			 ) filled
 			 WHERE release_number_id = $1
 			   AND release_number_count < filled.cnt`,

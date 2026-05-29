@@ -108,13 +108,18 @@
 }
 
 .colUnit {
-  width: 16%;
+  width: 14%;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 8.5pt;
 }
 
+.colKind {
+  width: 7%;
+  font-size: 8pt;
+}
+
 .colSize {
-  width: 8%;
+  width: 7%;
 }
 
 .colCondition {

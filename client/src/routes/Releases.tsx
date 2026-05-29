@@ -24,6 +24,8 @@ interface Container {
 }
 
 interface InventoryUnderRelease {
+  /** 'sales' = inventory boxes; 'sh' = S&H stored boxes (migration 0021). */
+  kind: 'sales' | 'sh';
   id: number;
   unit_number: string;
   size: string;
@@ -55,6 +57,9 @@ const STATE_LABELS: Record<string, string> = {
   sold: 'Sold',
   outbound: 'Outbound',
   pending: 'Pending audit',
+  // S&H states share the same drawer (migration 0021).
+  in_storage: 'In storage',
+  checked_out: 'Checked out',
 };
 
 // Admin page for releases. Two tabs: Active (filled_count < quota) and
@@ -456,6 +461,7 @@ function ReleaseRow({
                 <thead>
                   <tr>
                     <th>Unit #</th>
+                    <th>Kind</th>
                     <th>Size</th>
                     <th>State</th>
                     <th>Intake</th>
@@ -464,10 +470,11 @@ function ReleaseRow({
                 </thead>
                 <tbody>
                   {inventory.map((r) => (
-                    <tr key={r.id}>
+                    <tr key={`${r.kind}-${r.id}`}>
                       <td className={styles.invUnit}>
                         {r.unit_number.trim()}
                       </td>
+                      <td>{r.kind === 'sh' ? 'Storage' : 'Sales'}</td>
                       <td>{r.size}</td>
                       <td>
                         <span

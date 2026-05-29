@@ -47,10 +47,16 @@ router.get("/", checkEmployee, async (req, res) => {
 			params.push(state);
 			where = "WHERE shi.state = $1";
 		}
+		// LEFT JOIN clients — boxes are intaked without a client (assigned
+		// at audit), so an INNER JOIN would hide pending-audit rows entirely.
+		// Release joins surface the manifest/origin for the audit screen.
 		const results = await db.query(
-			`SELECT shi.*, c.client_name, c.business_name
+			`SELECT shi.*, c.client_name, c.business_name,
+			        rn.release_number_value, sc.sale_company_name
 			 FROM sh_inventory shi
-			 JOIN clients c ON c.id = shi.client_id
+			 LEFT JOIN clients c ON c.id = shi.client_id
+			 LEFT JOIN release_numbers rn ON rn.release_number_id = shi.release_number_id
+			 LEFT JOIN sale_companies sc ON sc.sale_company_id = rn.sale_company_id
 			 ${where}
 			 ORDER BY shi.intake_date DESC`,
 			params,
@@ -73,9 +79,12 @@ router.get("/", checkEmployee, async (req, res) => {
 router.get("/:id", checkEmployee, async (req, res) => {
 	try {
 		const results = await db.query(
-			`SELECT shi.*, c.client_name, c.business_name
+			`SELECT shi.*, c.client_name, c.business_name,
+			        rn.release_number_value, sc.sale_company_name
 			 FROM sh_inventory shi
-			 JOIN clients c ON c.id = shi.client_id
+			 LEFT JOIN clients c ON c.id = shi.client_id
+			 LEFT JOIN release_numbers rn ON rn.release_number_id = shi.release_number_id
+			 LEFT JOIN sale_companies sc ON sc.sale_company_id = rn.sale_company_id
 			 WHERE shi.id = $1`,
 			[req.params.id],
 		);
@@ -93,8 +102,12 @@ router.get("/:id", checkEmployee, async (req, res) => {
 
 // ---- create -------------------------------------------------------
 
-// Intake submits here with state implicitly 'pending'. Admin audits via
-// PUT /audit/:id and PUT /state/:id to promote to in_storage.
+// Intake submits here with state implicitly 'pending'. Migration 0020:
+// no client, no rates, no billing mode at this stage. Admin assigns
+// client + billing mode + rates on the audit screen. Migration 0021:
+// release_number_id is required at intake, mirroring sales (the box
+// physically arrived on some manifest, even before the operator decides
+// which customer's billing to attach it to).
 router.post(
 	"/",
 	checkEmployee,
@@ -104,49 +117,60 @@ router.post(
 			const b = req.body.box;
 			const photos = b.photos && b.photos.length ? b.photos : null;
 
-			// PR 2.8.1: yard staff no longer types rates during intake. When
-			// the client doesn't supply them, fall back to the client's
-			// configured defaults so the NOT NULL columns get filled. Admin
-			// can override on the audit screen.
-			let { in_fee, out_fee, daily_rate } = b;
-			if (in_fee === undefined || out_fee === undefined || daily_rate === undefined) {
-				const cli = await db.query(
-					"SELECT default_in_fee, default_out_fee, default_daily_rate FROM clients WHERE id = $1",
-					[b.client_id],
-				);
-				if (cli.rows.length === 0) {
-					return res.status(400).json({ message: "Client not found" });
-				}
-				const d = cli.rows[0];
-				if (in_fee === undefined) in_fee = d.default_in_fee;
-				if (out_fee === undefined) out_fee = d.default_out_fee;
-				if (daily_rate === undefined) daily_rate = d.default_daily_rate;
-			}
-
 			const result = await db.query(
 				`INSERT INTO sh_inventory (
-					client_id, unit_number, size, damage, notes,
-					in_fee, out_fee, daily_rate,
+					unit_number, size, damage, notes, release_number_id,
 					intake_date, state, is_pending_audit, photos
 				) VALUES (
 					$1, $2, $3, $4, $5,
-					$6, $7, $8,
-					COALESCE($9::timestamptz, now()),
-					'pending', true, $10
+					COALESCE($6::timestamptz, now()),
+					'pending', true, $7
 				) RETURNING id`,
 				[
-					b.client_id,
 					b.unit_number,
 					b.size,
 					b.damage ?? null,
 					b.notes ?? null,
-					in_fee,
-					out_fee,
-					daily_rate,
+					b.release_number_id,
 					b.intake_date ?? null,
 					photos,
 				],
 			);
+
+			// Quota bump mirror (sales: routes/v1/inventory.js). A release's
+			// quota is set at creation and never decremented; if actual
+			// arrivals overshoot it, bump to match so the summary report
+			// can't report a nonsense filled/quota ratio. Combined count
+			// covers both sales + S&H since a release can hold mixed kinds.
+			await db.query(
+				`UPDATE release_numbers
+				 SET release_number_count = filled.cnt
+				 FROM (
+				   SELECT (
+				     (SELECT COUNT(*)::int FROM inventory
+				      WHERE release_number_id = $1)
+				     +
+				     (SELECT COUNT(*)::int FROM sh_inventory
+				      WHERE release_number_id = $1)
+				   ) AS cnt
+				 ) filled
+				 WHERE release_number_id = $1
+				   AND release_number_count < filled.cnt`,
+				[b.release_number_id],
+			);
+
+			// Auto-association mirror (PR 2.8 for sales): if this release has
+			// pre-loaded container numbers and one matches the new box, mark
+			// the enumeration row used. No-op when no enumeration exists.
+			if (b.unit_number) {
+				await db.query(
+					`UPDATE release_number_containers
+					 SET is_used = true
+					 WHERE release_number_id = $1 AND container_number = $2`,
+					[b.release_number_id, b.unit_number.trim().toUpperCase()],
+				);
+			}
+
 			res.status(201).json({
 				status: "success",
 				data: { id: result.rows[0].id },
@@ -160,33 +184,127 @@ router.post(
 
 // ---- admin audit --------------------------------------------------
 
-// Admin confirms or adjusts rates / intake_date and clears the pending
-// audit flag. Returns 404 if the box has already been audited or doesn't exist.
+// Admin assigns the client, picks the billing mode, confirms rates
+// appropriate to that mode, and clears the pending audit flag. Returns 404
+// if the box has already been audited or doesn't exist. For modes other
+// than in_out_daily/flat_monthly, the rate fields are explicitly NULL'd —
+// keeps the row consistent if an operator switches modes during audit.
+//
+// Migration 0021 + sales parity: a unit_number rename at audit time
+// touches the release_number_containers enumeration. We surface the
+// conflict (release this box is on / release the new number is linked
+// to) and require explicit confirm_unit_rename before applying — same
+// shape as the sales audit endpoint so the UI uses one modal.
 router.put(
 	"/audit/:id",
 	checkAdmin,
 	validateBody(auditShInventorySchema),
 	async (req, res) => {
+		const conn = await db.pool.connect();
 		try {
 			const b = req.body;
-			const result = await db.query(
+			await conn.query("BEGIN");
+
+			const before = await conn.query(
+				`SELECT unit_number, release_number_id
+				 FROM sh_inventory
+				 WHERE id = $1 AND is_pending_audit = true`,
+				[req.params.id],
+			);
+			if (before.rows.length === 0) {
+				await conn.query("ROLLBACK");
+				return res
+					.status(404)
+					.json({ message: "Not found or already audited" });
+			}
+			const oldUnit = before.rows[0].unit_number;
+			const releaseId = before.rows[0].release_number_id;
+
+			// Same rename-conflict gate as routes/v1/inventory.js audit.
+			const proposedNorm = (b.unit_number ?? "").trim().toUpperCase();
+			const oldNormForCheck = (oldUnit ?? "").trim().toUpperCase();
+			if (
+				proposedNorm &&
+				proposedNorm !== oldNormForCheck &&
+				!b.confirm_unit_rename
+			) {
+				const oldLinked = releaseId
+					? await conn.query(
+							`SELECT 1 FROM release_number_containers
+							 WHERE release_number_id = $1 AND container_number = $2`,
+							[releaseId, oldNormForCheck],
+						)
+					: { rows: [] };
+				const newLinked = await conn.query(
+					`SELECT rnc.release_number_id, rn.release_number_value,
+					        sc.sale_company_name
+					 FROM release_number_containers rnc
+					 LEFT JOIN release_numbers rn ON rn.release_number_id = rnc.release_number_id
+					 LEFT JOIN sale_companies sc ON sc.sale_company_id = rn.sale_company_id
+					 WHERE rnc.container_number = $1`,
+					[proposedNorm],
+				);
+				if (oldLinked.rows.length > 0 || newLinked.rows.length > 0) {
+					const currentRelease = releaseId
+						? await conn.query(
+								`SELECT rn.release_number_value, sc.sale_company_name
+								 FROM release_numbers rn
+								 LEFT JOIN sale_companies sc ON sc.sale_company_id = rn.sale_company_id
+								 WHERE rn.release_number_id = $1`,
+								[releaseId],
+							)
+						: { rows: [] };
+					await conn.query("ROLLBACK");
+					return res.status(409).json({
+						status: "conflict",
+						code: "unit_rename_confirm_required",
+						message:
+							"Unit number change touches release enumeration. Confirm to proceed.",
+						details: {
+							old_unit: oldNormForCheck,
+							new_unit: proposedNorm,
+							old_unit_in_current_release: oldLinked.rows.length > 0,
+							current_release: currentRelease.rows[0] ?? null,
+							new_unit_linked_release: newLinked.rows[0]
+								? {
+										release_number_value:
+											newLinked.rows[0].release_number_value,
+										sale_company_name: newLinked.rows[0].sale_company_name,
+										is_other_release:
+											newLinked.rows[0].release_number_id !== releaseId,
+									}
+								: null,
+						},
+					});
+				}
+			}
+
+			const isInOut = b.billing_mode === "in_out_daily";
+			const isFlat = b.billing_mode === "flat_monthly";
+			const result = await conn.query(
 				`UPDATE sh_inventory SET
-					in_fee = COALESCE($1, in_fee),
-					out_fee = COALESCE($2, out_fee),
-					daily_rate = COALESCE($3, daily_rate),
-					intake_date = COALESCE($4::timestamptz, intake_date),
-					notes = COALESCE($5, notes),
-					unit_number = COALESCE($6, unit_number),
-					size = COALESCE($7, size),
-					damage = COALESCE($8, damage),
+					client_id = $1,
+					billing_mode = $2,
+					in_fee = $3,
+					out_fee = $4,
+					daily_rate = $5,
+					flat_rate = $6,
+					intake_date = COALESCE($7::timestamptz, intake_date),
+					notes = COALESCE($8, notes),
+					unit_number = COALESCE($9, unit_number),
+					size = COALESCE($10, size),
+					damage = COALESCE($11, damage),
 					is_pending_audit = false,
 					state = CASE WHEN state = 'pending' THEN 'in_storage'::sh_state ELSE state END
-				 WHERE id = $9 AND is_pending_audit = true
-				 RETURNING id, state, is_pending_audit`,
+				 WHERE id = $12 AND is_pending_audit = true
+				 RETURNING id, client_id, billing_mode, state, is_pending_audit, unit_number`,
 				[
-					b.in_fee ?? null,
-					b.out_fee ?? null,
-					b.daily_rate ?? null,
+					b.client_id,
+					b.billing_mode,
+					isInOut ? b.in_fee ?? null : null,
+					isInOut ? b.out_fee ?? null : null,
+					isInOut ? b.daily_rate ?? null : null,
+					isFlat ? b.flat_rate ?? null : null,
 					b.intake_date ?? null,
 					b.notes ?? null,
 					b.unit_number ?? null,
@@ -196,17 +314,34 @@ router.put(
 				],
 			);
 			if (result.rows.length === 0) {
+				await conn.query("ROLLBACK");
 				return res
 					.status(404)
 					.json({ message: "Not found or already audited" });
 			}
+
+			// Cascade unit_number change to enumeration row (mirrors sales).
+			const newNorm = (result.rows[0].unit_number ?? "").trim().toUpperCase();
+			if (oldNormForCheck !== newNorm && releaseId) {
+				await conn.query(
+					`UPDATE release_number_containers
+					 SET container_number = $1
+					 WHERE release_number_id = $2 AND container_number = $3`,
+					[newNorm, releaseId, oldNormForCheck],
+				);
+			}
+
+			await conn.query("COMMIT");
 			res.status(200).json({
 				status: "success",
 				data: { box: result.rows[0] },
 			});
 		} catch (err) {
+			await conn.query("ROLLBACK").catch(() => {});
 			console.error("sh_inventory.audit error:", err);
 			res.status(500).json({ message: "Internal server error" });
+		} finally {
+			conn.release();
 		}
 	},
 );
@@ -279,13 +414,42 @@ router.put(
 // ---- delete -------------------------------------------------------
 
 // Admin-only. No soft-delete — S&H boxes don't have the same historical-record
-// constraint as sales inventory (no invoice FK pointing at them).
+// constraint as sales inventory (no invoice FK pointing at them). Mirrors
+// sales: if the box was auto-associated against a release_number_containers
+// enumeration row, reopen that slot so the unit number can be re-entered.
 router.delete("/:id", checkAdmin, async (req, res) => {
+	const conn = await db.pool.connect();
 	try {
-		await db.query("DELETE FROM sh_inventory WHERE id = $1", [req.params.id]);
+		await conn.query("BEGIN");
+		const before = await conn.query(
+			`SELECT release_number_id, unit_number
+			 FROM sh_inventory WHERE id = $1`,
+			[req.params.id],
+		);
+		if (before.rows.length === 0) {
+			await conn.query("ROLLBACK");
+			return res.status(404).json({ message: "Not found" });
+		}
+		const { release_number_id, unit_number } = before.rows[0];
+
+		await conn.query("DELETE FROM sh_inventory WHERE id = $1", [req.params.id]);
+
+		if (release_number_id && unit_number) {
+			await conn.query(
+				`UPDATE release_number_containers
+				 SET is_used = false
+				 WHERE release_number_id = $1 AND container_number = $2`,
+				[release_number_id, unit_number.trim().toUpperCase()],
+			);
+		}
+		await conn.query("COMMIT");
 		res.status(200).json({ status: "success" });
 	} catch (err) {
+		await conn.query("ROLLBACK").catch(() => {});
+		console.error("sh_inventory.delete error:", err);
 		res.status(500).json({ message: "Internal server error" });
+	} finally {
+		conn.release();
 	}
 });
 

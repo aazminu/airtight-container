@@ -4,10 +4,10 @@ import type { ShIntakeForm } from './ShDetailsStep';
 
 interface Props {
   value: ShIntakeForm;
-  clientLabel?: string;
+  releaseLabel?: string;
 }
 
-export function ShReviewStep({ value, clientLabel }: Props) {
+export function ShReviewStep({ value, releaseLabel }: Props) {
   const { t } = useTranslation();
   return (
     <div className={styles.review}>
@@ -17,10 +17,10 @@ export function ShReviewStep({ value, clientLabel }: Props) {
       </p>
 
       <dl className={styles.summary}>
-        <SummaryRow label={t('review.customer')} value={clientLabel ?? '—'} />
         <SummaryRow label={t('review.unit')} value={value.unit_number} />
         <SummaryRow label={t('review.size')} value={value.size} />
         <SummaryRow label={t('review.damage')} value={value.damage || '—'} />
+        <SummaryRow label={t('review.release')} value={releaseLabel ?? '—'} />
         <SummaryRow label={t('review.notes')} value={value.notes || '—'} />
       </dl>
     </div>

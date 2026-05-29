@@ -10,7 +10,6 @@ import {
 import { SalesReviewStep } from '../components/intake/SalesReviewStep';
 import {
   ShDetailsStep,
-  type ClientOption,
   type ShIntakeForm,
 } from '../components/intake/ShDetailsStep';
 import { ShReviewStep } from '../components/intake/ShReviewStep';
@@ -57,10 +56,10 @@ const EMPTY_SALES: SalesIntakeForm = {
 };
 
 const EMPTY_SH: ShIntakeForm = {
-  client_id: null,
   unit_number: '',
   size: '',
   damage: '',
+  release_number_id: null,
   notes: '',
 };
 
@@ -84,7 +83,6 @@ export default function Intake() {
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [releaseCache, setReleaseCache] = useState<ReleaseOption[]>([]);
-  const [clientCache, setClientCache] = useState<ClientOption[]>([]);
   // Photo state — doors photo is its own slot; other photos are a free list.
   const [doorPhoto, setDoorPhoto] = useState<IntakePhoto | null>(null);
   const [otherPhotos, setOtherPhotos] = useState<IntakePhoto[]>([]);
@@ -94,9 +92,10 @@ export default function Intake() {
   const [releaseMatch, setReleaseMatch] = useState<ReleaseMatch | null>(null);
 
   // Cache the release list once so Review can label by value without
-  // re-fetching.
+  // re-fetching. Both sales and S&H now use releases (migration 0021),
+  // so the cache is shared across both kinds.
   useEffect(() => {
-    if (kind !== 'sales' || releaseCache.length > 0) return;
+    if (!kind || releaseCache.length > 0) return;
     let cancelled = false;
     fetch('/api/v2/release/numbers', { credentials: 'include' })
       .then((res) => (res.ok ? res.json() : null))
@@ -109,31 +108,33 @@ export default function Intake() {
     };
   }, [kind, releaseCache.length]);
 
-  useEffect(() => {
-    if (kind !== 'sh' || clientCache.length > 0) return;
-    let cancelled = false;
-    fetch('/api/v2/clients', { credentials: 'include' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((body) => {
-        if (!cancelled && body) setClientCache(body.data.clients);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [kind, clientCache.length]);
-
   // Auto-match the typed unit number against pre-loaded release containers.
-  // Sales-only — S&H doesn't use releases. Debounced 300 ms so a rapid
-  // typer doesn't fire one request per keystroke.
+  // Both intake paths use the same lookup (S&H mirrors sales after
+  // migration 0021). Debounced 300 ms so a rapid typer doesn't fire one
+  // request per keystroke.
+  const activeUnitNumber =
+    kind === 'sales'
+      ? salesForm.unit_number
+      : kind === 'sh'
+        ? shForm.unit_number
+        : '';
   useEffect(() => {
-    if (kind !== 'sales') return;
-    const number = salesForm.unit_number.trim().toUpperCase();
-    if (number.length < 4) {
-      if (releaseMatch) {
-        setReleaseMatch(null);
-        setSalesForm((f) => ({ ...f, release_number_id: null }));
+    if (kind !== 'sales' && kind !== 'sh') return;
+    const number = activeUnitNumber.trim().toUpperCase();
+    const clearMatch = () => {
+      if (releaseMatch) setReleaseMatch(null);
+      if (kind === 'sales') {
+        setSalesForm((f) =>
+          f.release_number_id == null ? f : { ...f, release_number_id: null },
+        );
+      } else {
+        setShForm((f) =>
+          f.release_number_id == null ? f : { ...f, release_number_id: null },
+        );
       }
+    };
+    if (number.length < 4) {
+      clearMatch();
       return;
     }
     let cancelled = false;
@@ -150,14 +151,14 @@ export default function Intake() {
         if (cancelled) return;
         if (body.data.match) {
           setReleaseMatch(body.data.match);
-          setSalesForm((f) => ({
-            ...f,
-            release_number_id: body.data.match!.release_number_id,
-          }));
-        } else if (releaseMatch) {
-          // We had a match, now we don't — clear it and let the user pick.
-          setReleaseMatch(null);
-          setSalesForm((f) => ({ ...f, release_number_id: null }));
+          const matchedId = body.data.match.release_number_id;
+          if (kind === 'sales') {
+            setSalesForm((f) => ({ ...f, release_number_id: matchedId }));
+          } else {
+            setShForm((f) => ({ ...f, release_number_id: matchedId }));
+          }
+        } else {
+          clearMatch();
         }
       } catch {
         /* network errors don't block the flow */
@@ -167,7 +168,11 @@ export default function Intake() {
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [kind, salesForm.unit_number, releaseMatch]);
+    // releaseMatch intentionally omitted from deps: clearMatch reads it
+    // via closure and we don't want to retrigger the network call just
+    // because we cleared it ourselves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, activeUnitNumber]);
 
   const labels = useMemo<readonly string[]>(() => {
     if (kind === 'sh') return SH_STEPS;
@@ -194,9 +199,9 @@ export default function Intake() {
     salesForm.release_number_id !== null;
 
   const shDetailsValid =
-    shForm.client_id !== null &&
     shForm.unit_number.trim() &&
-    shForm.size.trim();
+    shForm.size.trim() &&
+    shForm.release_number_id !== null;
 
   const isConfirmStep = step === 3 && (kind === 'sales' || kind === 'sh');
   const isSalesDetailsStep = kind === 'sales' && step === 4;
@@ -311,7 +316,7 @@ export default function Intake() {
   };
 
   const submitSh = async () => {
-    if (shForm.client_id === null) return;
+    if (shForm.release_number_id == null) return;
     setSubmitState('submitting');
     setSubmitError(null);
     try {
@@ -321,11 +326,11 @@ export default function Intake() {
         credentials: 'include',
         body: JSON.stringify({
           box: {
-            client_id: shForm.client_id,
             unit_number: shForm.unit_number.trim(),
             size: shForm.size.trim(),
             damage: shForm.damage.trim() || null,
             notes: shForm.notes.trim() || null,
+            release_number_id: shForm.release_number_id,
             photos: photoKeys.length ? photoKeys : undefined,
           },
         }),
@@ -352,12 +357,13 @@ export default function Intake() {
     return r?.release_number_value ?? releaseMatch?.release_number_value;
   }, [salesForm.release_number_id, releaseCache, releaseMatch]);
 
-  const pickedClientLabel = useMemo(() => {
-    if (shForm.client_id === null) return undefined;
-    const c = clientCache.find((cl) => cl.id === shForm.client_id);
-    if (!c) return undefined;
-    return c.business_name ? `${c.client_name} — ${c.business_name}` : c.client_name;
-  }, [shForm.client_id, clientCache]);
+  const pickedShReleaseLabel = useMemo(() => {
+    if (!shForm.release_number_id) return undefined;
+    const r = releaseCache.find(
+      (rel) => rel.release_number_id === shForm.release_number_id,
+    );
+    return r?.release_number_value ?? releaseMatch?.release_number_value;
+  }, [shForm.release_number_id, releaseCache, releaseMatch]);
 
   return (
     <div className={styles.page}>
@@ -475,10 +481,11 @@ export default function Intake() {
                 <ShDetailsStep
                   value={shForm}
                   onChange={(patch) => setShForm((f) => ({ ...f, ...patch }))}
+                  lockedRelease={releaseMatch}
                 />
               </FlowStep>
               <FlowStep>
-                <ShReviewStep value={shForm} clientLabel={pickedClientLabel} />
+                <ShReviewStep value={shForm} releaseLabel={pickedShReleaseLabel} />
                 {submitError && <div className={styles.errorBox}>{submitError}</div>}
               </FlowStep>
             </>

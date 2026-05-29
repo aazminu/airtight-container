@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Badge, Button, Modal, PhotoLightbox } from '../components/ui';
+import {
+  Badge,
+  Button,
+  CurrencyInput,
+  Modal,
+  PhotoLightbox,
+  UnitNumberInput,
+} from '../components/ui';
 import styles from './Audit.module.css';
 
 interface UnitRenameConflict {
@@ -29,20 +36,35 @@ interface PendingSalesBox {
   photo_urls: string[] | null;
 }
 
+type ShBillingMode = 'in_out_daily' | 'flat_monthly' | 'non_billable';
+
 interface PendingShBox {
   id: number;
-  client_id: number;
-  client_name?: string;
+  // Null until audit assigns a client (migration 0020).
+  client_id: number | null;
+  client_name?: string | null;
   business_name?: string | null;
+  // Release/manifest the box arrived on (migration 0021).
+  release_number_id: number | null;
+  release_number_value?: string | null;
+  sale_company_name?: string | null;
   unit_number: string;
   size: string;
   damage: string | null;
-  in_fee: string;
-  out_fee: string;
-  daily_rate: string;
+  billing_mode: ShBillingMode;
+  in_fee: string | null;
+  out_fee: string | null;
+  daily_rate: string | null;
+  flat_rate: string | null;
   intake_date: string;
   notes: string | null;
   photo_urls: string[] | null;
+}
+
+interface ClientPickerOption {
+  id: number;
+  client_name: string;
+  business_name: string | null;
 }
 
 interface SalesEdit {
@@ -56,12 +78,15 @@ interface SalesEdit {
 }
 
 interface ShEdit {
+  client_id: number | null;
+  billing_mode: ShBillingMode;
   unit_number: string;
   size: string;
   damage: string;
   in_fee: string;
   out_fee: string;
   daily_rate: string;
+  flat_rate: string;
   intake_date: string;
   notes: string;
 }
@@ -87,6 +112,7 @@ const localInputToIso = (v: string): string | null => {
 export default function Audit() {
   const [sales, setSales] = useState<PendingSalesBox[]>([]);
   const [sh, setSh] = useState<PendingShBox[]>([]);
+  const [clients, setClients] = useState<ClientPickerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -96,9 +122,10 @@ export default function Audit() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [salesRes, shRes] = await Promise.all([
+      const [salesRes, shRes, clientsRes] = await Promise.all([
         fetch('/api/v1/inventory?pending_audit=true', { credentials: 'include' }),
         fetch('/api/v2/sh-inventory?state=pending', { credentials: 'include' }),
+        fetch('/api/v2/clients', { credentials: 'include' }),
       ]);
       if (!salesRes.ok) throw new Error(`Sales HTTP ${salesRes.status}`);
       if (!shRes.ok) throw new Error(`Storage HTTP ${shRes.status}`);
@@ -108,6 +135,12 @@ export default function Audit() {
       const shBody = (await shRes.json()) as { data: { boxes: PendingShBox[] } };
       setSales(salesBody.data.inventory);
       setSh(shBody.data.boxes);
+      if (clientsRes.ok) {
+        const cb = (await clientsRes.json()) as {
+          data: { clients: ClientPickerOption[] };
+        };
+        setClients(cb.data.clients);
+      }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -149,6 +182,7 @@ export default function Audit() {
 
       <ShSection
         boxes={sh}
+        clients={clients}
         openKey={openKey}
         setOpenKey={setOpenKey}
         onConfirmed={(id) => {
@@ -211,12 +245,14 @@ function SalesSection({
 
 function ShSection({
   boxes,
+  clients,
   openKey,
   setOpenKey,
   onConfirmed,
   onPhotoClick,
 }: {
   boxes: PendingShBox[];
+  clients: ClientPickerOption[];
   openKey: string | null;
   setOpenKey: (k: string | null) => void;
   onConfirmed: (id: number) => void;
@@ -227,7 +263,7 @@ function ShSection({
       <div className={styles.sectionHead}>
         <h2 className={styles.sectionTitle}>Storage</h2>
         <span className={styles.sectionCount}>{boxes.length}</span>
-        <Badge tone="info">Confirm rates + intake date</Badge>
+        <Badge tone="info">Assign customer + billing</Badge>
       </div>
       {boxes.length === 0 ? (
         <div className={styles.empty}>No Storage boxes pending.</div>
@@ -237,6 +273,7 @@ function ShSection({
             <ShRow
               key={b.id}
               box={b}
+              clients={clients}
               open={openKey === `sh-${b.id}`}
               onToggle={() =>
                 setOpenKey(openKey === `sh-${b.id}` ? null : `sh-${b.id}`)
@@ -336,15 +373,9 @@ function SalesRow({
           <div className={styles.formRow}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Unit number</span>
-              <input
-                type="text"
+              <UnitNumberInput
                 value={edit.unit_number}
-                onChange={(e) =>
-                  setEdit((s) => ({ ...s, unit_number: e.target.value.toUpperCase() }))
-                }
-                autoCapitalize="characters"
-                autoCorrect="off"
-                spellCheck={false}
+                onChange={(v) => setEdit((s) => ({ ...s, unit_number: v }))}
               />
             </label>
             <label className={styles.field}>
@@ -376,15 +407,10 @@ function SalesRow({
               />
             </label>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Acquisition price ($)</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
+              <span className={styles.fieldLabel}>Acquisition price</span>
+              <CurrencyInput
                 value={edit.acquisition_price}
-                onChange={(e) =>
-                  setEdit((s) => ({ ...s, acquisition_price: e.target.value }))
-                }
+                onChange={(v) => setEdit((s) => ({ ...s, acquisition_price: v }))}
               />
             </label>
             <label className={styles.field}>
@@ -501,50 +527,84 @@ function UnitRenameModal({
 
 function ShRow({
   box,
+  clients,
   open,
   onToggle,
   onConfirmed,
   onPhotoClick,
 }: {
   box: PendingShBox;
+  clients: ClientPickerOption[];
   open: boolean;
   onToggle: () => void;
   onConfirmed: () => void;
   onPhotoClick: (url: string) => void;
 }) {
   const [edit, setEdit] = useState<ShEdit>({
+    client_id: box.client_id,
+    billing_mode: box.billing_mode ?? 'in_out_daily',
     unit_number: box.unit_number ?? '',
     size: box.size ?? '',
     damage: box.damage ?? '',
-    in_fee: box.in_fee,
-    out_fee: box.out_fee,
-    daily_rate: box.daily_rate,
+    in_fee: box.in_fee ?? '',
+    out_fee: box.out_fee ?? '',
+    daily_rate: box.daily_rate ?? '',
+    flat_rate: box.flat_rate ?? '',
     intake_date: isoToLocalInput(box.intake_date),
     notes: box.notes ?? '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [renameConflict, setRenameConflict] = useState<UnitRenameConflict | null>(null);
 
-  const submit = async () => {
+  const canSave = (() => {
+    if (edit.client_id == null) return false;
+    if (edit.billing_mode === 'in_out_daily') {
+      return Boolean(edit.in_fee && edit.out_fee && edit.daily_rate);
+    }
+    if (edit.billing_mode === 'flat_monthly') {
+      return Boolean(edit.flat_rate);
+    }
+    return true; // non_billable
+  })();
+
+  const submit = async (confirmUnitRename = false) => {
     setSubmitting(true);
     setError(null);
     try {
+      const isInOut = edit.billing_mode === 'in_out_daily';
+      const isFlat = edit.billing_mode === 'flat_monthly';
       const res = await fetch(`/api/v2/sh-inventory/audit/${box.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
+          client_id: edit.client_id,
+          billing_mode: edit.billing_mode,
           unit_number: edit.unit_number.trim() || undefined,
           size: edit.size.trim() || undefined,
           damage: edit.damage.trim() || null,
-          in_fee: edit.in_fee,
-          out_fee: edit.out_fee,
-          daily_rate: edit.daily_rate,
+          in_fee: isInOut ? edit.in_fee : undefined,
+          out_fee: isInOut ? edit.out_fee : undefined,
+          daily_rate: isInOut ? edit.daily_rate : undefined,
+          flat_rate: isFlat ? edit.flat_rate : undefined,
           intake_date: localInputToIso(edit.intake_date),
           notes: edit.notes || null,
+          confirm_unit_rename: confirmUnitRename || undefined,
         }),
       });
+      if (res.status === 409) {
+        const body = (await res.json()) as {
+          code?: string;
+          details?: UnitRenameConflict;
+        };
+        if (body.code === 'unit_rename_confirm_required' && body.details) {
+          setRenameConflict(body.details);
+          return;
+        }
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setRenameConflict(null);
       onConfirmed();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
@@ -553,10 +613,23 @@ function ShRow({
     }
   };
 
-  const clientLabel =
-    box.business_name && box.client_name
-      ? `${box.client_name} — ${box.business_name}`
-      : box.client_name ?? `Client #${box.client_id}`;
+  const summaryRate = (() => {
+    if (box.billing_mode === 'flat_monthly') {
+      return box.flat_rate ? `$${box.flat_rate}/mo flat` : 'Flat monthly (rate TBD)';
+    }
+    if (box.billing_mode === 'non_billable') return 'Non-billable';
+    if (box.in_fee && box.out_fee && box.daily_rate) {
+      return `$${box.in_fee} in · $${box.out_fee} out · $${box.daily_rate}/day`;
+    }
+    return 'Rates TBD';
+  })();
+
+  const summaryClient = (() => {
+    if (box.client_id == null) return 'Unassigned';
+    if (box.business_name && box.client_name)
+      return `${box.client_name} — ${box.business_name}`;
+    return box.client_name ?? `Client #${box.client_id}`;
+  })();
 
   return (
     <div className={styles.row} data-open={open}>
@@ -564,11 +637,15 @@ function ShRow({
         <div className={styles.rowSummary}>
           <span className={styles.rowTitle}>{box.unit_number || '(no unit number)'}</span>
           <span className={styles.rowMeta}>
-            <span>{clientLabel}</span>
+            <span>{summaryClient}</span>
             <span>{box.size}</span>
-            <span>
-              ${box.in_fee} in · ${box.out_fee} out · ${box.daily_rate}/day
-            </span>
+            <span>{summaryRate}</span>
+            {box.release_number_value && (
+              <span>
+                Release {box.release_number_value}
+                {box.sale_company_name ? ` · ${box.sale_company_name}` : ''}
+              </span>
+            )}
             <span>Arrived {new Date(box.intake_date).toLocaleDateString()}</span>
           </span>
         </div>
@@ -577,18 +654,51 @@ function ShRow({
       {open && (
         <div className={styles.rowBody}>
           <PhotoStrip urls={box.photo_urls} onPhotoClick={onPhotoClick} />
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Customer *</span>
+            <select
+              value={edit.client_id ?? ''}
+              onChange={(e) =>
+                setEdit((s) => ({
+                  ...s,
+                  client_id: e.target.value ? Number(e.target.value) : null,
+                }))
+              }
+              required
+            >
+              <option value="" disabled>
+                — Pick a customer —
+              </option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.client_name}
+                  {c.business_name ? ` — ${c.business_name}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Billing mode *</span>
+            <select
+              value={edit.billing_mode}
+              onChange={(e) =>
+                setEdit((s) => ({
+                  ...s,
+                  billing_mode: e.target.value as ShBillingMode,
+                }))
+              }
+            >
+              <option value="in_out_daily">In/Out + daily storage</option>
+              <option value="flat_monthly">Flat monthly</option>
+              <option value="non_billable">Non-billable</option>
+            </select>
+          </label>
           <div className={styles.formRow}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Unit number</span>
-              <input
-                type="text"
+              <UnitNumberInput
                 value={edit.unit_number}
-                onChange={(e) =>
-                  setEdit((s) => ({ ...s, unit_number: e.target.value.toUpperCase() }))
-                }
-                autoCapitalize="characters"
-                autoCorrect="off"
-                spellCheck={false}
+                onChange={(v) => setEdit((s) => ({ ...s, unit_number: v }))}
               />
             </label>
             <label className={styles.field}>
@@ -608,54 +718,51 @@ function ShRow({
               onChange={(e) => setEdit((s) => ({ ...s, damage: e.target.value }))}
             />
           </label>
-          <div className={styles.formRow}>
+          {edit.billing_mode === 'in_out_daily' && (
+            <div className={styles.formRow}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>In fee *</span>
+                <CurrencyInput
+                  value={edit.in_fee}
+                  onChange={(v) => setEdit((s) => ({ ...s, in_fee: v }))}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Out fee *</span>
+                <CurrencyInput
+                  value={edit.out_fee}
+                  onChange={(v) => setEdit((s) => ({ ...s, out_fee: v }))}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Daily rate *</span>
+                <CurrencyInput
+                  value={edit.daily_rate}
+                  onChange={(v) => setEdit((s) => ({ ...s, daily_rate: v }))}
+                />
+              </label>
+            </div>
+          )}
+          {edit.billing_mode === 'flat_monthly' && (
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>In fee ($)</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={edit.in_fee}
-                onChange={(e) =>
-                  setEdit((s) => ({ ...s, in_fee: e.target.value }))
-                }
+              <span className={styles.fieldLabel}>Flat monthly rate *</span>
+              <CurrencyInput
+                value={edit.flat_rate}
+                onChange={(v) => setEdit((s) => ({ ...s, flat_rate: v }))}
+                placeholder="0.00"
               />
             </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Out fee ($)</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={edit.out_fee}
-                onChange={(e) =>
-                  setEdit((s) => ({ ...s, out_fee: e.target.value }))
-                }
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Daily rate ($)</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={edit.daily_rate}
-                onChange={(e) =>
-                  setEdit((s) => ({ ...s, daily_rate: e.target.value }))
-                }
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Intake date</span>
-              <input
-                type="datetime-local"
-                value={edit.intake_date}
-                onChange={(e) =>
-                  setEdit((s) => ({ ...s, intake_date: e.target.value }))
-                }
-              />
-            </label>
-          </div>
+          )}
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Intake date</span>
+            <input
+              type="datetime-local"
+              value={edit.intake_date}
+              onChange={(e) =>
+                setEdit((s) => ({ ...s, intake_date: e.target.value }))
+              }
+            />
+          </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Notes</span>
             <textarea
@@ -669,12 +776,25 @@ function ShRow({
             <Button variant="ghost" onClick={onToggle} disabled={submitting}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={submit} disabled={submitting}>
+            <Button
+              variant="primary"
+              onClick={() => submit(false)}
+              disabled={submitting || !canSave}
+            >
               {submitting ? 'Saving…' : 'Save & approve'}
             </Button>
           </div>
         </div>
       )}
+      <UnitRenameModal
+        conflict={renameConflict}
+        onCancel={() => setRenameConflict(null)}
+        onConfirm={() => {
+          setRenameConflict(null);
+          submit(true);
+        }}
+        busy={submitting}
+      />
     </div>
   );
 }

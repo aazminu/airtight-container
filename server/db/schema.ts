@@ -59,6 +59,16 @@ export const shLineType = pgEnum('sh_line_type', [
   'in_fee',
   'out_fee',
   'storage_days',
+  'flat_month',
+]);
+
+// Per-box billing mode (see migration 0020). 'in_out_daily' is the legacy
+// per-day model; 'flat_monthly' charges one flat_rate per month; 'non_billable'
+// keeps the box in the yard but excludes it from month-end cron output.
+export const shBillingMode = pgEnum('sh_billing_mode', [
+  'in_out_daily',
+  'flat_monthly',
+  'non_billable',
 ]);
 
 // ---- Better Auth reference (managed externally) -----------------------
@@ -280,18 +290,32 @@ export const sh_inventory = pgTable(
   'sh_inventory',
   {
     id: serial('id').primaryKey(),
-    client_id: integer('client_id')
-      .notNull()
-      .references(() => clients.id),
+    // Nullable until audit (see migration 0020). Yard staff intake a box
+    // without assigning a customer; admin picks the client in the audit step.
+    client_id: integer('client_id').references(() => clients.id),
+    // Migration 0021: S&H boxes attach to a release the same way sales
+    // containers do. Nullable in the schema for historical rows; intake
+    // requires it for new boxes.
+    release_number_id: integer('release_number_id').references(
+      () => release_numbers.release_number_id,
+      { onDelete: 'cascade' },
+    ),
     unit_number: text('unit_number').notNull(),
     size: text('size').notNull(),
     damage: text('damage'),
     intake_date: timestamp('intake_date', { withTimezone: true })
       .notNull()
       .defaultNow(),
-    in_fee: numeric('in_fee').notNull(),
-    out_fee: numeric('out_fee').notNull(),
-    daily_rate: numeric('daily_rate').notNull(),
+    // All three rate columns are nullable: flat_monthly + non_billable boxes
+    // don't use them. in_out_daily boxes must populate all three at audit.
+    in_fee: numeric('in_fee'),
+    out_fee: numeric('out_fee'),
+    daily_rate: numeric('daily_rate'),
+    // flat_monthly mode only — one charge per box per month.
+    flat_rate: numeric('flat_rate'),
+    billing_mode: shBillingMode('billing_mode')
+      .notNull()
+      .default('in_out_daily'),
     state: shState('state').notNull().default('pending'),
     is_pending_audit: boolean('is_pending_audit').notNull().default(true),
     checkout_date: timestamp('checkout_date', { withTimezone: true }),
@@ -304,6 +328,7 @@ export const sh_inventory = pgTable(
       table.is_pending_audit,
     ),
     clientIdx: index('sh_inventory_client_idx').on(table.client_id),
+    releaseIdx: index('sh_inventory_release_idx').on(table.release_number_id),
   }),
 );
 

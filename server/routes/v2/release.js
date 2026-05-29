@@ -48,13 +48,20 @@ const groupReleases = (data) => {
 // when they have no live releases (LEFT JOIN on sale_companies).
 router.get("/", checkEmployee, async (req, res) => {
 	try {
+		// inventory_count sums sales (`inventory`) + S&H (`sh_inventory`)
+		// containers attached to the release. Migration 0021 made S&H
+		// boxes attach to releases the same way sales do, so the "filled"
+		// total has to cover both kinds — otherwise the list page reports
+		// 7/10 when 3 of the arrived boxes are S&H.
 		const results = await db.query(
 			`SELECT sc.sale_company_name, sc.sale_company_id,
 			        rn.release_number_id, rn.release_number_count, rn.release_number_value,
 			        (
-			          SELECT COUNT(*)::int
-			          FROM inventory inv
-			          WHERE inv.release_number_id = rn.release_number_id
+			          (SELECT COUNT(*)::int FROM inventory inv
+			           WHERE inv.release_number_id = rn.release_number_id)
+			          +
+			          (SELECT COUNT(*)::int FROM sh_inventory shi
+			           WHERE shi.release_number_id = rn.release_number_id)
 			        ) AS inventory_count
 			 FROM sale_companies sc
 			 LEFT JOIN release_numbers rn
@@ -200,19 +207,39 @@ router.get("/:id/inventory", checkEmployee, async (req, res) => {
 		if (!Number.isInteger(releaseId)) {
 			return res.status(400).json({ message: "Invalid release id" });
 		}
+		// Returns BOTH sales and S&H containers attached to the release.
+		// `kind` lets the client (Releases.tsx) split rendering — sales
+		// rows carry buyer/invoice context, S&H rows carry the customer
+		// who owns the box. NULL columns on the S&H side are intentional
+		// (no buyer, no invoice tie, no destination).
+		// Both sides cast `state` to text — `inventory.state` is the
+		// `inventory_state` enum and `sh_inventory.state` is `sh_state`,
+		// and UNION rejects mismatched column types.
 		const results = await db.query(
-			`SELECT inv.id, inv.unit_number, inv.size, inv.damage,
-			        inv.state, inv.date AS intake_date,
-			        s.outbound_date, s.destination,
-			        i.invoice_id, i.invoice_number,
-			        COALESCE(cl.business_name, cl.client_name) AS buyer_label
-			 FROM inventory inv
-			 LEFT JOIN sold s ON s.inventory_id = inv.id
-			 LEFT JOIN invoice_containers ic ON ic.container_id = inv.id
-			 LEFT JOIN invoices i ON i.invoice_id = ic.invoice_id
-			 LEFT JOIN clients cl ON cl.id = i.client_id
-			 WHERE inv.release_number_id = $1
-			 ORDER BY inv.date ASC, inv.id ASC`,
+			`(SELECT 'sales'::text AS kind,
+			         inv.id, inv.unit_number, inv.size, inv.damage,
+			         inv.state::text AS state, inv.date AS intake_date,
+			         s.outbound_date, s.destination,
+			         i.invoice_id, i.invoice_number,
+			         COALESCE(cl.business_name, cl.client_name) AS buyer_label
+			   FROM inventory inv
+			   LEFT JOIN sold s ON s.inventory_id = inv.id
+			   LEFT JOIN invoice_containers ic ON ic.container_id = inv.id
+			   LEFT JOIN invoices i ON i.invoice_id = ic.invoice_id
+			   LEFT JOIN clients cl ON cl.id = i.client_id
+			   WHERE inv.release_number_id = $1)
+			 UNION ALL
+			 (SELECT 'sh'::text AS kind,
+			         shi.id, shi.unit_number, shi.size, shi.damage,
+			         shi.state::text AS state, shi.intake_date,
+			         shi.checkout_date AS outbound_date,
+			         NULL::text AS destination,
+			         NULL::int AS invoice_id, NULL::int AS invoice_number,
+			         COALESCE(shc.business_name, shc.client_name) AS buyer_label
+			   FROM sh_inventory shi
+			   LEFT JOIN clients shc ON shc.id = shi.client_id
+			   WHERE shi.release_number_id = $1)
+			 ORDER BY intake_date ASC, id ASC`,
 			[releaseId],
 		);
 		res.status(200).json({
