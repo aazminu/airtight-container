@@ -42,3 +42,4 @@ server/report-template-dist/
 
 # Temp scratch (e.g. campaign form text); never commit.
 twilio.txt
+audit.txt

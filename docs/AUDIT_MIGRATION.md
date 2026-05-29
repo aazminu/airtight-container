@@ -49,13 +49,26 @@ Scripts:
 > **DRAFT — do not run until the open decisions below are resolved and the investigate-script output is reviewed.** Run inside `BEGIN; … ` with verification `SELECT`s, eyeball counts, then `COMMIT`. Take a fresh `pg_dump` of `containers_prod` immediately before.
 
 0. **Backup.** `pg_dump containers_prod` → timestamped file in `~/airtight-cutover/` on EC2.
-1. **Normalize + backfill `unit_number`** — enforce canonical **`LLLL ######-#`** for full-length container numbers (4 letters, space, 6 digits, dash, check digit), uppercased. Special cases to accommodate, not reject: (a) **no check digit** → `LLLL ######` (drop the trailing `-#`); (b) **Times Square flat-rate boxes are single digits** (`6`, `7`, …) — keep as-is, they're internal labels, not ISO numbers. Backfill: bulk-rewrite existing rows to canonical where parseable; structurally-broken/typo'd rows (section C) get a manual per-row map. Must run before dedup so collisions surface. **Open: does the canonical stored value include the space, or is the space display-only (storage `LLLL######-#`)? See D4 — this reverses/refines the earlier "display-only space" backlog note in PLAN §8.**
-2. **Dedupe** — for each group in section B, delete the non-referenced duplicate(s); keep the referenced survivor.
+1. **Fuzzy-fix the 5 malformed `unit_number`s** that the audit identified (PCIU/RFCU/TCKU/TCLU/UNSU). Targeted per-row UPDATEs so the audit's normalized keys can match.
+2. **Dedupe audited-as-sale duplicates only** — for each group in section D, delete the non-referenced duplicate(s); keep the referenced survivor. The wider full-inventory dedupe is deferred (see "Operator dedup policy" below).
 3. **Delete audited-as-S&H rows** (section A, refs=0). Operator re-adds as `sh_inventory` by hand.
-4. **Outbound sweep** — `UPDATE inventory SET state='outbound'` for `sold` rows not in the audit (section F count), and for `available`/`hold`/`pending` rows not in the audit and not fuzzy-matched (section E).
-5. **Junk** — delete unreferenced test rows (section C); tombstone/leave referenced ones.
-6. **Add `UNIQUE` constraint** on normalized `unit_number` (or a generated normalized column) so dupes can't recur.
-7. **Verify** (below), then `COMMIT`.
+4. **Outbound sweep — available/hold/pending not in audit** — `UPDATE inventory SET state='outbound'` for these rows, intake `<= 2026-05-26 15:04 EST`.
+5. **Outbound sweep — sold not in audit** — `UPDATE inventory SET state='outbound'`.
+6. **Verify** (below), then `COMMIT`.
+
+> **No UNIQUE constraint on `unit_number`.** Decision 2026-05-29: the prod data carries legitimate duplicates (cross-yard reuse, repaired/relabeled containers) that a hard uniqueness rule would force us to mangle. See "Operator dedup policy".
+
+### Operator dedup policy (2026-05-29)
+
+Replaces the dropped UNIQUE-constraint step.
+
+- **Flag duplicates only when more than one inventory row shares a normalized `unit_number` AND ≥2 of those rows are currently in `available` state.** That's the case that breaks operator intent ("which physical box is the customer pointing at?"). Other dupe shapes are tolerated: a sold + an available copy of the same number is fine (the available one is the active physical box; the sold one is history). Dupes within sold/outbound history are also tolerated.
+- Surface the flagged duplicates in the audit UI / a report — do not auto-resolve.
+- Going forward, the intake form should warn the operator (non-blocking) when they're about to create a box whose normalized unit_number already exists in `available` state.
+
+### Junk cleanup (deferred from this audit pass)
+
+`TEST` ×3, `TESTINVOICE`, `MOD REPAIR` ×2, `122024`, and the blank-unit row under `sold` are not addressed here. Treat as a separate cleanup PR after the audit lands.
 
 ---
 
@@ -71,8 +84,7 @@ Scripts:
 
 ## Post-migration verification
 
-- `available` set matches the audited sale boxes exactly (no extras, no missing).
-- 0 duplicate normalized `unit_number`s; unique constraint present.
-- 0 rows with malformed `unit_number`.
+- `available` set matches the audited sale boxes exactly (no extras, no missing) plus any rows intaked after `2026-05-26 15:04 EST`.
+- 0 rows in `available` state share a normalized `unit_number` with another `available` row (per the new dedup policy).
 - Audited-as-S&H units absent from `inventory`.
-- Invoice count / totals unchanged (no cascade collateral): compare `count(*)` and `sum(total)` on `invoices` before/after.
+- Invoice count / totals unchanged (no cascade collateral): compare `count(*)` and `sum(total)` on `invoices` before/after. Baseline (2026-05-29 restore from prod): **248 invoices / $661,534.23**.
