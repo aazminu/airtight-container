@@ -12,6 +12,7 @@ import soldRoute from "./routes/v1/sold.js";
 import inventoryRoute from "./routes/v1/inventory.js";
 import releaseRoute_2 from "./routes/v2/release.js";
 import invoiceRoute from "./routes/v2/invoice.js";
+import quoteRoute from "./routes/v2/quote.js";
 import dashboardRoute from "./routes/v2/dashboard.js";
 import clientRoute from "./routes/v2/client.js";
 import shInventoryRoute from "./routes/v2/sh_inventory.js";
@@ -22,6 +23,8 @@ import pnlRoute from "./routes/v2/pnl.js";
 import modPresetsRoute from "./routes/v2/mod_presets.js";
 import sizePresetsRoute from "./routes/v2/size_presets.js";
 import damagePresetsRoute from "./routes/v2/damage_presets.js";
+import truckingCompaniesRoute from "./routes/v2/trucking_companies.js";
+import soldV2Route from "./routes/v2/sold.js";
 import publicReceiptRoute from "./routes/public/receipt.js";
 import { generateShMonthEnd, priorMonth } from "./lib/sh-month-end.js";
 import { applyOutboundFromDeliverySheets } from "./lib/outbound-from-delivery.js";
@@ -72,6 +75,7 @@ app.use("/api/v1/inventory", inventoryRoute);
 app.use("/api/v2/release", releaseRoute_2);
 app.use("/api/v2/dashboard", dashboardRoute);
 app.use("/api/v2/invoice", invoiceRoute);
+app.use("/api/v2/quote", quoteRoute);
 app.use("/api/v2/clients", clientRoute);
 app.use("/api/v2/sh-inventory", shInventoryRoute);
 app.use("/api/v2/sh-invoice", shInvoiceRoute);
@@ -81,6 +85,8 @@ app.use("/api/v2/pnl", pnlRoute);
 app.use("/api/v2/mod-presets", modPresetsRoute);
 app.use("/api/v2/size-presets", sizePresetsRoute);
 app.use("/api/v2/damage-presets", damagePresetsRoute);
+app.use("/api/v2/trucking-companies", truckingCompaniesRoute);
+app.use("/api/v2/sold", soldV2Route);
 
 // Public-facing receipt-link route. Unauthenticated by design — the
 // 128-bit token in the URL is the access credential. Mounted at /r,

@@ -75,7 +75,7 @@ async function runQuery<T extends Record<string, unknown>>(
   return (out.rows ?? []) as T[];
 }
 
-interface FlippableRow {
+interface FlippableRow extends Record<string, unknown> {
   inventory_id: number;
   delivery_date: string;
 }

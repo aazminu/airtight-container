@@ -59,6 +59,16 @@ export const shLineType = pgEnum('sh_line_type', [
   'in_fee',
   'out_fee',
   'storage_days',
+  'flat_month',
+]);
+
+// Per-box billing mode (see migration 0020). 'in_out_daily' is the legacy
+// per-day model; 'flat_monthly' charges one flat_rate per month; 'non_billable'
+// keeps the box in the yard but excludes it from month-end cron output.
+export const shBillingMode = pgEnum('sh_billing_mode', [
+  'in_out_daily',
+  'flat_monthly',
+  'non_billable',
 ]);
 
 // ---- Better Auth reference (managed externally) -----------------------
@@ -147,6 +157,20 @@ export const inventory = pgTable(
   }),
 );
 
+// Carriers/truckers as entities (migration 0017). dispatch_* is the
+// business/dispatch contact. Outbound trucker on sold FKs here; inbound
+// inventory.trucking_company stays freetext for now.
+export const trucking_companies = pgTable('trucking_companies', {
+  id: serial('id').primaryKey(),
+  company_name: text('company_name').notNull().unique(),
+  dispatch_name: text('dispatch_name'),
+  dispatch_phone: text('dispatch_phone'),
+  dispatch_email: text('dispatch_email'),
+  created_at: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const sold = pgTable('sold', {
   id: serial('id').primaryKey(),
   inventory_id: integer('inventory_id')
@@ -155,6 +179,10 @@ export const sold = pgTable('sold', {
     .references(() => inventory.id, { onDelete: 'cascade' }),
   sold_date: timestamp('sold_date', { withTimezone: true }).defaultNow(),
   outbound_trucker: text('outbound_trucker'),
+  outbound_trucking_company_id: integer('outbound_trucking_company_id').references(
+    () => trucking_companies.id,
+    { onDelete: 'set null' },
+  ),
   destination: text('destination'),
   sale_price: numeric('sale_price'),
   release_number: text('release_number'),
@@ -164,6 +192,14 @@ export const sold = pgTable('sold', {
   labor_cost: numeric('labor_cost'),
   invoice_notes: text('invoice_notes'),
   outbound_date: timestamp('outbound_date', { withTimezone: true }),
+  // Per-container delivery address (migration 0017). Defaults cascade in
+  // the UI from the invoice ship-to; these hold the resolved values.
+  delivery_name: text('delivery_name'),
+  delivery_street: text('delivery_street'),
+  delivery_city: text('delivery_city'),
+  delivery_state: text('delivery_state'),
+  delivery_zip: text('delivery_zip'),
+  door_orientation: text('door_orientation'),
 });
 
 // Per-modification line items, ordered by `position`. Each row
@@ -206,6 +242,16 @@ export const invoices = pgTable(
     cc_fee_rate: numeric('cc_fee_rate'),
     cc_fee_amount: numeric('cc_fee_amount'),
     total: numeric('total'),
+    // Invoice-level ship-to (migration 0017). When ship_to_same_as_billing
+    // is true the client's billing address is used and the columns stay null.
+    ship_to_same_as_billing: boolean('ship_to_same_as_billing')
+      .notNull()
+      .default(true),
+    ship_to_name: text('ship_to_name'),
+    ship_to_street: text('ship_to_street'),
+    ship_to_city: text('ship_to_city'),
+    ship_to_state: text('ship_to_state'),
+    ship_to_zip: text('ship_to_zip'),
     pdf_s3_key: text('pdf_s3_key'),
     sent_at: timestamp('sent_at', { withTimezone: true }),
     deleted_at: timestamp('deleted_at', { withTimezone: true }),
@@ -244,18 +290,32 @@ export const sh_inventory = pgTable(
   'sh_inventory',
   {
     id: serial('id').primaryKey(),
-    client_id: integer('client_id')
-      .notNull()
-      .references(() => clients.id),
+    // Nullable until audit (see migration 0020). Yard staff intake a box
+    // without assigning a customer; admin picks the client in the audit step.
+    client_id: integer('client_id').references(() => clients.id),
+    // Migration 0021: S&H boxes attach to a release the same way sales
+    // containers do. Nullable in the schema for historical rows; intake
+    // requires it for new boxes.
+    release_number_id: integer('release_number_id').references(
+      () => release_numbers.release_number_id,
+      { onDelete: 'cascade' },
+    ),
     unit_number: text('unit_number').notNull(),
     size: text('size').notNull(),
     damage: text('damage'),
     intake_date: timestamp('intake_date', { withTimezone: true })
       .notNull()
       .defaultNow(),
-    in_fee: numeric('in_fee').notNull(),
-    out_fee: numeric('out_fee').notNull(),
-    daily_rate: numeric('daily_rate').notNull(),
+    // All three rate columns are nullable: flat_monthly + non_billable boxes
+    // don't use them. in_out_daily boxes must populate all three at audit.
+    in_fee: numeric('in_fee'),
+    out_fee: numeric('out_fee'),
+    daily_rate: numeric('daily_rate'),
+    // flat_monthly mode only — one charge per box per month.
+    flat_rate: numeric('flat_rate'),
+    billing_mode: shBillingMode('billing_mode')
+      .notNull()
+      .default('in_out_daily'),
     state: shState('state').notNull().default('pending'),
     is_pending_audit: boolean('is_pending_audit').notNull().default(true),
     checkout_date: timestamp('checkout_date', { withTimezone: true }),
@@ -268,6 +328,7 @@ export const sh_inventory = pgTable(
       table.is_pending_audit,
     ),
     clientIdx: index('sh_inventory_client_idx').on(table.client_id),
+    releaseIdx: index('sh_inventory_release_idx').on(table.release_number_id),
   }),
 );
 
@@ -332,6 +393,9 @@ export const reports = pgTable(
     resolved_data: jsonb('resolved_data'),
     pdf_s3_key: text('pdf_s3_key'),
     pdf_generated_at: timestamp('pdf_generated_at', { withTimezone: true }),
+    // ATYYYYMM### identifier for delivery_sheet reports (NULL otherwise).
+    // Sequenced in server/lib/delivery-sheet-number.ts. See migration 0016.
+    delivery_sheet_number: text('delivery_sheet_number'),
     emailed_to: text('emailed_to').array(),
     emailed_at: timestamp('emailed_at', { withTimezone: true }),
     sms_sent_at: timestamp('sms_sent_at', { withTimezone: true }),
@@ -424,5 +488,81 @@ export const damage_presets = pgTable(
   },
   (table) => ({
     positionIdx: index('damage_presets_position_idx').on(table.position),
+  }),
+);
+
+// ---- quotes domain ----------------------------------------------------
+
+// A quote is "an invoice without containers": a client + free-text line
+// items + per-line modifications + tax/cc settings + snapshot totals.
+// Editable, emailable, printable as "Quote", and never consumes
+// inventory. quote_number is text (Q-YYYYMM-NNNN), sequenced via a
+// DISTINCT advisory lock from invoices — see lib/quote-number.ts and
+// migration 0018. status is a lightweight text column ('draft' | 'sent')
+// because a quote has no AR lifecycle.
+export const quotes = pgTable(
+  'quotes',
+  {
+    id: serial('id').primaryKey(),
+    quote_number: text('quote_number').notNull().unique(),
+    client_id: integer('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    quote_taxed: boolean('quote_taxed').notNull().default(false),
+    quote_credit: boolean('quote_credit').notNull().default(false),
+    tax_rate: numeric('tax_rate'),
+    cc_fee_rate: numeric('cc_fee_rate'),
+    subtotal: numeric('subtotal'),
+    tax_amount: numeric('tax_amount'),
+    cc_fee_amount: numeric('cc_fee_amount'),
+    total: numeric('total'),
+    notes: text('notes'),
+    status: text('status').notNull().default('draft'),
+    pdf_s3_key: text('pdf_s3_key'),
+    sent_at: timestamp('sent_at', { withTimezone: true }),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deleted_at: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => ({
+    clientIdx: index('quotes_client_idx').on(table.client_id),
+    createdAtIdx: index('quotes_created_at_idx').on(table.created_at),
+  }),
+);
+
+export const quote_line_items = pgTable(
+  'quote_line_items',
+  {
+    id: serial('id').primaryKey(),
+    quote_id: integer('quote_id')
+      .notNull()
+      .references(() => quotes.id, { onDelete: 'cascade' }),
+    description: text('description').notNull(),
+    sale_price: numeric('sale_price'),
+    trucking_rate: numeric('trucking_rate'),
+    destination: text('destination'),
+    position: integer('position').notNull().default(0),
+  },
+  (table) => ({
+    quoteIdx: index('quote_line_items_quote_idx').on(table.quote_id),
+  }),
+);
+
+export const quote_line_modifications = pgTable(
+  'quote_line_modifications',
+  {
+    id: serial('id').primaryKey(),
+    quote_line_item_id: integer('quote_line_item_id')
+      .notNull()
+      .references(() => quote_line_items.id, { onDelete: 'cascade' }),
+    description: text('description').notNull(),
+    price: numeric('price').notNull(),
+    position: integer('position').notNull().default(0),
+  },
+  (table) => ({
+    lineIdx: index('quote_line_modifications_line_idx').on(
+      table.quote_line_item_id,
+    ),
   }),
 );

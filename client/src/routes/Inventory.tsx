@@ -8,6 +8,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '../components/ui';
 import { InventoryEditor } from '../components/forms/InventoryEditor';
+import { ShInventoryTable } from '../components/lists/ShInventoryTable';
+import { formatUnitNumber } from '../lib/unitNumber';
 import { userContext } from '../context/userContext';
 import styles from './Inventory.module.css';
 
@@ -34,12 +36,23 @@ interface InventoryRow {
   invoice_id: number | null;
 }
 
-type Tab = 'available' | 'pending' | 'sold';
+type Tab =
+  | 'available'
+  | 'pending'
+  | 'sold'
+  | 'sh_in_storage'
+  | 'sh_checked_out';
 
+// states[] is empty for the S&H tabs — those render their own component
+// against /api/v2/sh-inventory and the sales-state segmentation here
+// doesn't apply. S&H is split In-yard vs Checked-out to mirror the
+// Available vs Sold split on the sales side.
 const TABS: { id: Tab; label: string; states: InventoryState[] }[] = [
   { id: 'available', label: 'Available', states: ['available', 'hold'] },
   { id: 'pending', label: 'Pending', states: ['pending'] },
   { id: 'sold', label: 'Sold', states: ['sold', 'outbound'] },
+  { id: 'sh_in_storage', label: 'S&H — In yard', states: [] },
+  { id: 'sh_checked_out', label: 'S&H — Checked out', states: [] },
 ];
 
 const PER_PAGE_OPTIONS = [25, 50, 100];
@@ -109,11 +122,15 @@ const matchesSearch = (row: InventoryRow, q: string): boolean => {
 
 export default function Inventory() {
   const navigate = useNavigate();
-  const { setPopup } = useContext(userContext) as {
+  const { user, setPopup } = useContext(userContext) as {
+    user?: { permissions?: string };
     setPopup: (msg: string) => void;
   };
+  const isAdmin = user?.permissions === 'admin';
 
   const [rows, setRows] = useState<InventoryRow[]>([]);
+  const [shInYardCount, setShInYardCount] = useState(0);
+  const [shCheckedOutCount, setShCheckedOutCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('available');
@@ -141,6 +158,29 @@ export default function Inventory() {
         if (!cancelled) setLoading(false);
       }
     })();
+    // Light count fetch so the S&H tab badges show the right numbers
+    // alongside the sales totals. Pending S&H boxes belong to the Audit
+    // page, not the inventory list — filtered out here.
+    (async () => {
+      try {
+        const res = await fetch('/api/v2/sh-inventory', { credentials: 'include' });
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          data: { boxes: { state: string }[] };
+        };
+        if (cancelled) return;
+        let inYard = 0;
+        let out = 0;
+        for (const b of body.data.boxes) {
+          if (b.state === 'in_storage') inYard += 1;
+          else if (b.state === 'checked_out') out += 1;
+        }
+        setShInYardCount(inYard);
+        setShCheckedOutCount(out);
+      } catch {
+        // non-fatal; tab badges just stay at 0
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -148,16 +188,22 @@ export default function Inventory() {
 
   // Tab counts apply state segmentation BUT not search — counts reflect
   // total inventory in each bucket so the user can see what's hidden by
-  // the active search/tab.
+  // the active search/tab. S&H counts come from a separate fetch above.
   const tabCounts = useMemo(() => {
-    const c = { available: 0, pending: 0, sold: 0 } as Record<Tab, number>;
+    const c = {
+      available: 0,
+      pending: 0,
+      sold: 0,
+      sh_in_storage: shInYardCount,
+      sh_checked_out: shCheckedOutCount,
+    } as Record<Tab, number>;
     for (const r of rows) {
       for (const t of TABS) {
         if (t.states.includes(r.state)) c[t.id] += 1;
       }
     }
     return c;
-  }, [rows]);
+  }, [rows, shInYardCount, shCheckedOutCount]);
 
   const activeTab = TABS.find((t) => t.id === tab)!;
 
@@ -231,6 +277,12 @@ export default function Inventory() {
     setPopup('Container updated.');
   };
 
+  const handleDeleted = (id: number) => {
+    setRows((rs) => rs.filter((r) => r.id !== id));
+    setEditing(null);
+    setPopup('Container deleted.');
+  };
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -239,7 +291,11 @@ export default function Inventory() {
           <p className={styles.subtitle}>
             {loading
               ? 'Loading…'
-              : `${filtered.length} of ${tabCounts[tab]} in ${activeTab.label.toLowerCase()}`}
+              : tab === 'sh_in_storage'
+                ? `${tabCounts.sh_in_storage} S&H box${tabCounts.sh_in_storage === 1 ? '' : 'es'} currently in the yard`
+                : tab === 'sh_checked_out'
+                  ? `${tabCounts.sh_checked_out} S&H box${tabCounts.sh_checked_out === 1 ? '' : 'es'} checked out`
+                  : `${filtered.length} of ${tabCounts[tab]} in ${activeTab.label.toLowerCase()}`}
           </p>
         </div>
         <div className={styles.headerActions}>
@@ -273,6 +329,24 @@ export default function Inventory() {
         ))}
       </div>
 
+      {tab === 'sh_in_storage' || tab === 'sh_checked_out' ? (
+        <ShInventoryTable
+          state={tab === 'sh_in_storage' ? 'in_storage' : 'checked_out'}
+          search={search}
+          isAdmin={isAdmin}
+          onMessage={(msg) => {
+            setPopup(msg);
+            // Optimistic: a checkout flips one box from in-yard to
+            // checked-out. Decrement / increment so the badges update
+            // without a second round-trip.
+            if (msg === 'Box checked out.') {
+              setShInYardCount((c) => Math.max(0, c - 1));
+              setShCheckedOutCount((c) => c + 1);
+            }
+          }}
+        />
+      ) : (
+      <>
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
@@ -337,7 +411,7 @@ export default function Inventory() {
               >
                 <td>
                   <span className={styles.unitCell}>
-                    {r.unit_number.trim()}
+                    {formatUnitNumber(r.unit_number)}
                     {r.state === 'hold' && <Badge tone="warning">Held</Badge>}
                     {r.state === 'outbound' && <Badge tone="info">Outbound</Badge>}
                   </span>
@@ -414,11 +488,14 @@ export default function Inventory() {
           </select>
         </span>
       </div>
+      </>
+      )}
 
       <InventoryEditor
         row={editing}
         onClose={() => setEditing(null)}
         onSaved={handleSaved}
+        onDeleted={handleDeleted}
         onError={(msg) => setPopup(msg)}
       />
     </div>

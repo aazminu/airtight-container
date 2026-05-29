@@ -26,10 +26,14 @@ import Audit from "./routes/Audit";
 import Releases from "./routes/Releases";
 import TemplatesPreview from "./routes/TemplatesPreview";
 import InvoiceDetail from "./routes/InvoiceDetail";
+import Quotes from "./routes/Quotes";
+import CreateQuote from "./routes/CreateQuote";
+import QuoteDetail from "./routes/QuoteDetail";
 import ShInvoices from "./routes/ShInvoices";
 import ShInvoiceDetail from "./routes/ShInvoiceDetail";
 import Help from "./routes/Help";
 import PrintReceipt from "./routes/PrintReceipt";
+import Outbound from "./routes/Outbound";
 import SmsTerms from "./routes/SmsTerms";
 import PrivacyPolicy from "./routes/PrivacyPolicy";
 
@@ -45,6 +49,9 @@ const App = () => {
 				<Route path="/invoices" element={<Invoices />} />
 				<Route path="/invoices/create" element={<CreateInvoice />} />
 				<Route path="/invoices/:id" element={<InvoiceDetail />} />
+				<Route path="/quotes" element={<Quotes />} />
+				<Route path="/quotes/create" element={<CreateQuote />} />
+				<Route path="/quotes/:id" element={<QuoteDetail />} />
 				<Route path="/sh-invoices" element={<ShInvoices />} />
 				<Route path="/sh-invoices/:id" element={<ShInvoiceDetail />} />
 				<Route path="/reports" element={<Reports />} />
@@ -52,6 +59,7 @@ const App = () => {
 				<Route path="/reports/new/:type" element={<CreateReport />} />
 				<Route path="/reports/:id" element={<ReportDetail />} />
 				<Route path="/reports/:id/print" element={<PrintReceipt />} />
+				<Route path="/outbound" element={<Outbound />} />
 				<Route path="/sms-terms" element={<SmsTerms />} />
 				<Route path="/privacy-policy" element={<PrivacyPolicy />} />
 				<Route path="/yardview" element={<YardView />} />

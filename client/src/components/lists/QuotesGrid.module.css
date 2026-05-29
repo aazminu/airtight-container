@@ -1,0 +1,373 @@
+.page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  font-size: 1.75rem;
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--muted, #6e7781);
+  font-size: 0.875rem;
+}
+
+.headerActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.search {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  min-width: 280px;
+  background: var(--bg, #fff);
+  color: var(--text, #111);
+}
+
+.search:focus {
+  outline: 2px solid var(--accent, #0969da);
+  outline-offset: 1px;
+  border-color: var(--accent, #0969da);
+}
+
+.error {
+  background: #ffeef0;
+  border: 1px solid #ffd8db;
+  color: #82071e;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sidebar {
+  position: sticky;
+  top: 1rem;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  padding: 0.5rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+
+.sidebarHeader {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted, #6e7781);
+  padding: 0.5rem 0.625rem 0.375rem;
+}
+
+.sidebarItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 0.4rem 0.625rem;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.sidebarItem:hover {
+  background: var(--hover, #f3f4f6);
+}
+
+.sidebarItem.active {
+  background: var(--accent, #0969da);
+  color: #fff;
+}
+
+.sidebarItem.active .sidebarCount {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.sidebarName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.sidebarCount {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  background: var(--hover, #f3f4f6);
+  color: var(--muted, #6e7781);
+  padding: 0.125rem 0.375rem;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sidebarDivider {
+  height: 1px;
+  background: var(--border, #d0d7de);
+  margin: 0.375rem 0;
+}
+
+.sidebarEmpty {
+  padding: 0.625rem;
+  font-size: 0.8125rem;
+  color: var(--muted, #6e7781);
+  text-align: center;
+}
+
+.sidebarMore {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0.5rem 0.625rem;
+  margin-top: 0.25rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--accent, #0969da);
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+}
+
+.sidebarMore:hover {
+  background: var(--hover, #f3f4f6);
+}
+
+.main {
+  min-width: 0;
+}
+
+/* Tiles are fixed-width so the scaled InvoiceTemplate inside the
+ * thumb exactly matches the column. auto-fill packs as many columns
+ * as fit; on narrow screens it naturally collapses to 1. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 240px);
+  justify-content: start;
+  gap: 1rem;
+}
+
+@media (max-width: 560px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .grid .tile {
+    width: 100%;
+  }
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 10px;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+}
+
+.tile:hover {
+  border-color: var(--accent, #0969da);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  transform: translateY(-2px);
+}
+
+.tile:focus-visible {
+  outline: 2px solid var(--accent, #0969da);
+  outline-offset: 2px;
+}
+
+.tileDeleted {
+  opacity: 0.55;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      var(--surface, #fff),
+      var(--surface, #fff) 8px,
+      var(--border, #d0d7de) 8px,
+      var(--border, #d0d7de) 9px
+    );
+}
+
+.tileDeleted:hover {
+  opacity: 0.8;
+}
+
+/* Decorative banner styled to evoke the actual invoice template's
+ * header (cream paper, slim logo on the left, "Invoice" wordmark on
+ * the right). Purely visual — no real invoice data here. */
+.thumb {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: #fdfcf8;
+  border-bottom: 1px solid var(--border, #d0d7de);
+  padding: 0.625rem 0.75rem;
+  pointer-events: none;
+}
+
+.thumbLogo {
+  height: 26px;
+  width: auto;
+  flex-shrink: 0;
+}
+
+.thumbWord {
+  font-family: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  font-size: 14pt;
+  line-height: 1;
+  color: #0a0e1a;
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+}
+
+.caption {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.625rem 0.75rem 0.75rem;
+}
+
+.captionTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.invoiceNum {
+  font-weight: 600;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.invoiceDate {
+  font-size: 0.75rem;
+  color: var(--muted, #6e7781);
+  flex-shrink: 0;
+}
+
+.customer {
+  font-size: 0.875rem;
+  color: var(--text, #1f2328);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.captionTotalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.125rem;
+}
+
+.total {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+}
+
+.containerCount {
+  font-size: 0.75rem;
+  color: var(--muted, #6e7781);
+}
+
+.pastDue {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--danger-fg, #82071e);
+  background: var(--danger-bg, rgba(209, 36, 47, 0.08));
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  align-self: flex-start;
+}
+
+.empty {
+  grid-column: 1 / -1;
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--muted, #6e7781);
+  border: 2px dashed var(--border, #d0d7de);
+  border-radius: 8px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.pageBtn {
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--border, #d0d7de);
+  background: var(--surface, #fff);
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  min-width: 2rem;
+}
+
+.pageBtn:hover:not(:disabled) {
+  border-color: var(--accent, #0969da);
+}
+
+.pageBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pageInfo {
+  color: var(--muted, #6e7781);
+  font-variant-numeric: tabular-nums;
+  margin: 0 0.5rem;
+}

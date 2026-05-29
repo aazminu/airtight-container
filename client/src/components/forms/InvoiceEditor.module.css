@@ -71,7 +71,7 @@
 .containerHead {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 0.75rem;
   margin-bottom: 0.625rem;
 }
@@ -124,35 +124,35 @@
 }
 
 .modRow {
+  /* Description narrower (~15%), price further from trash, generous
+     column gap so a missed tap on the price field doesn't catch the
+     delete affordance. Matches QuoteEditor. */
   display: grid;
-  grid-template-columns: 1fr 120px auto auto auto;
-  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1.7fr) 8rem 2.5rem;
+  column-gap: 1.5rem;
   align-items: center;
 }
 
-.iconBtn {
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+/* "+ Add modification" — prominent dashed-tile affordance so the
+   operator sees the next action without hunting. Matches QuoteEditor. */
+.addRow {
+  width: 100%;
+  padding: 0.75rem 1rem;
   background: transparent;
-  border: 1px solid var(--border, #d0d7de);
-  border-radius: 6px;
-  cursor: pointer;
+  border: 1.5px dashed var(--border-strong, #afb8c1);
+  border-radius: var(--radius-md, 8px);
+  color: var(--accent, #0969da);
   font: inherit;
-  font-size: 0.875rem;
-  color: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms, border-color 120ms, color 120ms;
+  margin-top: 0.5rem;
 }
 
-.iconBtn:hover:not(:disabled) {
+.addRow:hover {
   border-color: var(--accent, #0969da);
   background: var(--hover, #f3f4f6);
-}
-
-.iconBtn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .linkBtn {
@@ -167,10 +167,6 @@
 
 .linkBtn:hover {
   text-decoration: underline;
-}
-
-.linkBtnDanger {
-  color: #cf222e;
 }
 
 .addContainer {

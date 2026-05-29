@@ -1,5 +1,6 @@
 export { Button } from './Button';
 export type { ButtonProps } from './Button';
+export { CurrencyInput } from './CurrencyInput';
 export { Modal } from './Modal';
 export type { ModalProps } from './Modal';
 export { Badge } from './Badge';
@@ -18,3 +19,8 @@ export type { FlowProps, FlowStepProps } from './Flow';
 export { Stepper } from './Stepper';
 export type { StepperProps } from './Stepper';
 export { PhotoLightbox } from './PhotoLightbox';
+export { AddressFields } from './AddressFields';
+export type { AddressValue } from './AddressFields';
+export { IconButton } from './IconButton';
+export { UnitNumberInput } from './UnitNumberInput';
+export { PhoneInput } from './PhoneInput';

@@ -12,21 +12,25 @@ import type { PoolClient } from 'pg';
 import pool from '../db/pool.js';
 import { storageDaysForMonth } from './sh.js';
 
+type ShBillingMode = 'in_out_daily' | 'flat_monthly' | 'non_billable';
+
 interface ShInventoryRow {
   id: number;
   client_id: number;
   unit_number: string;
   intake_date: string;
   checkout_date: string | null;
-  in_fee: string;
-  out_fee: string;
-  daily_rate: string;
+  in_fee: string | null;
+  out_fee: string | null;
+  daily_rate: string | null;
+  flat_rate: string | null;
+  billing_mode: ShBillingMode;
   state: string;
 }
 
 interface InvoiceLineSpec {
   sh_box_id: number;
-  line_type: 'in_fee' | 'out_fee' | 'storage_days';
+  line_type: 'in_fee' | 'out_fee' | 'storage_days' | 'flat_month';
   days_count: number | null;
   rate: string;
   amount: string;
@@ -79,12 +83,50 @@ const buildLinesForBox = (
   year: number,
   monthIndex: number,
 ): InvoiceLineSpec[] => {
+  // Non-billable boxes are tracked in the yard but excluded from
+  // invoicing entirely. No lines, ever.
+  if (box.billing_mode === 'non_billable') return [];
+
+  // Flat-monthly boxes get one line per billing month, pro-rated by
+  // days-in-month. A box arriving mid-month or checking out mid-month
+  // is billed only for the days it was actually under storage. The
+  // unit "rate" is the flat monthly amount; days_count + amount carry
+  // the resolved math so the line tells the operator how we got there.
+  if (box.billing_mode === 'flat_monthly') {
+    if (box.flat_rate == null) return [];
+    const intakeDate = new Date(box.intake_date);
+    const checkoutDate = box.checkout_date ? new Date(box.checkout_date) : null;
+    const billedDays = storageDaysForMonth(intakeDate, checkoutDate, year, monthIndex);
+    if (billedDays <= 0) return [];
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    const monthly = Number(box.flat_rate);
+    const amount =
+      billedDays >= daysInMonth
+        ? monthly.toFixed(2)
+        : ((monthly * billedDays) / daysInMonth).toFixed(2);
+    const description =
+      billedDays >= daysInMonth
+        ? `Flat monthly storage · ${box.unit_number}`
+        : `Flat monthly storage · ${box.unit_number} · ${billedDays} of ${daysInMonth} days pro-rated`;
+    return [
+      {
+        sh_box_id: box.id,
+        line_type: 'flat_month',
+        days_count: billedDays,
+        rate: box.flat_rate,
+        amount,
+        description,
+      },
+    ];
+  }
+
+  // in_out_daily — legacy three-line model.
   const intake = new Date(box.intake_date);
   const checkout = box.checkout_date ? new Date(box.checkout_date) : null;
   const lines: InvoiceLineSpec[] = [];
   const inThisMonth =
     intake.getFullYear() === year && intake.getMonth() === monthIndex;
-  if (inThisMonth) {
+  if (inThisMonth && box.in_fee != null) {
     lines.push({
       sh_box_id: box.id,
       line_type: 'in_fee',
@@ -98,7 +140,7 @@ const buildLinesForBox = (
     checkout != null &&
     checkout.getFullYear() === year &&
     checkout.getMonth() === monthIndex;
-  if (outThisMonth) {
+  if (outThisMonth && box.out_fee != null) {
     lines.push({
       sh_box_id: box.id,
       line_type: 'out_fee',
@@ -108,18 +150,20 @@ const buildLinesForBox = (
       description: `Check-out fee · ${box.unit_number}`,
     });
   }
-  const days = storageDaysForMonth(intake, checkout, year, monthIndex);
-  if (days > 0) {
-    const rate = Number(box.daily_rate);
-    const amount = (rate * days).toFixed(2);
-    lines.push({
-      sh_box_id: box.id,
-      line_type: 'storage_days',
-      days_count: days,
-      rate: box.daily_rate,
-      amount,
-      description: `Storage · ${box.unit_number} · ${days} day${days === 1 ? '' : 's'}`,
-    });
+  if (box.daily_rate != null) {
+    const days = storageDaysForMonth(intake, checkout, year, monthIndex);
+    if (days > 0) {
+      const rate = Number(box.daily_rate);
+      const amount = (rate * days).toFixed(2);
+      lines.push({
+        sh_box_id: box.id,
+        line_type: 'storage_days',
+        days_count: days,
+        rate: box.daily_rate,
+        amount,
+        description: `Storage · ${box.unit_number} · ${days} day${days === 1 ? '' : 's'}`,
+      });
+    }
   }
   return lines;
 };
@@ -139,7 +183,6 @@ export async function generateShMonthEnd(
   monthIndex: number,
 ): Promise<MonthEndSummary> {
   const billingMonth = billingMonthDate(year, monthIndex);
-  const monthEnd = new Date(year, monthIndex + 1, 0);
   const summary: MonthEndSummary = {
     year,
     monthIndex,
@@ -150,18 +193,30 @@ export async function generateShMonthEnd(
 
   // Boxes that overlapped this month: arrived on/before month end AND
   // (still in storage OR checked out on/after the month started).
+  //
+  // monthStart is midnight on day 1; nextMonthStart is midnight on day 1 of
+  // the next month and used with a strict `<` so boxes intaked late on the
+  // last day of the month (e.g., a 5pm intake on May 31) are correctly
+  // included. The earlier `monthIndex + 1, 0` produced midnight on the LAST
+  // day of the month and silently dropped late-day intakes.
   const monthStart = new Date(year, monthIndex, 1);
+  const nextMonthStart = new Date(year, monthIndex + 1, 1);
   const client = await pool.connect();
   try {
+    // Skip boxes with NULL client_id (still on the audit floor —
+    // migration 0020 makes the column nullable). Non-billable boxes
+    // are excluded at the line-builder level instead of here so callers
+    // see them on a P&L statement if we ever need that.
     const { rows: boxes } = await client.query<ShInventoryRow>(
       `SELECT id, client_id, unit_number, intake_date, checkout_date,
-              in_fee, out_fee, daily_rate, state
+              in_fee, out_fee, daily_rate, flat_rate, billing_mode, state
        FROM sh_inventory
-       WHERE intake_date <= $2
+       WHERE client_id IS NOT NULL
+         AND intake_date < $2
          AND (checkout_date IS NULL OR checkout_date >= $1)
          AND state IN ('in_storage', 'checked_out')
        ORDER BY client_id, intake_date`,
-      [monthStart, monthEnd],
+      [monthStart, nextMonthStart],
     );
 
     const byClient = new Map<number, ShInventoryRow[]>();

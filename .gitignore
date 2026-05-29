@@ -37,7 +37,9 @@ docs/agent_questions.md
 # see comment in server/lib/pdf.ts. Rebuilt by build:server-template
 # and build:report-templates in client/.
 server/template-dist/
+server/quote-template-dist/
 server/report-template-dist/
 
 # Temp scratch (e.g. campaign form text); never commit.
 twilio.txt
+audit.txt

@@ -163,3 +163,49 @@
   background: var(--bg-input);
   color: var(--text);
 }
+
+.deliveries {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.75rem 0.85rem;
+  background: var(--bg-surface, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.deliveriesHead {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+.deliveriesHint {
+  margin: 0.25rem 0 0.6rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.deliveriesList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.deliveryRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.deliveryUnit {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+.deliveryMeta {
+  flex: 1;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}

@@ -2,6 +2,8 @@
 // pointing at the release (sold/outbound still count toward filled).
 
 export interface ReleaseSummaryContainer {
+  /** 'sales' for inventory boxes, 'sh' for stored boxes (migration 0021). */
+  kind: 'sales' | 'sh';
   unit_number: string;
   size: string;
   damage: string | null;

@@ -9,42 +9,26 @@ import {
 describe('createShInventorySchema', () => {
   const valid = {
     box: {
-      client_id: 1,
       unit_number: 'ABCD1234567',
       size: '20ft',
-      in_fee: '65',
-      out_fee: '65',
-      daily_rate: '1',
+      release_number_id: 7,
     },
   };
 
-  it('accepts a minimal valid create', () => {
-    const r = createShInventorySchema.safeParse(valid);
-    expect(r.success).toBe(true);
+  it('accepts a minimal valid create (no customer, no rates)', () => {
+    expect(createShInventorySchema.safeParse(valid).success).toBe(true);
   });
 
-  it('rejects a missing client_id', () => {
-    const r = createShInventorySchema.safeParse({ box: { ...valid.box, client_id: undefined } });
-    expect(r.success).toBe(false);
-  });
-
-  it('rejects a non-numeric fee', () => {
+  it('rejects a missing unit_number', () => {
     const r = createShInventorySchema.safeParse({
-      box: { ...valid.box, in_fee: 'free' },
+      box: { size: '20ft', release_number_id: 7 },
     });
     expect(r.success).toBe(false);
   });
 
-  it('accepts numeric fees as strings and coerces decimals', () => {
+  it('rejects a missing release_number_id', () => {
     const r = createShInventorySchema.safeParse({
-      box: { ...valid.box, in_fee: '65.50', out_fee: 70, daily_rate: '0.75' },
-    });
-    expect(r.success).toBe(true);
-  });
-
-  it('rejects negative fees', () => {
-    const r = createShInventorySchema.safeParse({
-      box: { ...valid.box, daily_rate: '-1' },
+      box: { unit_number: 'ABCD1234567', size: '20ft' },
     });
     expect(r.success).toBe(false);
   });
@@ -59,15 +43,69 @@ describe('createShInventorySchema', () => {
     });
     expect(r.success).toBe(true);
   });
+
+  it('strips legacy intake fields (client_id, rates)', () => {
+    // Old callers may still send these; Zod strips unknown keys by
+    // default, so the parse should succeed and ignore them.
+    const r = createShInventorySchema.safeParse({
+      box: { ...valid.box, client_id: 5, in_fee: '65', daily_rate: '1' },
+    });
+    expect(r.success).toBe(true);
+  });
 });
 
 describe('auditShInventorySchema', () => {
-  it('accepts an empty body (no changes)', () => {
-    expect(auditShInventorySchema.safeParse({}).success).toBe(true);
+  it('accepts in_out_daily with all three rates', () => {
+    const r = auditShInventorySchema.safeParse({
+      client_id: 1,
+      billing_mode: 'in_out_daily',
+      in_fee: '65',
+      out_fee: '65',
+      daily_rate: '1',
+    });
+    expect(r.success).toBe(true);
   });
 
-  it('accepts a partial fee override', () => {
-    expect(auditShInventorySchema.safeParse({ daily_rate: '1.50' }).success).toBe(true);
+  it('rejects in_out_daily missing a rate', () => {
+    const r = auditShInventorySchema.safeParse({
+      client_id: 1,
+      billing_mode: 'in_out_daily',
+      in_fee: '65',
+      daily_rate: '1',
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('accepts flat_monthly with flat_rate', () => {
+    const r = auditShInventorySchema.safeParse({
+      client_id: 1,
+      billing_mode: 'flat_monthly',
+      flat_rate: '325',
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects flat_monthly without flat_rate', () => {
+    const r = auditShInventorySchema.safeParse({
+      client_id: 1,
+      billing_mode: 'flat_monthly',
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('accepts non_billable with no rates', () => {
+    const r = auditShInventorySchema.safeParse({
+      client_id: 1,
+      billing_mode: 'non_billable',
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects missing client_id', () => {
+    const r = auditShInventorySchema.safeParse({
+      billing_mode: 'non_billable',
+    });
+    expect(r.success).toBe(false);
   });
 });
 

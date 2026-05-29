@@ -93,6 +93,35 @@ export default function InvoiceDetail() {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!invoice) return;
+    setAction({ kind: 'busy', label: 'Generating PDF…' });
+    try {
+      const res = await fetch(`/api/v2/invoice/${invoice.invoice_id}/pdf`, {
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoice-${invoice.invoice_number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setAction({ kind: 'ok', message: 'PDF downloaded.' });
+    } catch (e) {
+      setAction({
+        kind: 'err',
+        message: e instanceof Error ? e.message : 'Download failed',
+      });
+    }
+  };
+
   const handleEmail = async () => {
     if (!invoice) return;
     const fallbackTo = invoice.customer.contact_email ?? '';
@@ -111,13 +140,25 @@ export default function InvoiceDetail() {
       },
     });
     if (to === null) return;
+    // Back-fill the client's email. No email on file → the server saves it
+    // silently. A *different* email on file → ask before overwriting.
+    let update_client_email = false;
+    const onFile = (invoice.customer.contact_email ?? '').trim();
+    if (onFile && onFile !== to.trim()) {
+      update_client_email = await confirm({
+        title: 'Update email on file?',
+        message: `This client's email on file is ${onFile}. Update it to ${to.trim()}?`,
+        confirmLabel: 'Update',
+        cancelLabel: 'Keep on file',
+      });
+    }
     setAction({ kind: 'busy', label: 'Sending…' });
     try {
       const res = await fetch(`/api/v2/invoice/${invoice.invoice_id}/email`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to }),
+        body: JSON.stringify({ to, update_client_email }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -208,14 +249,26 @@ export default function InvoiceDetail() {
           invoice_date: updated.invoice_date,
           tax_rate: updated.tax_rate,
           cc_fee_rate: updated.cc_fee_rate,
+          ship_to_same_as_billing: updated.ship_to_same_as_billing,
+          ship_to_name: updated.ship_to_name,
+          ship_to_street: updated.ship_to_street,
+          ship_to_city: updated.ship_to_city,
+          ship_to_state: updated.ship_to_state,
+          ship_to_zip: updated.ship_to_zip,
           containers: updated.containers.map((c) => ({
             inventory_id: c.inventory_id,
             sale_price: c.sale_price,
             trucking_rate: c.trucking_rate,
             modification_price: c.modification_price,
-            destination: c.destination,
             invoice_notes: c.invoice_notes,
-            outbound_date: c.outbound_date,
+            // Round-trip per-box delivery so an edit doesn't wipe it.
+            outbound_trucking_company_id: c.outbound_trucking_company_id,
+            door_orientation: c.door_orientation,
+            delivery_name: c.delivery_name,
+            delivery_street: c.delivery_street,
+            delivery_city: c.delivery_city,
+            delivery_state: c.delivery_state,
+            delivery_zip: c.delivery_zip,
             modifications: c.modifications.map((m, i) => ({
               description: m.description,
               price: m.price,
@@ -295,7 +348,24 @@ export default function InvoiceDetail() {
                 Regenerate PDF
               </Button>
             )}
+            {isAdmin && (
+              <Button variant="secondary" onClick={handleDownloadPdf}>
+                Download PDF
+              </Button>
+            )}
             {isAdmin && <Button onClick={handleEmail}>Email</Button>}
+            {isAdmin && invoice.containers.length > 0 && (
+              <Button
+                variant="danger"
+                onClick={() =>
+                  navigate(
+                    `/reports/new/delivery_sheet?invoice_id=${invoice.invoice_id}`,
+                  )
+                }
+              >
+                Make delivery sheet
+              </Button>
+            )}
             {isAdmin && (
               <Button variant="danger" onClick={handleDelete}>
                 Delete

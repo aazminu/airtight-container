@@ -6,8 +6,12 @@
 // at generation time and persisted in reports.parameters jsonb.
 
 export interface DeliveryData {
-  /** Display id (e.g. 'D-202604009'); appears in the meta block. */
+  /** Internal report row id — used for fallback display only. */
   delivery_id: number | string;
+  /** Sequenced AT number (ATYYYYMM###) stamped at create time on the
+   *  reports row. Preferred over delivery_id for display. Null for
+   *  pre-migration-0016 records that were never backfilled. */
+  delivery_sheet_number?: string | null;
   generated_at: string;
   /** Day + time the box is going out. Datetime so the template can show
    *  both date and clock time, the way the legacy doc did. */
@@ -58,6 +62,17 @@ export interface DeliveryData {
 
   /** How (and whether) the driver collects payment on delivery. */
   payment_details: string | null;
+
+  /** Outbound carrier of record from the delivery epic (resolved from
+   *  sold.outbound_trucking_company_id → trucking_companies). Distinct
+   *  from the operator-typed delivery_company free-text above; null when
+   *  the sold row has no carrier assigned. */
+  trucking: {
+    company_name: string;
+    dispatch_name: string | null;
+    dispatch_phone: string | null;
+    dispatch_email: string | null;
+  } | null;
 
   /** Free-text receipt note. Defaults to sold.invoice_notes at form
    *  time; operator can override. Rendered as the top "DELIVERY

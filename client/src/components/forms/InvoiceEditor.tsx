@@ -4,13 +4,14 @@ import type {
   InvoiceLineContainer,
   InvoiceModification,
 } from '../templates/invoice/types';
-import { Button } from '../ui';
+import { AddressFields, Button, CurrencyInput, IconButton } from '../ui';
 import { fmtCurrency } from '../templates/invoice/format';
 import {
   MODIFICATION_DATALIST_ID,
   useModPresetLabels,
   useModPresets,
 } from './modificationPresets';
+import { DoorOrientationField } from './DoorOrientationField';
 import styles from './InvoiceEditor.module.css';
 
 interface ClientSummary {
@@ -63,10 +64,27 @@ export default function InvoiceEditor({
   const [draft, setDraft] = useState<InvoiceData>(() => structuredClone(initial));
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [available, setAvailable] = useState<InventoryRow[]>([]);
+  const [truckingCompanies, setTruckingCompanies] = useState<
+    { id: number; company_name: string }[]
+  >([]);
   const [pickerValue, setPickerValue] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const modPresetLabels = useModPresetLabels();
   const modPresets = useModPresets();
+
+  const loadTruckingCompanies = async () => {
+    try {
+      const res = await fetch('/api/v2/trucking-companies', {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const body = await res.json();
+        setTruckingCompanies(body.data.trucking_companies ?? []);
+      }
+    } catch {
+      // Non-fatal.
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -94,10 +112,58 @@ export default function InvoiceEditor({
         // Non-fatal; pickers will be empty but the rest of the form works.
       }
     })();
+    loadTruckingCompanies();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const addTruckingCompany = async (name: string): Promise<number | null> => {
+    const company_name = name.trim();
+    if (!company_name) return null;
+    try {
+      const res = await fetch('/api/v2/trucking-companies', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company_name }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        await loadTruckingCompanies();
+        return body.data.trucking_company.id as number;
+      }
+      if (res.status === 409) {
+        return (
+          truckingCompanies.find(
+            (t) => t.company_name.toLowerCase() === company_name.toLowerCase(),
+          )?.id ?? null
+        );
+      }
+    } catch {
+      // Non-fatal.
+    }
+    return null;
+  };
+
+  // Per-container "delivery override expanded?" UI state. Seeded from
+  // whichever boxes already have any delivery_* fields populated, so
+  // existing data stays visible on open.
+  const [openOverrides, setOpenOverrides] = useState<Set<number>>(
+    () =>
+      new Set(
+        initial.containers
+          .filter(
+            (c) =>
+              c.delivery_name ||
+              c.delivery_street ||
+              c.delivery_city ||
+              c.delivery_state ||
+              c.delivery_zip,
+          )
+          .map((c) => c.inventory_id),
+      ),
+  );
 
   // Recompute totals on the fly as the draft changes. Server will
   // recompute authoritatively at save time; this preview is just so
@@ -194,6 +260,13 @@ export default function InvoiceEditor({
           modification_price: null,
           outbound_date: null,
           invoice_notes: null,
+          outbound_trucking_company_id: null,
+          door_orientation: null,
+          delivery_name: null,
+          delivery_street: null,
+          delivery_city: null,
+          delivery_state: null,
+          delivery_zip: null,
           modifications: [],
         },
       ],
@@ -252,18 +325,6 @@ export default function InvoiceEditor({
     setDraft((d) => {
       const containers = d.containers.slice();
       const mods = containers[ctIdx].modifications.filter((_, i) => i !== modIdx);
-      containers[ctIdx] = { ...containers[ctIdx], modifications: mods };
-      return { ...d, containers };
-    });
-  };
-
-  const moveMod = (ctIdx: number, modIdx: number, delta: -1 | 1) => {
-    setDraft((d) => {
-      const containers = d.containers.slice();
-      const mods = containers[ctIdx].modifications.slice();
-      const target = modIdx + delta;
-      if (target < 0 || target >= mods.length) return d;
-      [mods[modIdx], mods[target]] = [mods[target], mods[modIdx]];
       containers[ctIdx] = { ...containers[ctIdx], modifications: mods };
       return { ...d, containers };
     });
@@ -407,6 +468,39 @@ export default function InvoiceEditor({
       </section>
 
       <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Shipping address</h2>
+        <label className={styles.checkRow}>
+          <input
+            type="checkbox"
+            checked={draft.ship_to_same_as_billing}
+            onChange={(e) =>
+              updateInvoice('ship_to_same_as_billing', e.target.checked)
+            }
+          />
+          Same as billing address
+        </label>
+        {!draft.ship_to_same_as_billing && (
+          <AddressFields
+            value={{
+              name: draft.ship_to_name ?? '',
+              street: draft.ship_to_street ?? '',
+              city: draft.ship_to_city ?? '',
+              state: draft.ship_to_state ?? '',
+              zip: draft.ship_to_zip ?? '',
+            }}
+            onChange={(next) => {
+              updateInvoice('ship_to_name', next.name);
+              updateInvoice('ship_to_street', next.street);
+              updateInvoice('ship_to_city', next.city);
+              updateInvoice('ship_to_state', next.state);
+              updateInvoice('ship_to_zip', next.zip);
+            }}
+            nameLabel="Ship to (name)"
+          />
+        )}
+      </section>
+
+      <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
           Containers ({draft.containers.length})
         </h2>
@@ -424,55 +518,68 @@ export default function InvoiceEditor({
                   {c.size} · {c.damage}
                 </span>
               </div>
-              <button
-                type="button"
-                className={`${styles.linkBtn} ${styles.linkBtnDanger}`}
+              <IconButton
+                icon="trash"
+                tone="danger"
+                label="Remove container"
                 onClick={() => removeContainer(ctIdx)}
-              >
-                Remove container
-              </button>
+              />
             </div>
             <div className={styles.fieldGrid}>
               <label className={styles.field}>
                 <span className={styles.label}>Sale price</span>
-                <input
-                  className={styles.input}
-                  type="number"
-                  step="0.01"
-                  value={c.sale_price ?? ''}
-                  onChange={(e) => updateContainer(ctIdx, { sale_price: e.target.value })}
+                <CurrencyInput
+                  value={c.sale_price}
+                  onChange={(v) => updateContainer(ctIdx, { sale_price: v })}
                 />
               </label>
               <label className={styles.field}>
                 <span className={styles.label}>Trucking rate</span>
-                <input
-                  className={styles.input}
-                  type="number"
-                  step="0.01"
-                  value={c.trucking_rate ?? ''}
-                  onChange={(e) => updateContainer(ctIdx, { trucking_rate: e.target.value })}
+                <CurrencyInput
+                  value={c.trucking_rate}
+                  onChange={(v) => updateContainer(ctIdx, { trucking_rate: v })}
                 />
               </label>
               <label className={styles.field}>
-                <span className={styles.label}>Destination</span>
-                <input
+                <span className={styles.label}>Trucking company</span>
+                <select
                   className={styles.input}
-                  value={c.destination ?? ''}
-                  onChange={(e) => updateContainer(ctIdx, { destination: e.target.value })}
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Outbound date</span>
-                <input
-                  type="date"
-                  className={styles.input}
-                  value={asISODate(c.outbound_date)}
-                  onChange={(e) =>
+                  value={c.outbound_trucking_company_id ?? ''}
+                  onChange={async (e) => {
+                    if (e.target.value === '__add__') {
+                      const name = window.prompt('New trucking company name');
+                      if (name && name.trim()) {
+                        const newId = await addTruckingCompany(name);
+                        if (newId)
+                          updateContainer(ctIdx, {
+                            outbound_trucking_company_id: newId,
+                          });
+                      }
+                      return;
+                    }
                     updateContainer(ctIdx, {
-                      outbound_date: e.target.value
-                        ? new Date(e.target.value).toISOString()
+                      outbound_trucking_company_id: e.target.value
+                        ? Number(e.target.value)
                         : null,
-                    })
+                    });
+                  }}
+                >
+                  <option value="">— none —</option>
+                  {truckingCompanies.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.company_name}
+                    </option>
+                  ))}
+                  <option value="__add__">+ Add new company…</option>
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Door orientation</span>
+                <DoorOrientationField
+                  className={styles.input}
+                  value={c.door_orientation ?? ''}
+                  onChange={(v) =>
+                    updateContainer(ctIdx, { door_orientation: v })
                   }
                 />
               </label>
@@ -492,16 +599,66 @@ export default function InvoiceEditor({
                 </label>
               )}
             </div>
-            <div className={styles.modsList}>
-              <div className={styles.modsHeader}>
-                <span className={styles.label}>Per-modification line items</span>
+            {openOverrides.has(c.inventory_id) ? (
+              <div>
+                <AddressFields
+                  value={{
+                    name: c.delivery_name ?? '',
+                    street: c.delivery_street ?? '',
+                    city: c.delivery_city ?? '',
+                    state: c.delivery_state ?? '',
+                    zip: c.delivery_zip ?? '',
+                  }}
+                  onChange={(next) =>
+                    updateContainer(ctIdx, {
+                      delivery_name: next.name,
+                      delivery_street: next.street,
+                      delivery_city: next.city,
+                      delivery_state: next.state,
+                      delivery_zip: next.zip,
+                    })
+                  }
+                  nameLabel="Deliver to (name)"
+                />
                 <button
                   type="button"
                   className={styles.linkBtn}
-                  onClick={() => addMod(ctIdx)}
+                  onClick={() => {
+                    updateContainer(ctIdx, {
+                      delivery_name: null,
+                      delivery_street: null,
+                      delivery_city: null,
+                      delivery_state: null,
+                      delivery_zip: null,
+                    });
+                    setOpenOverrides((prev) => {
+                      const next = new Set(prev);
+                      next.delete(c.inventory_id);
+                      return next;
+                    });
+                  }}
                 >
-                  + Add modification
+                  Use shipping address instead
                 </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={styles.linkBtn}
+                onClick={() =>
+                  setOpenOverrides((prev) => {
+                    const next = new Set(prev);
+                    next.add(c.inventory_id);
+                    return next;
+                  })
+                }
+              >
+                + Add separate shipping address
+              </button>
+            )}
+            <div className={styles.modsList}>
+              <div className={styles.modsHeader}>
+                <span className={styles.label}>Per-modification line items</span>
               </div>
               {c.modifications.map((m, mIdx) => (
                 <div key={m.id} className={styles.modRow}>
@@ -514,42 +671,26 @@ export default function InvoiceEditor({
                       updateMod(ctIdx, mIdx, { description: e.target.value })
                     }
                   />
-                  <input
-                    className={styles.input}
-                    type="number"
-                    step="0.01"
-                    placeholder="Price"
+                  <CurrencyInput
                     value={m.price}
-                    onChange={(e) => updateMod(ctIdx, mIdx, { price: e.target.value })}
+                    onChange={(v) => updateMod(ctIdx, mIdx, { price: v })}
+                    placeholder="0.00"
                   />
-                  <button
-                    type="button"
-                    className={styles.iconBtn}
-                    onClick={() => moveMod(ctIdx, mIdx, -1)}
-                    disabled={mIdx === 0}
-                    aria-label="Move up"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.iconBtn}
-                    onClick={() => moveMod(ctIdx, mIdx, 1)}
-                    disabled={mIdx === c.modifications.length - 1}
-                    aria-label="Move down"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.iconBtn}
+                  <IconButton
+                    icon="trash"
+                    tone="danger"
+                    label="Remove modification"
                     onClick={() => removeMod(ctIdx, mIdx)}
-                    aria-label="Remove modification"
-                  >
-                    ×
-                  </button>
+                  />
                 </div>
               ))}
+              <button
+                type="button"
+                className={styles.addRow}
+                onClick={() => addMod(ctIdx)}
+              >
+                + Add modification
+              </button>
             </div>
           </div>
         ))}

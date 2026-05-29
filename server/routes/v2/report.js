@@ -23,7 +23,7 @@ import {
 import { deleteObject } from "../../lib/s3.js";
 import { isSmsConfigured, sendSms, toE164 } from "../../lib/sms.js";
 import { validateSmsConsent } from "../../lib/sms-consent.js";
-import { applyOutboundFromDeliverySheets } from "../../lib/outbound-from-delivery.js";
+import { allocateDeliverySheetNumber } from "../../lib/delivery-sheet-number.js";
 
 const router = express.Router();
 
@@ -70,6 +70,16 @@ const SEND_BCC = (process.env.SEND_BCC ?? "")
 	.map((s) => s.trim())
 	.filter(Boolean);
 
+// Tiny config probe the Outbound stepper hits on mount so it can hide
+// the Driver SMS step entirely when Twilio creds aren't set on the
+// server (local dev, prod awaiting A2P 10DLC campaign approval, etc.).
+router.get("/config/sms", checkEmployee, async (_req, res) => {
+	res.status(200).json({
+		status: "success",
+		data: { enabled: isSmsConfigured() },
+	});
+});
+
 router.get("/", checkEmployee, async (req, res) => {
 	try {
 		const typeFilter = req.query.report_type;
@@ -85,6 +95,43 @@ router.get("/", checkEmployee, async (req, res) => {
 		});
 	} catch (err) {
 		console.error("reports.list error:", err);
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
+
+// All delivery_sheet reports whose sales container is still 'sold' — i.e.
+// the receipt-print outbound event hasn't happened yet. Powers the
+// Outbound screen's "Pending pickups" list. Sales path only; S&H boxes
+// don't carry a sold row and aren't part of this flow.
+// IMPORTANT: must be declared before "/:id" or Express matches the
+// param route first and treats "pending-pickups" as an id.
+router.get("/pending-pickups", checkEmployee, async (_req, res) => {
+	try {
+		const { rows } = await db.query(
+			`SELECT r.id,
+			        r.delivery_sheet_number,
+			        r.parameters,
+			        r.generated_at,
+			        i.id AS container_id,
+			        i.unit_number,
+			        i.size,
+			        i.state,
+			        s.destination
+			 FROM reports r
+			 JOIN inventory i
+			   ON i.id = ((r.parameters ->> 'container_id')::int)
+			 LEFT JOIN sold s ON s.inventory_id = i.id
+			 WHERE r.report_type = 'delivery_sheet'
+			   AND r.parameters ? 'container_id'
+			   AND i.state = 'sold'
+			 ORDER BY r.generated_at DESC
+			 LIMIT 200`,
+		);
+		res
+			.status(200)
+			.json({ status: "success", results: rows.length, data: { pending: rows } });
+	} catch (err) {
+		console.error("reports.pending-pickups error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -105,6 +152,42 @@ router.get("/:id", checkEmployee, async (req, res) => {
 		res.status(200).json({ status: "success", data: { report: rows[0] } });
 	} catch (err) {
 		console.error("reports.get error:", err);
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
+
+// Look up a delivery sheet by its AT number (ATYYYYMM###). Powers the
+// outbound screen's search. Returns the report plus the linked sales
+// container's current state so the screen can decide whether pickup is
+// still pending.
+router.get("/by-number/:number", checkEmployee, async (req, res) => {
+	try {
+		const number = String(req.params.number).trim().toUpperCase();
+		const rows = await drizzleDb
+			.select()
+			.from(reports)
+			.where(eq(reports.delivery_sheet_number, number));
+		if (rows.length === 0) {
+			return res
+				.status(404)
+				.json({ message: `No delivery sheet found for ${number}.` });
+		}
+		const report = rows[0];
+		let container = null;
+		const cid = report.parameters?.container_id;
+		if (Number.isInteger(cid)) {
+			const inv = await db.query(
+				`SELECT i.id, i.unit_number, i.size, i.state, s.outbound_date, s.destination
+				 FROM inventory i
+				 LEFT JOIN sold s ON s.inventory_id = i.id
+				 WHERE i.id = $1`,
+				[cid],
+			);
+			container = inv.rows[0] ?? null;
+		}
+		res.status(200).json({ status: "success", data: { report, container } });
+	} catch (err) {
+		console.error("reports.by-number error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -153,43 +236,67 @@ router.post(
 			const userId = req.user?.id ?? null;
 			// Insert first so the resolver knows the report_id it should
 			// stamp on the resolved data (delivery_id / report_id field on
-			// the rendered template).
-			const inserted = await drizzleDb
-				.insert(reports)
-				.values({
-					report_type: req.body.report_type,
-					parameters: req.body.parameters,
-					emailed_to: req.body.emailed_to ?? null,
-					generated_by: userId,
-				})
-				.returning();
-			const row = inserted[0];
+			// the rendered template). Delivery sheets additionally get a
+			// sequenced AT number, allocated under an advisory lock in the
+			// same transaction as the insert so concurrent creates can't
+			// collide.
+			let row;
+			if (req.body.report_type === "delivery_sheet") {
+				const client = await db.pool.connect();
+				try {
+					await client.query("BEGIN");
+					const atNumber = await allocateDeliverySheetNumber(client);
+					const ins = await client.query(
+						`INSERT INTO reports
+						   (report_type, parameters, emailed_to, generated_by, delivery_sheet_number)
+						 VALUES ($1, $2::jsonb, $3, $4, $5)
+						 RETURNING *`,
+						[
+							req.body.report_type,
+							JSON.stringify(req.body.parameters ?? null),
+							req.body.emailed_to ?? null,
+							userId,
+							atNumber,
+						],
+					);
+					await client.query("COMMIT");
+					row = ins.rows[0];
+				} catch (e) {
+					await client.query("ROLLBACK").catch(() => {});
+					throw e;
+				} finally {
+					client.release();
+				}
+			} else {
+				const inserted = await drizzleDb
+					.insert(reports)
+					.values({
+						report_type: req.body.report_type,
+						parameters: req.body.parameters,
+						emailed_to: req.body.emailed_to ?? null,
+						generated_by: userId,
+					})
+					.returning();
+				row = inserted[0];
+			}
 			try {
 				const resolved = await resolveReport(
 					row.report_type,
 					row.parameters,
 					row.id,
 				);
+				const resolvedData = row.delivery_sheet_number
+					? { ...resolved.data, delivery_sheet_number: row.delivery_sheet_number }
+					: resolved.data;
 				const updated = await drizzleDb
 					.update(reports)
-					.set({ resolved_data: resolved.data })
+					.set({ resolved_data: resolvedData })
 					.where(eq(reports.id, row.id))
 					.returning();
-				// PR 9.7: if this is a delivery sheet whose date is now
-				// in the past, flip the linked container to 'outbound'.
-				// Sales path only — sh_box_id reports are skipped by the
-				// helper. Non-fatal — log and continue; the daily cron
-				// catches anything this missed.
-				if (row.report_type === "delivery_sheet") {
-					const cid = row.parameters?.container_id;
-					if (Number.isInteger(cid)) {
-						try {
-							await applyOutboundFromDeliverySheets({ containerId: cid });
-						} catch (e) {
-							console.error("reports.create outbound-flip error:", e);
-						}
-					}
-				}
+				// Outbound state flip is owned exclusively by the Outbound
+				// stepper's final step (POST /:id/complete-pickup). Creating
+				// a delivery sheet only schedules — it never declares the
+				// container delivered, regardless of the date entered.
 				return res
 					.status(201)
 					.json({ status: "success", data: { report: updated[0] } });
@@ -212,6 +319,77 @@ router.post(
 		}
 	},
 );
+
+// Merge new operator-typed params onto an existing report and re-resolve.
+// Covers the Edit button on a delivery sheet view: date/time, on-site
+// contact, payment details, receipt note/summary, notes, driver_contact.
+// Container-level fields (carrier, door, delivery address) live on the
+// sold row — PATCH /api/v2/sold/:inventory_id for those, not here.
+router.patch("/:id", checkAdmin, async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		if (!Number.isInteger(id)) {
+			return res.status(400).json({ message: "Invalid id" });
+		}
+		const rows = await drizzleDb
+			.select()
+			.from(reports)
+			.where(eq(reports.id, id));
+		if (rows.length === 0) {
+			return res.status(404).json({ message: "Report not found" });
+		}
+		const row = rows[0];
+
+		// Whitelist fields the editor is allowed to set; ignore anything else.
+		// Each field can be set to null (clears) or a value. Missing keys are
+		// left unchanged — shallow merge.
+		const allowed = [
+			"delivery_date",
+			"onsite_contact",
+			"payment_details",
+			"receipt_note",
+			"receipt_summary",
+			"notes",
+			"driver_contact",
+			"delivery_address",
+		];
+		const incoming = req.body?.parameters ?? {};
+		if (typeof incoming !== "object" || Array.isArray(incoming)) {
+			return res
+				.status(400)
+				.json({ message: "parameters must be an object" });
+		}
+		const merged = { ...(row.parameters ?? {}) };
+		for (const k of allowed) {
+			if (k in incoming) merged[k] = incoming[k];
+		}
+
+		const resolved = await resolveReport(row.report_type, merged, row.id);
+		const resolvedData = row.delivery_sheet_number
+			? { ...resolved.data, delivery_sheet_number: row.delivery_sheet_number }
+			: resolved.data;
+
+		const updated = await drizzleDb
+			.update(reports)
+			.set({
+				parameters: merged,
+				resolved_data: resolvedData,
+				// Bust any cached PDF — body no longer matches it.
+				pdf_s3_key: null,
+				pdf_generated_at: null,
+			})
+			.where(eq(reports.id, row.id))
+			.returning();
+		res
+			.status(200)
+			.json({ status: "success", data: { report: updated[0] } });
+	} catch (err) {
+		console.error("reports.patch error:", err);
+		res.status(500).json({
+			message: err instanceof Error ? err.message : "Internal server error",
+		});
+	}
+});
 
 // Re-run the resolver against current DB state. Use when the operator
 // fixes a typo in the underlying invoice/client and wants the saved
@@ -236,37 +414,114 @@ router.post("/:id/regenerate", checkAdmin, async (req, res) => {
 			row.id,
 		);
 		// Bust the cached PDF — the stored bytes are now stale.
+		const resolvedData = row.delivery_sheet_number
+			? { ...resolved.data, delivery_sheet_number: row.delivery_sheet_number }
+			: resolved.data;
 		const updated = await drizzleDb
 			.update(reports)
 			.set({
-				resolved_data: resolved.data,
+				resolved_data: resolvedData,
 				pdf_s3_key: null,
 				pdf_generated_at: null,
 			})
 			.where(eq(reports.id, row.id))
 			.returning();
-		// PR 9.7: re-check outbound state after a regenerate. The
-		// operator may have edited the delivery_date forward or
-		// backward; we only flip sold → outbound (one-way), so a
-		// forward edit that moves the date past today still triggers
-		// correctly, and a date pushed into the future on an already-
-		// outbound row stays outbound.
-		if (row.report_type === "delivery_sheet") {
-			const cid = row.parameters?.container_id;
-			if (Number.isInteger(cid)) {
-				try {
-					await applyOutboundFromDeliverySheets({ containerId: cid });
-				} catch (e) {
-					console.error("reports.regenerate outbound-flip error:", e);
-				}
-			}
-		}
+		// Outbound state flip is owned exclusively by the Outbound
+		// stepper's final step. Regenerate refreshes the document
+		// snapshot only.
 		res.status(200).json({ status: "success", data: { report: updated[0] } });
 	} catch (err) {
 		console.error("reports.regenerate error:", err);
 		res
 			.status(500)
 			.json({ message: err.message || "Internal server error" });
+	}
+});
+
+// Receipt-print = the outbound event. The operator confirms pickup is
+// complete on the outbound screen (which prints the receipt); that fires
+// this. Flips the linked sales container 'sold' → 'outbound' and stamps
+// sold.outbound_date = now (the actual pickup time), overriding any
+// earlier date the auto-flip cron may have set. The date-based auto-flip
+// (applyOutboundFromDeliverySheets) stays as a fallback for sheets where
+// no receipt ever gets printed. Idempotent: an already-outbound container
+// just re-stamps the date. S&H box deliveries have their own lifecycle
+// and are rejected here.
+router.post("/:id/complete-pickup", checkAdmin, async (req, res) => {
+	const id = Number(req.params.id);
+	if (!Number.isInteger(id)) {
+		return res.status(400).json({ message: "Invalid id" });
+	}
+	const client = await db.pool.connect();
+	try {
+		await client.query("BEGIN");
+		const rep = await client.query(
+			`SELECT id, report_type, parameters, delivery_sheet_number
+			 FROM reports WHERE id = $1 FOR UPDATE`,
+			[id],
+		);
+		if (rep.rows.length === 0) {
+			await client.query("ROLLBACK");
+			return res.status(404).json({ message: "Report not found" });
+		}
+		const r = rep.rows[0];
+		if (r.report_type !== "delivery_sheet") {
+			await client.query("ROLLBACK");
+			return res.status(409).json({
+				code: "not_a_delivery_sheet",
+				message: "This report is not a delivery sheet.",
+			});
+		}
+		const cid = r.parameters?.container_id;
+		if (!Number.isInteger(cid)) {
+			await client.query("ROLLBACK");
+			return res.status(409).json({
+				code: "not_a_sales_container",
+				message:
+					"This delivery sheet isn't for a sales container (S&H boxes have a separate lifecycle).",
+			});
+		}
+		const inv = await client.query(
+			"SELECT id, state FROM inventory WHERE id = $1 FOR UPDATE",
+			[cid],
+		);
+		if (inv.rows.length === 0) {
+			await client.query("ROLLBACK");
+			return res.status(404).json({ message: "Container not found" });
+		}
+		const state = inv.rows[0].state;
+		if (state !== "sold" && state !== "outbound") {
+			await client.query("ROLLBACK");
+			return res.status(409).json({
+				code: "not_sold",
+				message: `Container is '${state}'; only a sold container can be marked picked up.`,
+			});
+		}
+		const now = new Date();
+		await client.query(
+			"UPDATE inventory SET state = 'outbound' WHERE id = $1 AND state = 'sold'",
+			[cid],
+		);
+		await client.query(
+			"UPDATE sold SET outbound_date = $2 WHERE inventory_id = $1",
+			[cid, now],
+		);
+		await client.query("COMMIT");
+		return res.status(200).json({
+			status: "success",
+			data: {
+				container_id: cid,
+				delivery_sheet_number: r.delivery_sheet_number,
+				state: "outbound",
+				outbound_date: now,
+			},
+		});
+	} catch (err) {
+		await client.query("ROLLBACK").catch(() => {});
+		console.error("reports.complete-pickup error:", err);
+		return res.status(500).json({ message: "Internal server error" });
+	} finally {
+		client.release();
 	}
 });
 
@@ -531,6 +786,47 @@ router.post("/:id/sms", checkAdmin, async (req, res) => {
 				.status(400)
 				.json({ message: "Report has no resolved data" });
 		}
+		// Persist driver_contact captured by the Outbound stepper into
+		// parameters + resolved_data before sending, so the receipt
+		// prints the driver name and a re-render reflects the latest
+		// contact. Whitelisted to {name, phone, email}; empty strings
+		// become null. Skipped if the body does not carry one.
+		const dc = req.body?.driver_contact;
+		if (dc && typeof dc === "object" && !Array.isArray(dc)) {
+			const cleaned = {};
+			for (const k of ["name", "phone", "email"]) {
+				if (k in dc) {
+					const v = dc[k];
+					cleaned[k] = typeof v === "string" && v.trim() ? v.trim() : null;
+				}
+			}
+			const mergedParams = { ...(row.parameters ?? {}), driver_contact: cleaned };
+			try {
+				const reResolved = await resolveReport(
+					row.report_type,
+					mergedParams,
+					row.id,
+				);
+				const reResolvedData = row.delivery_sheet_number
+					? { ...reResolved.data, delivery_sheet_number: row.delivery_sheet_number }
+					: reResolved.data;
+				await drizzleDb
+					.update(reports)
+					.set({
+						parameters: mergedParams,
+						resolved_data: reResolvedData,
+						pdf_s3_key: null,
+						pdf_generated_at: null,
+					})
+					.where(eq(reports.id, row.id));
+				row.parameters = mergedParams;
+				row.resolved_data = reResolvedData;
+				row.pdf_s3_key = null;
+			} catch (e) {
+				console.error("reports.sms driver_contact persist error:", e);
+			}
+		}
+
 		// PDF must already exist (or be regenerable) — the SMS body
 		// links to it. Lazy-render if missing, same pattern as /email.
 		let pdfKey = row.pdf_s3_key;

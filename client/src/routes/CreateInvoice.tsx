@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge, Button, Flow, FlowStep, Stepper } from '../components/ui';
+import {
+  AddressFields,
+  Badge,
+  Button,
+  CurrencyInput,
+  Flow,
+  FlowStep,
+  IconButton,
+  Stepper,
+} from '../components/ui';
+import { AddClientModal } from '../components/forms/AddClientModal';
+import { DoorOrientationField } from '../components/forms/DoorOrientationField';
+import { useDirtyForm } from '../lib/useDirtyForm';
 import InvoiceTemplate from '../components/templates/invoice/InvoiceTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/invoice/format';
 import type {
@@ -43,10 +55,34 @@ interface ContainerDraft {
   damage: string;
   sale_price: string;
   trucking_rate: string;
-  destination: string;
   invoice_notes: string;
-  outbound_date: string;
+  // Per-box delivery (delivery epic). delivery_same_as_ship true → the box
+  // inherits the invoice ship-to (which inherits billing); otherwise the
+  // operator entered a box-specific address.
+  trucking_company_id: number | null;
+  door_orientation: string;
+  delivery_same_as_ship: boolean;
+  delivery_name: string;
+  delivery_street: string;
+  delivery_city: string;
+  delivery_state: string;
+  delivery_zip: string;
   modifications: Array<{ id: number; description: string; price: string }>;
+}
+
+interface TruckingCompany {
+  id: number;
+  company_name: string;
+  dispatch_name: string | null;
+  dispatch_phone: string | null;
+}
+
+interface ShipTo {
+  name: string;
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
 }
 
 const STEP_NAMES = ['Containers', 'Customer', 'Details', 'Preview', 'Done'] as const;
@@ -57,16 +93,22 @@ const TAX_PRESETS = [
   { label: 'Other', rate: '' },
 ];
 
-const blankDraft = (row: InventoryRow, destination = ''): ContainerDraft => ({
+const blankDraft = (row: InventoryRow): ContainerDraft => ({
   inventory_id: row.id,
   unit_number: row.unit_number,
   size: row.size,
   damage: row.damage,
   sale_price: '',
   trucking_rate: '',
-  destination,
   invoice_notes: '',
-  outbound_date: '',
+  trucking_company_id: null,
+  door_orientation: '',
+  delivery_same_as_ship: true,
+  delivery_name: '',
+  delivery_street: '',
+  delivery_city: '',
+  delivery_state: '',
+  delivery_zip: '',
   modifications: [],
 });
 
@@ -75,9 +117,6 @@ const customerLabel = (c: ClientRow | null) => {
   return c.business_name || c.client_name || 'Unknown';
 };
 
-// Best-effort default destination from the client record. Prefers
-// city + state; falls back to street if those are empty (lots of
-// historical records have the whole address stuffed into `street`).
 const customerCityState = (c: ClientRow | null): string => {
   if (!c) return '';
   const cityState = [c.city, c.state].filter(Boolean).join(', ');
@@ -107,6 +146,7 @@ export default function CreateInvoice() {
   const [clientSearch, setClientSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
+  const [addClientOpen, setAddClientOpen] = useState(false);
   const [drafts, setDrafts] = useState<Record<number, ContainerDraft>>({});
   const [invoiceTaxed, setInvoiceTaxed] = useState(false);
   const [invoiceCredit, setInvoiceCredit] = useState(false);
@@ -115,6 +155,19 @@ export default function CreateInvoice() {
   const [ccFeePct, setCcFeePct] = useState('3.5');
   const ccFeeRate = pctToDecimal(ccFeePct);
   const [invoiceDate, setInvoiceDate] = useState<string>(todayISO);
+  // Invoice ship-to (delivery epic). Defaults to the client's billing
+  // address; operator can override. Per-box delivery cascades from here.
+  const [shipSameAsBilling, setShipSameAsBilling] = useState(true);
+  const [shipTo, setShipTo] = useState<ShipTo>({
+    name: '',
+    street: '',
+    city: '',
+    state: '',
+    zip: '',
+  });
+  const [truckingCompanies, setTruckingCompanies] = useState<TruckingCompany[]>(
+    [],
+  );
   const modPresetLabels = useModPresetLabels();
   const modPresets = useModPresets();
   const [submitState, setSubmitState] = useState<
@@ -123,6 +176,24 @@ export default function CreateInvoice() {
     | { kind: 'error'; message: string }
     | { kind: 'done'; id: number; invoice_number: number }
   >({ kind: 'idle' });
+  useDirtyForm(
+    submitState.kind !== 'done' &&
+      (selectedIds.length > 0 || selectedClient !== null),
+  );
+
+  const loadTruckingCompanies = async () => {
+    try {
+      const res = await fetch('/api/v2/trucking-companies', {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const body = await res.json();
+        setTruckingCompanies(body.data.trucking_companies ?? []);
+      }
+    } catch {
+      // Non-fatal; dropdown just shows no options.
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -148,47 +219,82 @@ export default function CreateInvoice() {
         // Non-fatal; UI shows empty pickers and a hint.
       }
     })();
+    loadTruckingCompanies();
   }, []);
+
+  // Effective ship-to: the client's billing address when "same as billing"
+  // is on, otherwise the operator-entered override. Per-box delivery
+  // defaults from this (the 3rd cascade level).
+  const effectiveShipTo = (): ShipTo =>
+    shipSameAsBilling
+      ? {
+          name: selectedClient
+            ? selectedClient.business_name || selectedClient.client_name || ''
+            : '',
+          street: selectedClient?.street ?? '',
+          city: selectedClient?.city ?? '',
+          state: selectedClient?.state ?? '',
+          zip: selectedClient?.zip ?? '',
+        }
+      : shipTo;
+
+  // Resolve a container's delivery address for submit: its own when it has
+  // a box-specific address, else the effective ship-to.
+  const resolveDelivery = (d: ContainerDraft): ShipTo => {
+    if (d.delivery_same_as_ship) return effectiveShipTo();
+    return {
+      name: d.delivery_name,
+      street: d.delivery_street,
+      city: d.delivery_city,
+      state: d.delivery_state,
+      zip: d.delivery_zip,
+    };
+  };
+
+  const addTruckingCompany = async (name: string): Promise<number | null> => {
+    const company_name = name.trim();
+    if (!company_name) return null;
+    try {
+      const res = await fetch('/api/v2/trucking-companies', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company_name }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        await loadTruckingCompanies();
+        return body.data.trucking_company.id as number;
+      }
+      // 409 duplicate: find the existing one by name.
+      if (res.status === 409) {
+        const existing = truckingCompanies.find(
+          (t) => t.company_name.toLowerCase() === company_name.toLowerCase(),
+        );
+        return existing?.id ?? null;
+      }
+    } catch {
+      // Non-fatal.
+    }
+    return null;
+  };
 
   // Sync drafts with selectedIds so we have one ContainerDraft per
   // selected container, preserving any user edits that already exist.
-  // New drafts pre-fill destination with the customer's city/state/zip
-  // (if a customer is already picked) so the common case — delivery
-  // goes to the buyer — types itself.
   useEffect(() => {
     setDrafts((prev) => {
       const next: Record<number, ContainerDraft> = {};
-      const defaultDest = customerCityState(selectedClient);
       for (const id of selectedIds) {
         if (prev[id]) {
           next[id] = prev[id];
         } else {
           const row = available.find((r) => r.id === id);
-          if (row) next[id] = blankDraft(row, defaultDest);
+          if (row) next[id] = blankDraft(row);
         }
       }
       return next;
     });
-  }, [selectedIds, available, selectedClient]);
-
-  // Backfill empty destinations when the customer changes after some
-  // drafts were already built (e.g. user goes back to step 2). Only
-  // touches still-blank destinations so existing edits stick.
-  useEffect(() => {
-    const dest = customerCityState(selectedClient);
-    if (!dest) return;
-    setDrafts((prev) => {
-      let changed = false;
-      const next: Record<number, ContainerDraft> = { ...prev };
-      for (const id of Object.keys(prev).map(Number)) {
-        if (!next[id].destination) {
-          next[id] = { ...next[id], destination: dest };
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [selectedClient]);
+  }, [selectedIds, available]);
 
   const filteredAvailable = useMemo(() => {
     if (!containerSearch.trim()) return available;
@@ -242,14 +348,32 @@ export default function CreateInvoice() {
         state: 'sold',
         size: d?.size ?? '',
         damage: d?.damage ?? '',
-        destination: d?.destination || null,
+        destination: (() => {
+          // Mirror the server's deriveDestination cascade so the preview
+          // shows what the saved sheet will print.
+          const city = d?.delivery_city
+            || (shipSameAsBilling ? selectedClient?.city : shipTo.city)
+            || null;
+          const state = d?.delivery_state
+            || (shipSameAsBilling ? selectedClient?.state : shipTo.state)
+            || null;
+          if (!city && !state) return null;
+          return [city, state].filter(Boolean).join(', ');
+        })(),
         trucking_rate: d?.trucking_rate || null,
         sale_price: d?.sale_price || null,
         modification_price: null,
-        outbound_date: d?.outbound_date
-          ? new Date(d.outbound_date).toISOString()
-          : null,
+        // Outbound date is owned by the lifecycle (receipt-print), not the
+        // invoice; the preview never collects it.
+        outbound_date: null,
         invoice_notes: d?.invoice_notes || null,
+        outbound_trucking_company_id: d?.trucking_company_id ?? null,
+        door_orientation: d?.door_orientation || null,
+        delivery_name: null,
+        delivery_street: null,
+        delivery_city: null,
+        delivery_state: null,
+        delivery_zip: null,
         modifications: mods,
       };
     });
@@ -273,6 +397,12 @@ export default function CreateInvoice() {
       cc_fee_rate: ccFeeRate || null,
       cc_fee_amount: totalsPreview.cc.toFixed(2),
       total: totalsPreview.total.toFixed(2),
+      ship_to_same_as_billing: shipSameAsBilling,
+      ship_to_name: shipSameAsBilling ? null : shipTo.name || null,
+      ship_to_street: shipSameAsBilling ? null : shipTo.street || null,
+      ship_to_city: shipSameAsBilling ? null : shipTo.city || null,
+      ship_to_state: shipSameAsBilling ? null : shipTo.state || null,
+      ship_to_zip: shipSameAsBilling ? null : shipTo.zip || null,
       customer: {
         id: selectedClient.id,
         client_name: selectedClient.client_name,
@@ -417,7 +547,6 @@ export default function CreateInvoice() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               id,
-              destination: d.destination,
               sale_price: d.sale_price,
               release_number: created.invoice_number,
               trucking_rate: d.trucking_rate,
@@ -428,9 +557,9 @@ export default function CreateInvoice() {
         }),
       );
 
-      // 3) Push the full edit shape (mods, tax_rate, cc_fee_rate, outbound
-      //    dates) via PUT /:id so the snapshot totals + per-mod line items
-      //    persist. POST + per-sold above only handles the legacy scalars.
+      // 3) Push the full edit shape (mods, tax_rate, cc_fee_rate) via
+      //    PUT /:id so the snapshot totals + per-mod line items persist.
+      //    POST + per-sold above only handles the legacy scalars.
       const putRes = await fetch(`/api/v2/invoice/${created.id}`, {
         method: 'PUT',
         credentials: 'include',
@@ -441,18 +570,28 @@ export default function CreateInvoice() {
           invoice_credit: invoiceCredit,
           tax_rate: taxRate,
           cc_fee_rate: ccFeeRate,
+          ship_to_same_as_billing: shipSameAsBilling,
+          ship_to_name: shipSameAsBilling ? null : shipTo.name || null,
+          ship_to_street: shipSameAsBilling ? null : shipTo.street || null,
+          ship_to_city: shipSameAsBilling ? null : shipTo.city || null,
+          ship_to_state: shipSameAsBilling ? null : shipTo.state || null,
+          ship_to_zip: shipSameAsBilling ? null : shipTo.zip || null,
           containers: selectedIds.map((id) => {
             const d = drafts[id]!;
+            const del = resolveDelivery(d);
             return {
               inventory_id: id,
               sale_price: d.sale_price || null,
               trucking_rate: d.trucking_rate || null,
               modification_price: null,
-              destination: d.destination || null,
               invoice_notes: d.invoice_notes || null,
-              outbound_date: d.outbound_date
-                ? new Date(d.outbound_date).toISOString()
-                : null,
+              outbound_trucking_company_id: d.trucking_company_id,
+              door_orientation: d.door_orientation || null,
+              delivery_name: del.name || null,
+              delivery_street: del.street || null,
+              delivery_city: del.city || null,
+              delivery_state: del.state || null,
+              delivery_zip: del.zip || null,
               modifications: d.modifications
                 .filter((m) => m.description.trim() !== '')
                 .map((m, i) => ({
@@ -557,6 +696,22 @@ export default function CreateInvoice() {
               value={clientSearch}
               onChange={(e) => setClientSearch(e.target.value)}
               placeholder="Search name, business, email, city…"
+            />
+            <button
+              type="button"
+              className={styles.linkBtn}
+              onClick={() => setAddClientOpen(true)}
+            >
+              + New client
+            </button>
+            <AddClientModal
+              open={addClientOpen}
+              onClose={() => setAddClientOpen(false)}
+              onCreated={(client) => {
+                const row = client as unknown as ClientRow;
+                setClients((cs) => [row, ...cs]);
+                setSelectedClient(row);
+              }}
             />
             <div className={styles.list}>
               {filteredClients.length === 0 && (
@@ -674,6 +829,33 @@ export default function CreateInvoice() {
               ))}
             </datalist>
 
+            <div className={styles.containerCard}>
+              <div className={styles.containerHead}>
+                <strong>Shipping address</strong>
+              </div>
+              <label className={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={shipSameAsBilling}
+                  onChange={(e) => setShipSameAsBilling(e.target.checked)}
+                />
+                Same as billing address
+                {shipSameAsBilling && selectedClient && (
+                  <span className={styles.containerSub}>
+                    {' '}
+                    ({customerCityState(selectedClient) || 'on file'})
+                  </span>
+                )}
+              </label>
+              {!shipSameAsBilling && (
+                <AddressFields
+                  value={shipTo}
+                  onChange={(next) => setShipTo(next)}
+                  nameLabel="Ship to (name)"
+                />
+              )}
+            </div>
+
             {selectedIds.map((id) => {
               const d = drafts[id];
               if (!d) return null;
@@ -688,59 +870,114 @@ export default function CreateInvoice() {
                   <div className={styles.fieldGrid}>
                     <label className={styles.field}>
                       <span className={styles.fieldLabel}>Sale price *</span>
-                      <input
-                        className={styles.input}
-                        type="number"
-                        step="0.01"
+                      <CurrencyInput
                         value={d.sale_price}
-                        onChange={(e) => updateDraft(id, { sale_price: e.target.value })}
+                        onChange={(v) => updateDraft(id, { sale_price: v })}
                       />
                     </label>
                     <label className={styles.field}>
                       <span className={styles.fieldLabel}>Trucking</span>
-                      <input
-                        className={styles.input}
-                        type="number"
-                        step="0.01"
+                      <CurrencyInput
                         value={d.trucking_rate}
-                        onChange={(e) => updateDraft(id, { trucking_rate: e.target.value })}
+                        onChange={(v) => updateDraft(id, { trucking_rate: v })}
                       />
                     </label>
                     <label className={styles.field}>
-                      <span className={styles.fieldLabel}>Destination</span>
-                      <input
+                      <span className={styles.fieldLabel}>Trucking company</span>
+                      <select
                         className={styles.input}
-                        value={d.destination}
-                        onChange={(e) => updateDraft(id, { destination: e.target.value })}
-                      />
+                        value={d.trucking_company_id ?? ''}
+                        onChange={async (e) => {
+                          if (e.target.value === '__add__') {
+                            const name = window.prompt('New trucking company name');
+                            if (name && name.trim()) {
+                              const newId = await addTruckingCompany(name);
+                              if (newId) updateDraft(id, { trucking_company_id: newId });
+                            }
+                            return;
+                          }
+                          updateDraft(id, {
+                            trucking_company_id: e.target.value
+                              ? Number(e.target.value)
+                              : null,
+                          });
+                        }}
+                      >
+                        <option value="">— none —</option>
+                        {truckingCompanies.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.company_name}
+                          </option>
+                        ))}
+                        <option value="__add__">+ Add new company…</option>
+                      </select>
                     </label>
                     <label className={styles.field}>
-                      <span className={styles.fieldLabel}>Outbound date</span>
-                      <input
+                      <span className={styles.fieldLabel}>Door orientation</span>
+                      <DoorOrientationField
                         className={styles.input}
-                        type="date"
-                        value={d.outbound_date}
-                        onChange={(e) => updateDraft(id, { outbound_date: e.target.value })}
+                        value={d.door_orientation}
+                        onChange={(v) =>
+                          updateDraft(id, { door_orientation: v })
+                        }
                       />
                     </label>
                   </div>
 
-                  <div className={styles.modsSection}>
-                    <div className={styles.modsHeader}>
-                      <span className={styles.fieldLabel}>Modifications</span>
+                  {d.delivery_same_as_ship ? (
+                    <button
+                      type="button"
+                      className={styles.linkBtn}
+                      onClick={() =>
+                        updateDraft(id, { delivery_same_as_ship: false })
+                      }
+                    >
+                      + Add separate shipping address
+                    </button>
+                  ) : (
+                    <div>
+                      <AddressFields
+                        value={{
+                          name: d.delivery_name,
+                          street: d.delivery_street,
+                          city: d.delivery_city,
+                          state: d.delivery_state,
+                          zip: d.delivery_zip,
+                        }}
+                        onChange={(next) =>
+                          updateDraft(id, {
+                            delivery_name: next.name,
+                            delivery_street: next.street,
+                            delivery_city: next.city,
+                            delivery_state: next.state,
+                            delivery_zip: next.zip,
+                          })
+                        }
+                        nameLabel="Deliver to (name)"
+                      />
                       <button
                         type="button"
                         className={styles.linkBtn}
-                        onClick={() => addMod(id)}
+                        onClick={() =>
+                          updateDraft(id, {
+                            delivery_same_as_ship: true,
+                            delivery_name: '',
+                            delivery_street: '',
+                            delivery_city: '',
+                            delivery_state: '',
+                            delivery_zip: '',
+                          })
+                        }
                       >
-                        + Add modification
+                        Use shipping address instead
                       </button>
                     </div>
-                    {d.modifications.length === 0 && (
-                      <p className={styles.modsEmpty}>
-                        No modifications. Click + Add modification to add a billable item.
-                      </p>
-                    )}
+                  )}
+
+                  <div className={styles.modsSection}>
+                    <div className={styles.modsHeader}>
+                      <span className={styles.fieldLabel}>Modifications</span>
+                    </div>
                     {d.modifications.map((m, mIdx) => (
                       <div key={m.id} className={styles.modRow}>
                         <input
@@ -752,24 +989,26 @@ export default function CreateInvoice() {
                             updateMod(id, mIdx, { description: e.target.value })
                           }
                         />
-                        <input
-                          className={styles.input}
-                          type="number"
-                          step="0.01"
-                          placeholder="Price"
+                        <CurrencyInput
                           value={m.price}
-                          onChange={(e) => updateMod(id, mIdx, { price: e.target.value })}
+                          onChange={(v) => updateMod(id, mIdx, { price: v })}
+                          placeholder="0.00"
                         />
-                        <button
-                          type="button"
-                          className={styles.iconBtn}
+                        <IconButton
+                          icon="trash"
+                          tone="danger"
+                          label="Remove modification"
                           onClick={() => removeMod(id, mIdx)}
-                          aria-label="Remove modification"
-                        >
-                          ×
-                        </button>
+                        />
                       </div>
                     ))}
+                    <button
+                      type="button"
+                      className={styles.addRow}
+                      onClick={() => addMod(id)}
+                    >
+                      + Add modification
+                    </button>
                   </div>
                 </div>
               );

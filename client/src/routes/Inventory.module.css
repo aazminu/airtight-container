@@ -282,3 +282,23 @@
   font-size: 13px;
 }
 
+/* S&H tab — inline check-out controls collapse into a flex row so the
+   date picker + Confirm/Cancel buttons sit neatly inside the table cell
+   rather than overflowing it. */
+.inlineCheckout {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.inlineCheckout input[type='datetime-local'] {
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+

@@ -16,12 +16,69 @@
     "yard_view": "Yard View",
     "add_a_box": "Add A Box",
     "help": "Help",
+    "outbound": "Outbound",
     "logout": "Logout",
     "guest": "Guest",
     "admin": "Admin",
     "employee": "Employee",
     "toggle_dark": "Toggle dark mode",
     "language": "Language"
+  },
+  "outbound": {
+    "title": "Outbound",
+    "subtitle": "Pick a scheduled delivery sheet, confirm its details, capture the driver, and mark the container outbound. Printing the receipt is what stamps the outbound event.",
+    "aria_progress": "Outbound flow progress",
+    "steps": {
+      "pick": "Pick sheet",
+      "confirm": "Confirm",
+      "sms": "Driver SMS",
+      "print": "Mark outbound"
+    },
+    "pick": {
+      "search_placeholder": "AT number, e.g. AT202605001",
+      "search": "Search",
+      "searching": "Searching…",
+      "pending_heading": "Pending pickups",
+      "pending_empty": "No delivery sheets are waiting for pickup."
+    },
+    "confirm": {
+      "picked_up_badge": "Picked up",
+      "note": "Confirm the AT number and details match the truck at the gate. Delivery sheets aren't editable from here — if something's wrong, fix it on the source invoice.",
+      "resolved_missing": "Resolved data is missing on this sheet."
+    },
+    "sms": {
+      "note": "Capture the driver's contact and send them the receipt link by SMS. Email is optional and recorded for the next time they show up.",
+      "name_label": "Driver name",
+      "name_placeholder": "Jay Smith",
+      "phone_label": "Phone (US)",
+      "phone_placeholder": "(732) 555-0142",
+      "email_label": "Email (optional)",
+      "email_placeholder": "driver@example.com",
+      "send": "Send SMS",
+      "sending": "Sending…",
+      "resend": "Re-send SMS",
+      "sent": "SMS sent — re-send if needed.",
+      "invalid_phone": "Enter a valid US phone number.",
+      "invalid_email": "Email looks invalid.",
+      "failed": "SMS send failed"
+    },
+    "print": {
+      "already_marked_with_date": "Already marked outbound on {{date}}.",
+      "already_marked": "Already marked outbound.",
+      "reprint": "Re-print receipt →",
+      "start_another": "Start another pickup",
+      "primary_button": "Mark Outbound & Print Receipt",
+      "marking": "Marking…",
+      "failed": "Could not complete pickup"
+    },
+    "nav": {
+      "back": "← Back",
+      "next": "Next →"
+    },
+    "errors": {
+      "load_failed": "Failed to load sheet",
+      "lookup_failed": "Lookup failed"
+    }
   },
   "intake": {
     "page_title": "Add a box",

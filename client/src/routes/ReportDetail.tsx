@@ -11,8 +11,6 @@ import type { PnLData } from '../components/templates/pnl/types';
 import type { ReleaseSummaryData } from '../components/templates/release-summary/types';
 import type { ShStatementData } from '../components/templates/sh-statement/types';
 import { Badge, useConfirm, usePrompt } from '../components/ui';
-import { SendSmsDialog } from '../components/forms/SendSmsDialog';
-import type { SendSmsResult } from '../components/forms/SendSmsDialog';
 import { userContext } from '../context/userContext';
 import styles from './ReportDetail.module.css';
 
@@ -26,6 +24,7 @@ type ReportType =
 interface ReportRow {
   id: number;
   report_type: ReportType;
+  delivery_sheet_number: string | null;
   generated_at: string;
   generated_by: string | null;
   parameters: Record<string, unknown> | null;
@@ -96,7 +95,6 @@ export default function ReportDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<ActionState>({ kind: 'idle' });
-  const [smsDialogOpen, setSmsDialogOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -225,36 +223,6 @@ export default function ReportDetail() {
     }
   };
 
-  // Send the delivery-sheet receipt link to the driver by SMS.
-  // A2P 10DLC requires that we show the driver the consent disclosure
-  // at the point their phone is captured and log the attestation; the
-  // dialog handles both. Server refuses dispatch without a valid
-  // attestation payload — see server/lib/sms-consent.ts.
-  const handleSendSmsConfirm = async (result: SendSmsResult) => {
-    if (!report) return;
-    setSmsDialogOpen(false);
-    setAction({ kind: 'busy', label: 'Sending SMS…' });
-    try {
-      const res = await fetch(`/api/v2/report/${report.id}/sms`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: result.to, consent: result.consent }),
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`);
-      setAction({
-        kind: 'ok',
-        message: `SMS sent to ${body?.to ?? result.to}.`,
-      });
-      await load();
-    } catch (e) {
-      setAction({
-        kind: 'err',
-        message: e instanceof Error ? e.message : 'SMS send failed',
-      });
-    }
-  };
 
   const handleDelete = async () => {
     if (!report) return;
@@ -316,7 +284,11 @@ export default function ReportDetail() {
       <header className={styles.header}>
         <div>
           <h1 className={styles.title}>
-            {TYPE_LABELS[report.report_type]} · #{report.id}
+            {TYPE_LABELS[report.report_type]} ·{' '}
+            {report.report_type === 'delivery_sheet' &&
+            report.delivery_sheet_number
+              ? report.delivery_sheet_number
+              : `#${report.id}`}
           </h1>
           <p className={styles.subtitle}>
             Generated {fmtDateTime(report.generated_at)}
@@ -390,16 +362,6 @@ export default function ReportDetail() {
               <button
                 type="button"
                 className={styles.btn}
-                onClick={() => setSmsDialogOpen(true)}
-                disabled={!report.resolved_data}
-              >
-                SMS…
-              </button>
-            )}
-            {report.report_type === 'delivery_sheet' && (
-              <button
-                type="button"
-                className={styles.btn}
                 onClick={() =>
                   window.open(`/reports/${report.id}/print`, '_blank')
                 }
@@ -434,15 +396,6 @@ export default function ReportDetail() {
         </div>
       </div>
 
-      {report.report_type === 'delivery_sheet' && (
-        <SendSmsDialog
-          open={smsDialogOpen}
-          defaultPhone={getDriverContact(report.resolved_data)?.phone ?? ''}
-          driverName={getDriverContact(report.resolved_data)?.name ?? null}
-          onCancel={() => setSmsDialogOpen(false)}
-          onConfirm={handleSendSmsConfirm}
-        />
-      )}
     </div>
   );
 }

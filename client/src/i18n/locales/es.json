@@ -16,12 +16,69 @@
     "yard_view": "Patio",
     "add_a_box": "Agregar caja",
     "help": "Ayuda",
+    "outbound": "Salida",
     "logout": "Cerrar sesión",
     "guest": "Invitado",
     "admin": "Admin",
     "employee": "Empleado",
     "toggle_dark": "Cambiar modo oscuro",
     "language": "Idioma"
+  },
+  "outbound": {
+    "title": "Salida",
+    "subtitle": "Elige una hoja de entrega programada, confirma los detalles, registra al conductor y marca el contenedor como saliente. Imprimir el recibo es lo que registra la salida.",
+    "aria_progress": "Progreso del flujo de salida",
+    "steps": {
+      "pick": "Elegir hoja",
+      "confirm": "Confirmar",
+      "sms": "SMS al conductor",
+      "print": "Marcar salida"
+    },
+    "pick": {
+      "search_placeholder": "Número AT, ej. AT202605001",
+      "search": "Buscar",
+      "searching": "Buscando…",
+      "pending_heading": "Recogidas pendientes",
+      "pending_empty": "No hay hojas de entrega esperando recogida."
+    },
+    "confirm": {
+      "picked_up_badge": "Recogido",
+      "note": "Confirma que el número AT y los detalles coinciden con el camión en la puerta. Las hojas de entrega no se pueden editar aquí — si algo está mal, corrígelo en la factura original.",
+      "resolved_missing": "Faltan los datos resueltos en esta hoja."
+    },
+    "sms": {
+      "note": "Captura el contacto del conductor y envíale el enlace del recibo por SMS. El correo electrónico es opcional y se guarda para la próxima vez que venga.",
+      "name_label": "Nombre del conductor",
+      "name_placeholder": "Jay Smith",
+      "phone_label": "Teléfono (EE. UU.)",
+      "phone_placeholder": "(732) 555-0142",
+      "email_label": "Correo (opcional)",
+      "email_placeholder": "conductor@ejemplo.com",
+      "send": "Enviar SMS",
+      "sending": "Enviando…",
+      "resend": "Reenviar SMS",
+      "sent": "SMS enviado — reenvíalo si hace falta.",
+      "invalid_phone": "Ingresa un número de teléfono válido de EE. UU.",
+      "invalid_email": "El correo electrónico parece inválido.",
+      "failed": "Fallo al enviar SMS"
+    },
+    "print": {
+      "already_marked_with_date": "Ya marcado como saliente el {{date}}.",
+      "already_marked": "Ya marcado como saliente.",
+      "reprint": "Reimprimir recibo →",
+      "start_another": "Iniciar otra recogida",
+      "primary_button": "Marcar Salida e Imprimir Recibo",
+      "marking": "Marcando…",
+      "failed": "No se pudo completar la recogida"
+    },
+    "nav": {
+      "back": "← Atrás",
+      "next": "Siguiente →"
+    },
+    "errors": {
+      "load_failed": "Error al cargar la hoja",
+      "lookup_failed": "Error en la búsqueda"
+    }
   },
   "intake": {
     "page_title": "Agregar una caja",

@@ -24,6 +24,12 @@ const baseInvoice = (over: Partial<InvoiceData> = {}): InvoiceData => ({
   cc_fee_rate: null,
   cc_fee_amount: null,
   total: '1500',
+  ship_to_same_as_billing: true,
+  ship_to_name: null,
+  ship_to_street: null,
+  ship_to_city: null,
+  ship_to_state: null,
+  ship_to_zip: null,
   customer: {
     id: 1,
     client_name: 'Test Client',
@@ -49,6 +55,13 @@ const baseInvoice = (over: Partial<InvoiceData> = {}): InvoiceData => ({
       modification_price: null,
       outbound_date: null,
       invoice_notes: null,
+      outbound_trucking_company_id: null,
+      door_orientation: null,
+      delivery_name: null,
+      delivery_street: null,
+      delivery_city: null,
+      delivery_state: null,
+      delivery_zip: null,
       modifications: [
         { id: 1, sold_id: 10, description: 'Roll-up door', price: '300', position: 0 },
         { id: 2, sold_id: 10, description: 'Paint', price: '200', position: 1 },
@@ -164,43 +177,6 @@ describe('InvoiceEditor', () => {
     expect(screen.getByDisplayValue('Paint')).toBeInTheDocument();
   });
 
-  it('moves a modification down, reordering correctly', async () => {
-    render(
-      <InvoiceEditor
-        initial={baseInvoice()}
-        onCancel={() => {}}
-        onSave={() => {}}
-      />,
-    );
-    // Before: [Roll-up door, Paint]
-    const descInputs = () =>
-      screen
-        .getAllByPlaceholderText(/Description \(or pick a preset\)/)
-        .map((el) => (el as HTMLInputElement).value);
-    expect(descInputs()).toEqual(['Roll-up door', 'Paint']);
-
-    const moveDown = screen.getAllByRole('button', { name: 'Move down' });
-    // First mod's "Move down" → swap with second
-    await userEvent.click(moveDown[0]);
-    expect(descInputs()).toEqual(['Paint', 'Roll-up door']);
-  });
-
-  it('disables Move up on the first mod and Move down on the last', async () => {
-    render(
-      <InvoiceEditor
-        initial={baseInvoice()}
-        onCancel={() => {}}
-        onSave={() => {}}
-      />,
-    );
-    const moveUp = await screen.findAllByRole('button', { name: 'Move up' });
-    const moveDown = screen.getAllByRole('button', { name: 'Move down' });
-    expect(moveUp[0]).toBeDisabled();
-    expect(moveUp[1]).toBeEnabled();
-    expect(moveDown[0]).toBeEnabled();
-    expect(moveDown[1]).toBeDisabled();
-  });
-
   it('Cancel calls onCancel without saving', async () => {
     const onCancel = vi.fn();
     const onSave = vi.fn();
@@ -231,7 +207,8 @@ describe('InvoiceEditor', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(onSave).toHaveBeenCalledOnce();
     const draft = onSave.mock.calls[0][0] as InvoiceData;
-    expect(draft.containers[0].sale_price).toBe('9000');
+    // CurrencyInput normalizes to 2 decimal places on blur.
+    expect(draft.containers[0].sale_price).toBe('9000.00');
   });
 
   it('removing the only container shows the "No containers" warning', async () => {

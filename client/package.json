@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:server-template": "vite build --config vite.config.server.ts",
+    "build:quote-template": "vite build --config vite.config.quote-template.ts",
     "build:report-templates": "vite build --config vite.config.report-templates.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -15,6 +16,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@googlemaps/extended-component-library": "^0.6.14",
     "i18next": "^26.2.0",
     "i18next-browser-languagedetector": "^8.2.1",
     "react": "^18.3.1",

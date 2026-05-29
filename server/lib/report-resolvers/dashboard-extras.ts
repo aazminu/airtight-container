@@ -39,6 +39,7 @@ export async function resolveTopClients(
         i.subtotal::numeric AS subtotal
       FROM invoices i
       WHERE i.invoice_date >= $1 AND i.invoice_date < $2
+        AND i.deleted_at IS NULL
     ),
     client_containers AS (
       SELECT
@@ -47,6 +48,7 @@ export async function resolveTopClients(
       FROM invoices i
       JOIN invoice_containers ic ON ic.invoice_id = i.invoice_id
       WHERE i.invoice_date >= $1 AND i.invoice_date < $2
+        AND i.deleted_at IS NULL
       GROUP BY i.client_id, ic.container_id
     )
     SELECT

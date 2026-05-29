@@ -12,7 +12,6 @@ import {
   deleteInvoiceCascade,
   getNextInvoiceNumber,
   monthPrefix,
-  recomputeTotals,
   updateInvoiceFull,
 } from '../../lib/invoice-ops.js';
 

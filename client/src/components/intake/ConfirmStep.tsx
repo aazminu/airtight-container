@@ -1,4 +1,5 @@
 import { Trans, useTranslation } from 'react-i18next';
+import { UnitNumberInput } from '../ui';
 import styles from './IntakeForm.module.css';
 
 export interface OcrResult {
@@ -59,15 +60,9 @@ export function ConfirmStep({ ocr, unitNumber, onChange, releaseMatch }: Props) 
 
       <label className={styles.field}>
         <span className={styles.label}>{t('confirm_step.unit_label')}</span>
-        <input
-          type="text"
+        <UnitNumberInput
           value={unitNumber}
-          onChange={(e) => onChange(e.target.value.toUpperCase())}
-          placeholder={t('confirm_step.unit_placeholder')}
-          inputMode="text"
-          autoCapitalize="characters"
-          autoCorrect="off"
-          spellCheck={false}
+          onChange={onChange}
           required
         />
       </label>

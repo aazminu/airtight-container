@@ -69,6 +69,27 @@ interface ContainerRow {
   destination: string | null;
   invoice_notes: string | null;
   invoice_client_id: number | null;
+  // Invoice-level ship-to (delivery epic). When ship_to_same_as_billing
+  // is true the rest are null and the cascade falls to client billing.
+  invoice_ship_to_same_as_billing: boolean | null;
+  invoice_ship_to_name: string | null;
+  invoice_ship_to_street: string | null;
+  invoice_ship_to_city: string | null;
+  invoice_ship_to_state: string | null;
+  invoice_ship_to_zip: string | null;
+  // Per-box delivery snapshot from the delivery epic (migration 0017).
+  // Operators capture the actual delivery target on the sold row; these
+  // win over the invoice ship-to and the client's billing address.
+  sold_door_orientation: string | null;
+  delivery_name: string | null;
+  delivery_street: string | null;
+  delivery_city: string | null;
+  delivery_state: string | null;
+  delivery_zip: string | null;
+  trucking_company_name: string | null;
+  dispatch_name: string | null;
+  dispatch_phone: string | null;
+  dispatch_email: string | null;
 }
 
 interface ShBoxRow {
@@ -92,10 +113,18 @@ interface ClientRow {
   zip: string | null;
 }
 
-function buildLocality(c: ClientRow): string | null {
-  const cityState = [c.city, c.state].filter(Boolean).join(', ');
-  const withZip = c.zip ? `${cityState} ${c.zip}`.trim() : cityState;
+function buildLocalityParts(
+  city: string | null,
+  state: string | null,
+  zip: string | null,
+): string | null {
+  const cityState = [city, state].filter(Boolean).join(', ');
+  const withZip = zip ? `${cityState} ${zip}`.trim() : cityState;
   return withZip || null;
+}
+
+function buildLocality(c: ClientRow): string | null {
+  return buildLocalityParts(c.city, c.state, c.zip);
 }
 
 function sizeDescriptor(size: string): string {
@@ -152,13 +181,30 @@ async function resolveSalesDelivery(
       s.outbound_date,
       s.destination,
       s.invoice_notes,
-      i.client_id         AS invoice_client_id
+      i.client_id         AS invoice_client_id,
+      i.ship_to_same_as_billing AS invoice_ship_to_same_as_billing,
+      i.ship_to_name      AS invoice_ship_to_name,
+      i.ship_to_street    AS invoice_ship_to_street,
+      i.ship_to_city      AS invoice_ship_to_city,
+      i.ship_to_state     AS invoice_ship_to_state,
+      i.ship_to_zip       AS invoice_ship_to_zip,
+      s.door_orientation  AS sold_door_orientation,
+      s.delivery_name,
+      s.delivery_street,
+      s.delivery_city,
+      s.delivery_state,
+      s.delivery_zip,
+      tc.company_name     AS trucking_company_name,
+      tc.dispatch_name,
+      tc.dispatch_phone,
+      tc.dispatch_email
     FROM inventory inv
     LEFT JOIN sold s              ON s.inventory_id = inv.id
     LEFT JOIN invoice_containers ic ON ic.container_id = inv.id
     LEFT JOIN invoices i          ON i.invoice_id = ic.invoice_id
     LEFT JOIN release_numbers rn  ON rn.release_number_id = inv.release_number_id
     LEFT JOIN sale_companies sco  ON sco.sale_company_id = inv.sale_company_id
+    LEFT JOIN trucking_companies tc ON tc.id = s.outbound_trucking_company_id
     WHERE inv.id = $1
     LIMIT 1
   `;
@@ -177,10 +223,48 @@ async function resolveSalesDelivery(
   }
   const cl = await loadClient(clientId);
 
+  // Precedence for the delivery target, top wins:
+  //   1. per-box snapshot on the sold row (delivery epic)
+  //   2. form-param override (rare — sheet-time override)
+  //   3. invoice ship-to override (when ship_to_same_as_billing is false)
+  //   4. client billing
+  // The legacy `ctr.destination` is intentionally NOT a fallback here —
+  // it's a derived city+state string, never a real street.
+  const boxLocality = buildLocalityParts(
+    ctr.delivery_city,
+    ctr.delivery_state,
+    ctr.delivery_zip,
+  );
+  const useInvoiceShipTo =
+    ctr.invoice_ship_to_same_as_billing === false;
+  const invoiceShipLocality = useInvoiceShipTo
+    ? buildLocalityParts(
+        ctr.invoice_ship_to_city,
+        ctr.invoice_ship_to_state,
+        ctr.invoice_ship_to_zip,
+      )
+    : null;
+  const invoiceShipName = useInvoiceShipTo ? ctr.invoice_ship_to_name : null;
+  const invoiceShipStreet = useInvoiceShipTo
+    ? ctr.invoice_ship_to_street
+    : null;
+
   const addrOverride = params.delivery_address ?? {};
-  const resolvedStreet = addrOverride.street ?? ctr.destination ?? cl.street;
-  const resolvedLocality = addrOverride.locality ?? buildLocality(cl);
-  const resolvedName = addrOverride.name ?? null;
+  const resolvedName =
+    ctr.delivery_name ?? addrOverride.name ?? invoiceShipName ?? null;
+  const resolvedStreet =
+    ctr.delivery_street ?? addrOverride.street ?? invoiceShipStreet ?? cl.street;
+  const resolvedLocality =
+    boxLocality ?? addrOverride.locality ?? invoiceShipLocality ?? buildLocality(cl);
+
+  const trucking = ctr.trucking_company_name
+    ? {
+        company_name: ctr.trucking_company_name,
+        dispatch_name: ctr.dispatch_name,
+        dispatch_phone: ctr.dispatch_phone,
+        dispatch_email: ctr.dispatch_email,
+      }
+    : null;
 
   return {
     delivery_id: reportId,
@@ -208,7 +292,9 @@ async function resolveSalesDelivery(
     },
     delivery_company: params.delivery_company ?? null,
     onsite_contact: params.onsite_contact ?? null,
-    door_orientation: params.door_orientation ?? null,
+    // Per-box door orientation from the sold row wins over the form
+    // param so the sheet matches what the yard captured at sale time.
+    door_orientation: ctr.sold_door_orientation ?? params.door_orientation ?? null,
     payment_details: params.payment_details ?? null,
     // Receipt note is operator-only — we do NOT default to
     // sold.invoice_notes. If the operator wants the invoice note on
@@ -216,6 +302,7 @@ async function resolveSalesDelivery(
     // stays off the page entirely.
     receipt_note: params.receipt_note ?? null,
     notes: params.notes ?? null,
+    trucking,
     driver_contact: normalizeDriverContact(params.driver_contact),
   };
 }
@@ -272,6 +359,8 @@ async function resolveShBoxDelivery(
     payment_details: params.payment_details ?? null,
     receipt_note: params.receipt_note ?? null,
     notes: params.notes ?? null,
+    // S&H boxes aren't sold and carry no outbound carrier of record.
+    trucking: null,
     driver_contact: normalizeDriverContact(params.driver_contact),
   };
 }

@@ -154,7 +154,8 @@
 }
 
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   padding: 0.5rem 0.625rem;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -166,7 +167,8 @@
 }
 
 .field input:focus,
-.field textarea:focus {
+.field textarea:focus,
+.field select:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
   border-color: var(--accent);

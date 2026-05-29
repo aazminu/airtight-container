@@ -23,7 +23,7 @@ interface ReleaseHeaderRow {
 }
 
 interface InventoryRow {
-  id: number;
+  kind: 'sales' | 'sh';
   unit_number: string;
   size: string;
   damage: string | null;
@@ -54,19 +54,41 @@ export async function resolveReleaseSummary(
   }
   const h = headerRows[0];
 
+  // UNION sales + S&H boxes onto the same release. S&H rows project
+  // their kind-specific fields onto the shared shape: checkout_date is
+  // the "outbound", destination is null (S&H boxes don't ship out to a
+  // destination — they're stored on yard for the client), invoice_number
+  // is null (S&H boxes are billed monthly across many invoices, not
+  // pinned to one), buyer_label is the client name.
+  // Both sides cast `state` to text — `inventory.state` is the
+  // `inventory_state` enum and `sh_inventory.state` is `sh_state`,
+  // and UNION rejects mismatched column types.
   const invRes = await db.query(
-    `SELECT inv.id, inv.unit_number, inv.size, inv.damage,
-            inv.state, inv.date AS intake_date,
-            s.outbound_date, s.destination,
-            i.invoice_number,
-            COALESCE(cl.business_name, cl.client_name) AS buyer_label
-     FROM inventory inv
-     LEFT JOIN sold s ON s.inventory_id = inv.id
-     LEFT JOIN invoice_containers ic ON ic.container_id = inv.id
-     LEFT JOIN invoices i ON i.invoice_id = ic.invoice_id
-     LEFT JOIN clients cl ON cl.id = i.client_id
-     WHERE inv.release_number_id = $1
-     ORDER BY inv.date ASC, inv.id ASC`,
+    `(SELECT 'sales'::text AS kind,
+             inv.unit_number, inv.size, inv.damage,
+             inv.state::text AS state, inv.date AS intake_date,
+             s.outbound_date, s.destination,
+             i.invoice_number,
+             COALESCE(cl.business_name, cl.client_name) AS buyer_label
+       FROM inventory inv
+       LEFT JOIN sold s ON s.inventory_id = inv.id
+       LEFT JOIN invoice_containers ic ON ic.container_id = inv.id
+       LEFT JOIN invoices i ON i.invoice_id = ic.invoice_id
+       LEFT JOIN clients cl ON cl.id = i.client_id
+       WHERE inv.release_number_id = $1)
+     UNION ALL
+     (SELECT 'sh'::text AS kind,
+             shi.unit_number, shi.size, shi.damage,
+             shi.state::text AS state,
+             shi.intake_date,
+             shi.checkout_date AS outbound_date,
+             NULL::text AS destination,
+             NULL::int AS invoice_number,
+             COALESCE(shc.business_name, shc.client_name) AS buyer_label
+       FROM sh_inventory shi
+       LEFT JOIN clients shc ON shc.id = shi.client_id
+       WHERE shi.release_number_id = $1)
+     ORDER BY intake_date ASC`,
     [params.release_id],
   );
   const inventory = rowsOf<InventoryRow>(invRes);
@@ -86,6 +108,7 @@ export async function resolveReleaseSummary(
     is_complete: h.is_complete,
     completed_at: h.completed_at,
     containers: inventory.map((r) => ({
+      kind: r.kind,
       unit_number: r.unit_number,
       size: r.size,
       damage: r.damage,

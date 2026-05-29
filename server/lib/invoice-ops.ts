@@ -24,9 +24,16 @@ export interface IncomingContainer {
   sale_price?: string | number | null;
   trucking_rate?: string | number | null;
   modification_price?: string | number | null;
-  destination?: string | null;
   invoice_notes?: string | null;
-  outbound_date?: string | null;
+  // Per-container delivery (migration 0017). The UI cascades defaults from
+  // the invoice ship-to; these are the resolved per-box values.
+  outbound_trucking_company_id?: number | null;
+  door_orientation?: string | null;
+  delivery_name?: string | null;
+  delivery_street?: string | null;
+  delivery_city?: string | null;
+  delivery_state?: string | null;
+  delivery_zip?: string | null;
   modifications?: IncomingModification[];
 }
 
@@ -37,6 +44,14 @@ export interface UpdateInvoiceBody {
   invoice_date?: string;
   tax_rate?: string | number | null;
   cc_fee_rate?: string | number | null;
+  // Invoice-level ship-to (migration 0017). Defaults to the client's
+  // billing address when ship_to_same_as_billing is true.
+  ship_to_same_as_billing?: boolean;
+  ship_to_name?: string | null;
+  ship_to_street?: string | null;
+  ship_to_city?: string | null;
+  ship_to_state?: string | null;
+  ship_to_zip?: string | null;
   containers: IncomingContainer[];
 }
 
@@ -184,8 +199,14 @@ export async function updateInvoiceFull(
          invoice_credit = COALESCE($3, invoice_credit),
          invoice_date = COALESCE($4, invoice_date),
          tax_rate = $5,
-         cc_fee_rate = $6
-     WHERE invoice_id = $7`,
+         cc_fee_rate = $6,
+         ship_to_same_as_billing = COALESCE($7, ship_to_same_as_billing),
+         ship_to_name = $8,
+         ship_to_street = $9,
+         ship_to_city = $10,
+         ship_to_state = $11,
+         ship_to_zip = $12
+     WHERE invoice_id = $13`,
     [
       body.client_id ?? null,
       body.invoice_taxed ?? null,
@@ -193,9 +214,51 @@ export async function updateInvoiceFull(
       body.invoice_date ?? null,
       body.tax_rate ?? null,
       body.cc_fee_rate ?? null,
+      body.ship_to_same_as_billing ?? null,
+      body.ship_to_name ?? null,
+      body.ship_to_street ?? null,
+      body.ship_to_city ?? null,
+      body.ship_to_state ?? null,
+      body.ship_to_zip ?? null,
       invoiceId,
     ],
   );
+
+  // Resolve the effective shipping city/state once — used to derive each
+  // container's destination from the address cascade
+  // (per-box delivery → invoice ship-to → client billing). Operator no
+  // longer types destination; it's inferred from whichever address the
+  // box is actually going to.
+  const { rows: shipRows } = await client.query<{
+    ship_to_same_as_billing: boolean;
+    ship_to_city: string | null;
+    ship_to_state: string | null;
+    client_city: string | null;
+    client_state: string | null;
+  }>(
+    `SELECT i.ship_to_same_as_billing,
+            i.ship_to_city, i.ship_to_state,
+            c.city  AS client_city,
+            c.state AS client_state
+     FROM invoices i
+     JOIN clients c ON c.id = i.client_id
+     WHERE i.invoice_id = $1`,
+    [invoiceId],
+  );
+  const shipRow = shipRows[0];
+  const effectiveShipCity = shipRow?.ship_to_same_as_billing
+    ? shipRow.client_city
+    : (shipRow?.ship_to_city ?? null);
+  const effectiveShipState = shipRow?.ship_to_same_as_billing
+    ? shipRow.client_state
+    : (shipRow?.ship_to_state ?? null);
+
+  const deriveDestination = (ct: IncomingContainer): string | null => {
+    const city = ct.delivery_city || effectiveShipCity;
+    const state = ct.delivery_state || effectiveShipState;
+    if (!city && !state) return null;
+    return [city, state].filter(Boolean).join(', ');
+  };
 
   const { rows: existingCt } = await client.query<{ container_id: number }>(
     'SELECT container_id FROM invoice_containers WHERE invoice_id = $1',
@@ -236,26 +299,44 @@ export async function updateInvoiceFull(
     await client.query("UPDATE inventory SET state = 'sold' WHERE id = $1", [
       ct.inventory_id,
     ]);
+    // outbound_date is intentionally NOT managed here. It belongs to the
+    // container lifecycle (stamped when the driver receipt is printed —
+    // see report.js complete-pickup), not invoicing. Writing it from the
+    // invoice path would clobber a real pickup date on every invoice edit.
     await client.query(
       `INSERT INTO sold (inventory_id, sale_price, trucking_rate,
                          modification_price, destination, invoice_notes,
-                         outbound_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+                         outbound_trucking_company_id, door_orientation,
+                         delivery_name, delivery_street, delivery_city,
+                         delivery_state, delivery_zip)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        ON CONFLICT (inventory_id) DO UPDATE SET
          sale_price = EXCLUDED.sale_price,
          trucking_rate = EXCLUDED.trucking_rate,
          modification_price = EXCLUDED.modification_price,
          destination = EXCLUDED.destination,
          invoice_notes = EXCLUDED.invoice_notes,
-         outbound_date = EXCLUDED.outbound_date`,
+         outbound_trucking_company_id = EXCLUDED.outbound_trucking_company_id,
+         door_orientation = EXCLUDED.door_orientation,
+         delivery_name = EXCLUDED.delivery_name,
+         delivery_street = EXCLUDED.delivery_street,
+         delivery_city = EXCLUDED.delivery_city,
+         delivery_state = EXCLUDED.delivery_state,
+         delivery_zip = EXCLUDED.delivery_zip`,
       [
         ct.inventory_id,
         ct.sale_price ?? null,
         ct.trucking_rate ?? null,
         ct.modification_price ?? null,
-        ct.destination ?? null,
+        deriveDestination(ct),
         ct.invoice_notes ?? null,
-        ct.outbound_date ?? null,
+        ct.outbound_trucking_company_id ?? null,
+        ct.door_orientation ?? null,
+        ct.delivery_name ?? null,
+        ct.delivery_street ?? null,
+        ct.delivery_city ?? null,
+        ct.delivery_state ?? null,
+        ct.delivery_zip ?? null,
       ],
     );
 

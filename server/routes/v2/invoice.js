@@ -49,6 +49,12 @@ const groupInvoices = (data) => {
 				cc_fee_rate: row.cc_fee_rate,
 				cc_fee_amount: row.cc_fee_amount,
 				total: row.total,
+				ship_to_same_as_billing: row.ship_to_same_as_billing,
+				ship_to_name: row.ship_to_name,
+				ship_to_street: row.ship_to_street,
+				ship_to_city: row.ship_to_city,
+				ship_to_state: row.ship_to_state,
+				ship_to_zip: row.ship_to_zip,
 				customer: {
 					contact_id: row.client_id,
 					contact_name: row.client_name,
@@ -84,6 +90,13 @@ const groupInvoices = (data) => {
 				modification_price: row.modification_price,
 				outbound_date: row.outbound_date,
 				invoice_notes: row.invoice_notes,
+				outbound_trucking_company_id: row.outbound_trucking_company_id,
+				door_orientation: row.door_orientation,
+				delivery_name: row.delivery_name,
+				delivery_street: row.delivery_street,
+				delivery_city: row.delivery_city,
+				delivery_state: row.delivery_state,
+				delivery_zip: row.delivery_zip,
 				modifications: [],
 			});
 		}
@@ -123,11 +136,15 @@ const INVOICE_SELECT_COLS = `
 	i.subtotal, i.tax_rate, i.tax_amount, i.cc_fee_rate, i.cc_fee_amount, i.total,
 	i.pdf_s3_key, i.sent_at, i.deleted_at, i.client_id,
 	i.status, i.status_changed_at, i.status_changed_by_user_id,
+	i.ship_to_same_as_billing, i.ship_to_name, i.ship_to_street,
+	i.ship_to_city, i.ship_to_state, i.ship_to_zip,
 	cl.client_name, cl.business_name, cl.contact_email, cl.contact_phone,
 	cl.street, cl.city, cl.state AS client_state, cl.zip,
 	ct.id AS container_id, ct.unit_number, ct.size, ct.damage, ct.state AS inventory_state,
 	sc.id AS sold_id, sc.outbound_date, sc.destination, sc.trucking_rate, sc.sale_price,
-	sc.modification_price, sc.invoice_notes
+	sc.modification_price, sc.invoice_notes,
+	sc.outbound_trucking_company_id, sc.door_orientation,
+	sc.delivery_name, sc.delivery_street, sc.delivery_city, sc.delivery_state, sc.delivery_zip
 `;
 
 // LEFT JOINs throughout: tombstoned invoices have their invoice_containers
@@ -296,6 +313,45 @@ router.post("/:id/pdf", checkAdmin, async (req, res) => {
 	}
 });
 
+// Download endpoint: always re-render fresh (so the bytes reflect the
+// current invoice state, including modification line items), overwrite
+// the cached S3 object, then stream the PDF back as an attachment. No
+// email is sent. Mirrors the freshness guarantee of the email path.
+router.get("/:id/pdf", checkAdmin, async (req, res) => {
+	const id = parseInt(req.params.id, 10);
+	if (!Number.isFinite(id)) {
+		return res.status(400).json({ message: "Invalid invoice id" });
+	}
+	try {
+		const { rows } = await db.query(
+			"SELECT invoice_number, deleted_at FROM invoices WHERE invoice_id = $1",
+			[id],
+		);
+		const inv = rows[0];
+		if (!inv) return res.status(404).json({ message: "Not found" });
+		if (inv.deleted_at !== null) {
+			return res.status(409).json({ message: "Invoice is deleted" });
+		}
+		const { s3Key } = await renderAndStoreInvoicePdf(id);
+		await db.query(
+			"UPDATE invoices SET pdf_s3_key = $1 WHERE invoice_id = $2",
+			[s3Key, id],
+		);
+		const pdfBytes = await getInvoicePdfBytes(s3Key);
+		res.status(200);
+		res.setHeader("Content-Type", "application/pdf");
+		res.setHeader(
+			"Content-Disposition",
+			`attachment; filename="invoice-${inv.invoice_number}.pdf"`,
+		);
+		res.setHeader("Content-Length", pdfBytes.length);
+		res.end(pdfBytes);
+	} catch (err) {
+		console.error("invoice.pdf.download error:", err);
+		res.status(500).json({ message: err.message || "Internal server error" });
+	}
+});
+
 // PR 10.1: lifecycle status. Any → any transition allowed (operator
 // can "un-pay" a bounced check, revert an accidental cancel, etc.);
 // the UI gates destructive transitions behind a confirmation modal.
@@ -372,7 +428,7 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 	}
 	try {
 		const { rows } = await db.query(
-			`SELECT i.invoice_number, i.pdf_s3_key, i.deleted_at, cl.contact_email, cl.client_name
+			`SELECT i.invoice_number, i.pdf_s3_key, i.deleted_at, i.client_id, cl.contact_email, cl.client_name
 			 FROM invoices i
 			 JOIN clients cl ON i.client_id = cl.id
 			 WHERE i.invoice_id = $1`,
@@ -387,15 +443,15 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 		if (!to)
 			return res.status(400).json({ message: "No recipient email on file" });
 
-		let pdfKey = inv.pdf_s3_key;
-		if (!pdfKey) {
-			const result = await renderAndStoreInvoicePdf(invoiceId);
-			pdfKey = result.s3Key;
-			await db.query(
-				"UPDATE invoices SET pdf_s3_key = $1 WHERE invoice_id = $2",
-				[pdfKey, invoiceId],
-			);
-		}
+		// Always re-render fresh so post-edit changes (e.g. modification
+		// line items) aren't stale: the cached S3 object is only updated on
+		// explicit regenerate, so a send that trusts pdf_s3_key would attach
+		// an out-of-date PDF. Re-rendering also overwrites the cache.
+		const { s3Key: pdfKey } = await renderAndStoreInvoicePdf(invoiceId);
+		await db.query(
+			"UPDATE invoices SET pdf_s3_key = $1 WHERE invoice_id = $2",
+			[pdfKey, invoiceId],
+		);
 
 		const pdfBytes = await getInvoicePdfBytes(pdfKey);
 		const resend = new Resend(process.env.RESEND);
@@ -433,6 +489,18 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 			  WHERE invoice_id = $1`,
 			[invoiceId, req.user?.id ?? null],
 		);
+		// Back-fill the client's email from the recipient. Silent when none
+		// is on file; only overwrite a different existing email when the
+		// caller confirmed (update_client_email), so a one-off send doesn't
+		// clobber the address of record.
+		const onFile = (inv.contact_email ?? "").trim();
+		const typed = String(to).trim();
+		if (typed && typed !== onFile && (!onFile || req.body?.update_client_email === true)) {
+			await db.query("UPDATE clients SET contact_email = $1 WHERE id = $2", [
+				typed,
+				inv.client_id,
+			]);
+		}
 		res.status(200).json({ status: "success", message_id: data?.id });
 	} catch (err) {
 		console.error("invoice.email error:", err);

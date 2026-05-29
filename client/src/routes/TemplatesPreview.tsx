@@ -191,6 +191,12 @@ function buildDeliveryFixture(inv: InvoiceData | null): DeliveryData | null {
     payment_details: 'Cash on delivery',
     receipt_note: 'Standard delivery — call 30 minutes out.',
     notes: null,
+    trucking: {
+      company_name: 'Coastal Container Transport',
+      dispatch_name: 'Maria Ortiz',
+      dispatch_phone: '732-555-0188',
+      dispatch_email: 'dispatch@coastalct.example',
+    },
     driver_contact: null,
   };
 }

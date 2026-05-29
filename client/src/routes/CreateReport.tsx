@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Badge, Button, Flow, FlowStep, Stepper } from '../components/ui';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  AddressFields,
+  Badge,
+  Button,
+  Flow,
+  FlowStep,
+  Stepper,
+} from '../components/ui';
+import { DoorOrientationField } from '../components/forms/DoorOrientationField';
 import DeliveryTemplate from '../components/templates/delivery/DeliveryTemplate';
 import type { DeliveryData } from '../components/templates/delivery/types';
 import styles from './CreateReport.module.css';
@@ -41,6 +49,12 @@ const TYPES: ReportType[] = [
   'release_summary',
 ];
 
+// Delivery sheets are reached from the "Make delivery sheet" button on an
+// invoice (scoped to a specific container), not the generic report picker.
+// The /reports/new/delivery_sheet route stays valid — it's just not an
+// option on the type-chooser menu.
+const PICKABLE_TYPES: ReportType[] = TYPES.filter((t) => t !== 'delivery_sheet');
+
 function isReportType(v: string | undefined): v is ReportType {
   return v != null && (TYPES as string[]).includes(v);
 }
@@ -57,7 +71,7 @@ export default function CreateReport() {
           <p className={styles.pickerSubtitle}>What kind of report?</p>
         </header>
         <div className={styles.picker}>
-          {TYPES.map((t) => (
+          {PICKABLE_TYPES.map((t) => (
             <Link key={t} to={`/reports/new/${t}`} className={styles.pickerCard}>
               <div className={styles.pickerLabel}>{TYPE_LABELS[t]}</div>
               <p className={styles.pickerDesc}>{TYPE_DESCRIPTIONS[t]}</p>
@@ -117,7 +131,7 @@ export default function CreateReport() {
 async function submitReport(
   report_type: ReportType,
   parameters: Record<string, unknown>,
-): Promise<{ id: number } | { error: string }> {
+): Promise<{ id: number; at_number: string | null } | { error: string }> {
   try {
     const res = await fetch('/api/v2/report', {
       method: 'POST',
@@ -129,7 +143,10 @@ async function submitReport(
     if (!res.ok) {
       return { error: body?.message ?? `HTTP ${res.status}` };
     }
-    return { id: body?.data?.report?.id };
+    return {
+      id: body?.data?.report?.id,
+      at_number: body?.data?.report?.delivery_sheet_number ?? null,
+    };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Network error' };
   }
@@ -178,21 +195,11 @@ interface DeliveryParamState {
   client_id: string;            // string so empty stays empty
   delivery_date_date: string;   // YYYY-MM-DD (date picker)
   delivery_date_time: string;   // HH:MM (time picker)
-  delivery_company: string;
   onsite_contact: string;
-  door_orientation: string;
   payment_details: string;
   receipt_note: string;
   receipt_summary: string;
-  addr_name: string;
-  addr_street: string;
-  addr_locality: string;
   notes: string;
-  // Driver-receipt contact (PR 9.6). Optional — operator can skip
-  // this step and get prompted at Send-to-Driver time on ReportDetail.
-  driver_name: string;
-  driver_phone: string;
-  driver_email: string;
 }
 
 const EMPTY_DELIVERY: DeliveryParamState = {
@@ -201,22 +208,58 @@ const EMPTY_DELIVERY: DeliveryParamState = {
   client_id: '',
   delivery_date_date: '',
   delivery_date_time: '',
-  delivery_company: '',
   onsite_contact: '',
-  door_orientation: '',
   payment_details: '',
   receipt_note: '',
   receipt_summary: '',
-  addr_name: '',
-  addr_street: '',
-  addr_locality: '',
   notes: '',
-  driver_name: '',
-  driver_phone: '',
-  driver_email: '',
 };
 
-const STEP_NAMES = ['Container', 'Customer', 'Details', 'Driver', 'Preview', 'Done'] as const;
+// Per-container delivery edits collected on step 2 (Details). Writes
+// back to the sold row via PATCH /api/v2/sold/:inventory_id before the
+// report POST, so the invoice's per-box record + future delivery sheets
+// see the same data.
+interface ContainerEdit {
+  door_orientation: string;
+  outbound_trucking_company_id: number | null;
+  delivery_name: string;
+  delivery_street: string;
+  delivery_city: string;
+  delivery_state: string;
+  delivery_zip: string;
+}
+
+const EMPTY_CONTAINER_EDIT: ContainerEdit = {
+  door_orientation: '',
+  outbound_trucking_company_id: null,
+  delivery_name: '',
+  delivery_street: '',
+  delivery_city: '',
+  delivery_state: '',
+  delivery_zip: '',
+};
+
+interface InvoiceContainerData {
+  inventory_id: number;
+  unit_number: string;
+  size: string;
+  damage: string | null;
+  state: string;
+  door_orientation: string | null;
+  outbound_trucking_company_id: number | null;
+  delivery_name: string | null;
+  delivery_street: string | null;
+  delivery_city: string | null;
+  delivery_state: string | null;
+  delivery_zip: string | null;
+}
+
+interface TruckingCompanyRow {
+  id: number;
+  company_name: string;
+}
+
+const STEP_NAMES = ['Container', 'Customer', 'Details', 'Preview', 'Done'] as const;
 
 function buildDeliveryParams(s: DeliveryParamState): Record<string, unknown> {
   const params: Record<string, unknown> = {};
@@ -237,27 +280,11 @@ function buildDeliveryParams(s: DeliveryParamState): Record<string, unknown> {
     }
   }
 
-  if (s.delivery_company.trim()) params.delivery_company = s.delivery_company.trim();
   if (s.onsite_contact.trim()) params.onsite_contact = s.onsite_contact.trim();
-  if (s.door_orientation.trim()) params.door_orientation = s.door_orientation.trim();
   if (s.payment_details.trim()) params.payment_details = s.payment_details.trim();
   if (s.receipt_note.trim()) params.receipt_note = s.receipt_note.trim();
   if (s.receipt_summary.trim()) params.receipt_summary = s.receipt_summary.trim();
   if (s.notes.trim()) params.notes = s.notes.trim();
-  const addr: Record<string, string> = {};
-  if (s.addr_name.trim()) addr.name = s.addr_name.trim();
-  if (s.addr_street.trim()) addr.street = s.addr_street.trim();
-  if (s.addr_locality.trim()) addr.locality = s.addr_locality.trim();
-  if (Object.keys(addr).length > 0) params.delivery_address = addr;
-
-  // Driver contact — only emit the sub-object when at least one field
-  // is filled, so an empty step submits as no driver-contact at all
-  // (and the Send-to-Driver modal prompts at send time).
-  const dc: Record<string, string> = {};
-  if (s.driver_name.trim()) dc.name = s.driver_name.trim();
-  if (s.driver_phone.trim()) dc.phone = s.driver_phone.trim();
-  if (s.driver_email.trim()) dc.email = s.driver_email.trim();
-  if (Object.keys(dc).length > 0) params.driver_contact = dc;
 
   return params;
 }
@@ -269,11 +296,44 @@ const NO_INVOICE_MARKER = 'has no invoice and no client_id';
 
 function DeliveryFlow() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
+  const [searchParams] = useSearchParams();
+  // Header "Make delivery sheet" button on InvoiceDetail deep-links here
+  // with ?invoice_id=<N>. When present the picker is scoped to that
+  // invoice's containers only — operator can't escape to global inventory.
+  // Legacy ?container_id=<id> entry (preselect + skip picker) still works.
+  const prefillInvoiceId = useMemo(() => {
+    const raw = searchParams.get('invoice_id');
+    if (raw == null) return null;
+    const n = parseInt(raw, 10);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  }, [searchParams]);
+  const prefillContainerId = useMemo(() => {
+    const raw = searchParams.get('container_id');
+    if (raw == null) return null;
+    const n = parseInt(raw, 10);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  }, [searchParams]);
+
+  const [step, setStep] = useState(prefillContainerId != null ? 1 : 0);
   const [options, setOptions] = useState<PickerOption[]>([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [containerSearch, setContainerSearch] = useState('');
-  const [params, setParams] = useState<DeliveryParamState>(EMPTY_DELIVERY);
+  const [params, setParams] = useState<DeliveryParamState>(
+    prefillContainerId != null
+      ? { ...EMPTY_DELIVERY, container_id: prefillContainerId }
+      : EMPTY_DELIVERY,
+  );
+
+  // Invoice-scope only: full container records for pre-populating
+  // per-box delivery edits on step 2. Index by inventory_id.
+  const [invoiceContainersById, setInvoiceContainersById] = useState<
+    Map<number, InvoiceContainerData>
+  >(() => new Map());
+  const [truckingCompanies, setTruckingCompanies] = useState<TruckingCompanyRow[]>([]);
+  const [containerEdit, setContainerEdit] = useState<ContainerEdit>(
+    EMPTY_CONTAINER_EDIT,
+  );
+  const [addrOverrideOpen, setAddrOverrideOpen] = useState(false);
 
   const [preview, setPreview] = useState<DeliveryData | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -283,16 +343,55 @@ function DeliveryFlow() {
     | { kind: 'idle' }
     | { kind: 'submitting' }
     | { kind: 'error'; message: string }
-    | { kind: 'done'; id: number }
+    | { kind: 'done'; id: number; at_number: string | null }
   >({ kind: 'idle' });
 
-  // Load both sales inventory (sold/outbound) and S&H boxes (in_storage).
-  // Delivery sheets only make sense for boxes that are about to leave
-  // the yard — available containers aren't bound to a customer yet.
+  // Invoice-scoped: pull only that invoice's containers.
+  // Global: pull all sold/outbound sales + S&H boxes (legacy entry point).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        if (prefillInvoiceId != null) {
+          const [invRes, truckRes] = await Promise.all([
+            fetch(`/api/v2/invoice/${prefillInvoiceId}`, {
+              credentials: 'include',
+            }),
+            fetch('/api/v2/trucking-companies', { credentials: 'include' }),
+          ]);
+          const body = invRes.ok ? await invRes.json() : null;
+          const truckBody = truckRes.ok ? await truckRes.json() : null;
+          if (cancelled) return;
+          const inv = body?.data?.invoices?.[0];
+          const containers: InvoiceContainerData[] = inv?.containers ?? [];
+          const list: PickerOption[] = containers.map((c) => ({
+            source: 'sales' as const,
+            id: c.inventory_id,
+            unit_number: c.unit_number,
+            size: c.size,
+            damage: c.damage,
+            state_label: c.state,
+            client_label: null,
+          }));
+          setOptions(list);
+          setInvoiceContainersById(
+            new Map(containers.map((c) => [c.inventory_id, c])),
+          );
+          setTruckingCompanies(
+            truckBody?.data?.trucking_companies ?? [],
+          );
+          // Auto-pick when there's only one box on the invoice — operator
+          // hits Next on a pre-selected option instead of having to click.
+          if (list.length === 1 && prefillContainerId == null) {
+            setParams((p) => ({
+              ...p,
+              container_id: list[0].id,
+              sh_box_id: null,
+            }));
+          }
+          return;
+        }
+
         const [salesRes, shRes] = await Promise.all([
           fetch('/api/v1/inventory', { credentials: 'include' }),
           fetch('/api/v2/sh-inventory', { credentials: 'include' }),
@@ -342,7 +441,7 @@ function DeliveryFlow() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [prefillInvoiceId, prefillContainerId]);
 
   const filteredOptions = useMemo(() => {
     const q = containerSearch.trim().toLowerCase();
@@ -378,10 +477,88 @@ function DeliveryFlow() {
     previewError != null &&
     previewError.includes(NO_INVOICE_MARKER);
 
-  const pickSales = (id: number) =>
+  const pickSales = (id: number) => {
     setParams((p) => ({ ...p, container_id: id, sh_box_id: null }));
-  const pickSh = (id: number) =>
+    // In invoice-scope mode, seed the per-container edits from whatever
+    // the invoice has saved for this box. Operator can change anything.
+    const ctr = invoiceContainersById.get(id);
+    if (ctr) {
+      setContainerEdit({
+        door_orientation: ctr.door_orientation ?? '',
+        outbound_trucking_company_id: ctr.outbound_trucking_company_id,
+        delivery_name: ctr.delivery_name ?? '',
+        delivery_street: ctr.delivery_street ?? '',
+        delivery_city: ctr.delivery_city ?? '',
+        delivery_state: ctr.delivery_state ?? '',
+        delivery_zip: ctr.delivery_zip ?? '',
+      });
+      setAddrOverrideOpen(
+        Boolean(
+          ctr.delivery_name ||
+            ctr.delivery_street ||
+            ctr.delivery_city ||
+            ctr.delivery_state ||
+            ctr.delivery_zip,
+        ),
+      );
+    } else {
+      setContainerEdit(EMPTY_CONTAINER_EDIT);
+      setAddrOverrideOpen(false);
+    }
+  };
+  const pickSh = (id: number) => {
     setParams((p) => ({ ...p, sh_box_id: id, container_id: null }));
+    // S&H boxes don't have a sold row — container-edit doesn't apply.
+    setContainerEdit(EMPTY_CONTAINER_EDIT);
+    setAddrOverrideOpen(false);
+  };
+
+  // Seed container-edit on first load when invoice-scope mode auto-picked
+  // a single container (or operator deep-linked with ?container_id).
+  useEffect(() => {
+    if (params.container_id != null) {
+      const ctr = invoiceContainersById.get(params.container_id);
+      if (ctr) {
+        setContainerEdit({
+          door_orientation: ctr.door_orientation ?? '',
+          outbound_trucking_company_id: ctr.outbound_trucking_company_id,
+          delivery_name: ctr.delivery_name ?? '',
+          delivery_street: ctr.delivery_street ?? '',
+          delivery_city: ctr.delivery_city ?? '',
+          delivery_state: ctr.delivery_state ?? '',
+          delivery_zip: ctr.delivery_zip ?? '',
+        });
+        setAddrOverrideOpen(
+          Boolean(
+            ctr.delivery_name ||
+              ctr.delivery_street ||
+              ctr.delivery_city ||
+              ctr.delivery_state ||
+              ctr.delivery_zip,
+          ),
+        );
+      }
+    }
+  }, [params.container_id, invoiceContainersById]);
+
+  const addTruckingCompany = async (name: string): Promise<number | null> => {
+    try {
+      const res = await fetch('/api/v2/trucking-companies', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ company_name: name.trim() }),
+      });
+      const body = await res.json();
+      if (!res.ok) return null;
+      const created: TruckingCompanyRow = body?.data?.trucking_company;
+      if (!created) return null;
+      setTruckingCompanies((prev) => [...prev, created]);
+      return created.id;
+    } catch {
+      return null;
+    }
+  };
 
   const fetchPreview = async () => {
     if (params.container_id == null && params.sh_box_id == null) return;
@@ -411,6 +588,16 @@ function DeliveryFlow() {
     }
   };
 
+  // When deep-linked from an invoice we skip the picker, so the Customer
+  // step's normal "resolve on entry" (goNext → fetchPreview) never runs.
+  // Kick off one preview for the prefilled container on mount.
+  useEffect(() => {
+    if (prefillContainerId != null) {
+      void fetchPreview();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updateField = <K extends keyof DeliveryParamState>(
     key: K,
     value: DeliveryParamState[K],
@@ -432,11 +619,10 @@ function DeliveryFlow() {
 
   const goNext = async () => {
     const next = Math.min(STEP_NAMES.length - 1, step + 1);
-    // Preview slot moved from step 3 → step 4 after the Driver step
-    // was inserted. Step 1 (Customer) also runs the resolver so the
-    // customer-resolution check can short-circuit before the operator
-    // fills in form data.
-    if (next === 1 || next === 4) {
+    // Customer (1) resolves the customer so we can short-circuit before
+    // any form data is entered; Preview (3) resolves again to render the
+    // sheet exactly as it will print.
+    if (next === 1 || next === 3) {
       await fetchPreview();
     }
     setStep(next);
@@ -445,6 +631,58 @@ function DeliveryFlow() {
   const submit = async () => {
     if (params.container_id == null && params.sh_box_id == null) return;
     setSubmitState({ kind: 'submitting' });
+
+    // Persist any per-container edits back to the sold row first, so
+    // the resolver picks them up and the invoice + future sheets see
+    // the same values. Sales path + invoice-scope only.
+    if (params.container_id != null && prefillInvoiceId != null) {
+      try {
+        const patchRes = await fetch(
+          `/api/v2/sold/${params.container_id}`,
+          {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              door_orientation: containerEdit.door_orientation,
+              outbound_trucking_company_id:
+                containerEdit.outbound_trucking_company_id,
+              delivery_name: addrOverrideOpen
+                ? containerEdit.delivery_name
+                : '',
+              delivery_street: addrOverrideOpen
+                ? containerEdit.delivery_street
+                : '',
+              delivery_city: addrOverrideOpen
+                ? containerEdit.delivery_city
+                : '',
+              delivery_state: addrOverrideOpen
+                ? containerEdit.delivery_state
+                : '',
+              delivery_zip: addrOverrideOpen
+                ? containerEdit.delivery_zip
+                : '',
+            }),
+          },
+        );
+        if (!patchRes.ok) {
+          const body = await patchRes.json().catch(() => null);
+          setSubmitState({
+            kind: 'error',
+            message:
+              body?.message ?? `Container update failed (HTTP ${patchRes.status})`,
+          });
+          return;
+        }
+      } catch (e) {
+        setSubmitState({
+          kind: 'error',
+          message: e instanceof Error ? e.message : 'Container update failed',
+        });
+        return;
+      }
+    }
+
     const result = await submitReport(
       'delivery_sheet',
       buildDeliveryParams(params),
@@ -453,7 +691,7 @@ function DeliveryFlow() {
       setSubmitState({ kind: 'error', message: result.error });
       return;
     }
-    setSubmitState({ kind: 'done', id: result.id });
+    setSubmitState({ kind: 'done', id: result.id, at_number: result.at_number });
     setStep(4);
   };
 
@@ -537,8 +775,8 @@ function DeliveryFlow() {
                 <>
                   Selected: <strong>{selected.unit_number.trim()}</strong> (
                   {selected.size}
-                  {selected.source === 'sh' ? ', S&H box' : ''}). Customer +
-                  delivery address auto-pulled — override below if needed.
+                  {selected.source === 'sh' ? ', S&H box' : ''}). Customer
+                  auto-pulled. Override delivery details on the next step.
                 </>
               ) : (
                 'Pick a container first.'
@@ -588,43 +826,6 @@ function DeliveryFlow() {
               </div>
             )}
 
-            <div className={styles.addressCard}>
-              <div className={styles.addressCardHead}>
-                Delivery address override
-              </div>
-              <p className={styles.addressCardHint}>
-                The customer's billing address is auto-filled at preview time
-                from the resolver. Fill these in only when the container is
-                going somewhere different.
-              </p>
-              <div className={styles.fieldGrid}>
-                <Field label="Recipient name on site">
-                  <input
-                    className={styles.input}
-                    value={params.addr_name}
-                    onChange={(e) => updateField('addr_name', e.target.value)}
-                    placeholder="John Doe"
-                  />
-                </Field>
-                <Field label="Street">
-                  <input
-                    className={styles.input}
-                    value={params.addr_street}
-                    onChange={(e) => updateField('addr_street', e.target.value)}
-                    placeholder="418 Shoreline Dr"
-                  />
-                </Field>
-                <Field label="City, State Zip" wide>
-                  <input
-                    className={styles.input}
-                    value={params.addr_locality}
-                    onChange={(e) => updateField('addr_locality', e.target.value)}
-                    placeholder="Toms River, NJ 08753"
-                  />
-                </Field>
-              </div>
-            </div>
-
             <button
               type="button"
               className={styles.linkBtn}
@@ -641,9 +842,127 @@ function DeliveryFlow() {
           {/* Step 2 — Details */}
           <FlowStep>
             <p className={styles.hint}>
-              Operator-entered details for the driver and receiver. All optional —
-              anything left blank just won't appear on the sheet.
+              All fields optional — anything left blank just won't appear
+              on the sheet. Carrier + door orientation + delivery address
+              pre-fill from the invoice; edit them here if anything was
+              blank or has changed. Edits save back to the invoice's
+              per-box record.
             </p>
+
+            {params.container_id != null && prefillInvoiceId != null && (
+              <>
+                <div className={styles.sectionTitle}>Container delivery</div>
+                <div className={styles.fieldGrid}>
+                  <Field label="Carrier">
+                    <select
+                      className={styles.input}
+                      value={containerEdit.outbound_trucking_company_id ?? ''}
+                      onChange={async (e) => {
+                        if (e.target.value === '__add__') {
+                          const name = window.prompt('New trucking company name');
+                          if (name && name.trim()) {
+                            const newId = await addTruckingCompany(name);
+                            if (newId)
+                              setContainerEdit((c) => ({
+                                ...c,
+                                outbound_trucking_company_id: newId,
+                              }));
+                          }
+                          return;
+                        }
+                        setContainerEdit((c) => ({
+                          ...c,
+                          outbound_trucking_company_id: e.target.value
+                            ? Number(e.target.value)
+                            : null,
+                        }));
+                      }}
+                    >
+                      <option value="">— none —</option>
+                      {truckingCompanies.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.company_name}
+                        </option>
+                      ))}
+                      <option value="__add__">+ Add new company…</option>
+                    </select>
+                  </Field>
+                  <Field label="Door orientation">
+                    <DoorOrientationField
+                      className={styles.input}
+                      value={containerEdit.door_orientation}
+                      onChange={(v) =>
+                        setContainerEdit((c) => ({
+                          ...c,
+                          door_orientation: v,
+                        }))
+                      }
+                    />
+                  </Field>
+                </div>
+
+                {!addrOverrideOpen ? (
+                  <button
+                    type="button"
+                    className={styles.linkBtn}
+                    onClick={() => setAddrOverrideOpen(true)}
+                  >
+                    + Add separate shipping address
+                  </button>
+                ) : (
+                  <div className={styles.addressCard}>
+                    <div className={styles.addressCardHead}>
+                      Per-box delivery address
+                    </div>
+                    <p className={styles.addressCardHint}>
+                      Defaults to the invoice ship-to (which itself defaults
+                      to the client's billing address). Fill these in only
+                      when this box is going somewhere different.
+                    </p>
+                    <AddressFields
+                      value={{
+                        name: containerEdit.delivery_name,
+                        street: containerEdit.delivery_street,
+                        city: containerEdit.delivery_city,
+                        state: containerEdit.delivery_state,
+                        zip: containerEdit.delivery_zip,
+                      }}
+                      onChange={(next) =>
+                        setContainerEdit((c) => ({
+                          ...c,
+                          delivery_name: next.name,
+                          delivery_street: next.street,
+                          delivery_city: next.city,
+                          delivery_state: next.state,
+                          delivery_zip: next.zip,
+                        }))
+                      }
+                      nameLabel="Deliver to (name)"
+                    />
+                    <button
+                      type="button"
+                      className={styles.linkBtn}
+                      onClick={() => {
+                        setAddrOverrideOpen(false);
+                        setContainerEdit((c) => ({
+                          ...c,
+                          delivery_name: '',
+                          delivery_street: '',
+                          delivery_city: '',
+                          delivery_state: '',
+                          delivery_zip: '',
+                        }));
+                      }}
+                    >
+                      Use shipping address instead
+                    </button>
+                  </div>
+                )}
+
+                <div className={styles.sectionTitle}>Receiver</div>
+              </>
+            )}
+
             <div className={styles.fieldGrid}>
               <Field label="Delivery date">
                 <input
@@ -665,28 +984,12 @@ function DeliveryFlow() {
                   }
                 />
               </Field>
-              <Field label="Delivery company">
-                <input
-                  className={styles.input}
-                  value={params.delivery_company}
-                  onChange={(e) => updateField('delivery_company', e.target.value)}
-                  placeholder="JT Hauling Co."
-                />
-              </Field>
               <Field label="On-site contact">
                 <input
                   className={styles.input}
                   value={params.onsite_contact}
                   onChange={(e) => updateField('onsite_contact', e.target.value)}
                   placeholder="John Doe · 555-0142"
-                />
-              </Field>
-              <Field label="Door orientation">
-                <input
-                  className={styles.input}
-                  value={params.door_orientation}
-                  onChange={(e) => updateField('door_orientation', e.target.value)}
-                  placeholder="Doors facing road"
                 />
               </Field>
               <Field label="Payment details" wide>
@@ -736,61 +1039,7 @@ function DeliveryFlow() {
             />
           </FlowStep>
 
-          {/* Step 3 — Driver contact (optional) */}
-          <FlowStep>
-            <p className={styles.hint}>
-              <strong>Optional.</strong> Capture the driver's contact info now
-              and the Send-to-Driver button on the next page will be ready to
-              go. Leave blank and you'll be prompted when you hit Send.
-            </p>
-            <p className={styles.hint}>
-              <strong>SMS consent:</strong> capturing a phone number here does
-              not authorize an SMS — the Send-to-Driver dialog walks you
-              through the disclosure and the required attestation at the
-              moment the message goes out. Full policy at{' '}
-              <a href="/sms-terms" target="_blank" rel="noreferrer">
-                /sms-terms
-              </a>
-              .
-            </p>
-            <div className={styles.fieldGrid}>
-              <Field label="Driver name">
-                <input
-                  className={styles.input}
-                  value={params.driver_name}
-                  onChange={(e) => updateField('driver_name', e.target.value)}
-                  placeholder="John Smith"
-                />
-              </Field>
-              <Field
-                label="Driver phone"
-                hint="For SMS receipt — any US format works"
-              >
-                <input
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="off"
-                  className={styles.input}
-                  value={params.driver_phone}
-                  onChange={(e) => updateField('driver_phone', e.target.value)}
-                  placeholder="(732) 555-0142"
-                />
-              </Field>
-              <Field label="Driver email" wide hint="For email receipt — optional">
-                <input
-                  type="email"
-                  inputMode="email"
-                  autoComplete="off"
-                  className={styles.input}
-                  value={params.driver_email}
-                  onChange={(e) => updateField('driver_email', e.target.value)}
-                  placeholder="driver@example.com"
-                />
-              </Field>
-            </div>
-          </FlowStep>
-
-          {/* Step 4 — Preview */}
+          {/* Step 3 — Preview */}
           <FlowStep>
             <p className={styles.hint}>
               Review the delivery sheet as it will print. Click "Create delivery
@@ -819,13 +1068,15 @@ function DeliveryFlow() {
             </div>
           </FlowStep>
 
-          {/* Step 5 — Done */}
+          {/* Step 4 — Done */}
           <FlowStep>
             <div className={styles.doneCard}>
               <Badge tone="success">Created</Badge>
               {submitState.kind === 'done' && (
                 <>
-                  <div className={styles.doneNumber}>#{submitState.id}</div>
+                  <div className={styles.doneNumber}>
+                    {submitState.at_number ?? `#${submitState.id}`}
+                  </div>
                   <p className={styles.hint}>
                     Delivery sheet saved. Open it to render or email the PDF.
                   </p>

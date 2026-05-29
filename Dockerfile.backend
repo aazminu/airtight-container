@@ -1,16 +1,18 @@
 # --- Stage 1: build the SSR template bundles --------------------------
 # Vite library mode produces two server-consumable ESM + CSS bundles:
 #   server/template-dist/        — InvoiceTemplate (consumed by lib/pdf.ts)
+#   server/quote-template-dist/  — QuoteTemplate   (consumed by lib/quote-pdf.ts)
 #   server/report-template-dist/ — ReportTemplate  (consumed by lib/report-pdf.ts)
 FROM node:20-alpine AS template-build
 WORKDIR /build/client
 COPY client/package.json client/package-lock.json* ./
 RUN npm ci
 COPY client/ ./
-# Vite configs write to ../server/{,report-}template-dist relative to
-# client/, so the sibling directory must exist before the builds run.
+# Vite configs write to ../server/{,quote-,report-}template-dist relative
+# to client/, so the sibling directory must exist before the builds run.
 RUN mkdir -p ../server
 RUN npm run build:server-template
+RUN npm run build:quote-template
 RUN npm run build:report-templates
 
 # --- Stage 2: backend runtime -----------------------------------------
@@ -34,6 +36,7 @@ COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev
 COPY server/ ./
 COPY --from=template-build /build/server/template-dist ./template-dist
+COPY --from=template-build /build/server/quote-template-dist ./quote-template-dist
 COPY --from=template-build /build/server/report-template-dist ./report-template-dist
 
 # Drop root. Puppeteer/Chromium runs fine as a non-root user; the only

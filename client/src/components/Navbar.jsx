@@ -63,7 +63,13 @@ function Navbar() {
 										<a href="/invoices">Invoices</a>
 									</li>
 									<li>
+										<a href="/quotes">Quotes</a>
+									</li>
+									<li>
 										<a href="/reports">Reports</a>
+									</li>
+									<li>
+										<a href="/outbound">{t("navbar.outbound")}</a>
 									</li>
 									<li>
 										<a href="/dashboard">Dashboard</a>

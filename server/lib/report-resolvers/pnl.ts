@@ -165,6 +165,7 @@ export async function resolvePnL(
     JOIN inventory inv         ON inv.id = ic.container_id
     LEFT JOIN sold s           ON s.inventory_id = inv.id
     WHERE i.invoice_date >= $1 AND i.invoice_date < $2
+      AND i.deleted_at IS NULL
   `;
   const salesRes = await db.query(salesSql, [start, end_exclusive]);
   const salesRows = rowsOf<{
@@ -216,6 +217,7 @@ export async function resolvePnL(
     SELECT invoice_id, COALESCE(subtotal::numeric, 0) AS subtotal
     FROM invoices
     WHERE invoice_date >= $1 AND invoice_date < $2
+      AND deleted_at IS NULL
   `;
   const invoiceRes = await db.query(distinctInvoicesSql, [start, end_exclusive]);
   const invoiceRows = rowsOf<{ invoice_id: number; subtotal: string | null }>(

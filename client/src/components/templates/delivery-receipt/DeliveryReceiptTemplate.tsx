@@ -14,6 +14,7 @@
 //   - All text fits on one ~150-200mm tear-off.
 
 import type { DeliveryData } from '../delivery/types';
+import { formatUnitNumber } from '../../../lib/unitNumber';
 import styles from './DeliveryReceiptTemplate.module.css';
 
 const fmtDateTime = (iso: string | null): string => {
@@ -40,6 +41,7 @@ export default function DeliveryReceiptTemplate({ data }: Props) {
   const deliverToStreet = data.delivery_address.street || '—';
   const deliverToLocality = data.delivery_address.locality || '';
   const driverName = data.driver_contact?.name;
+  const carrier = data.trucking?.company_name ?? null;
 
   return (
     <div className={styles.receipt}>
@@ -50,19 +52,24 @@ export default function DeliveryReceiptTemplate({ data }: Props) {
       </header>
 
       <div className={styles.metaRow}>
-        <span className={styles.label}>Sheet</span>
-        <span className={styles.value}>#{data.delivery_id}</span>
+        <span className={styles.label}>Pickup Number</span>
+        <span className={styles.value}>
+          {data.delivery_sheet_number ?? `#${data.delivery_id}`}
+        </span>
       </div>
       <div className={styles.metaRow}>
         <span className={styles.label}>Date</span>
-        <span className={styles.value}>{fmtDateTime(data.delivery_date)}</span>
+        {/* Receipt's date = print time, not the delivery_date param.
+           Re-prints will carry their own timestamp; that's intentional
+           (the actual print is what stamps the outbound event). */}
+        <span className={styles.value}>{fmtDateTime(new Date().toISOString())}</span>
       </div>
 
       <hr className={styles.rule} />
 
       <div className={styles.unitBlock}>
         <div className={styles.label}>Container</div>
-        <div className={styles.unitNumber}>{data.container.unit_number}</div>
+        <div className={styles.unitNumber}>{formatUnitNumber(data.container.unit_number)}</div>
         <div className={styles.unitSpec}>
           {[data.container.size, data.container.damage]
             .filter(Boolean)
@@ -90,7 +97,7 @@ export default function DeliveryReceiptTemplate({ data }: Props) {
         )}
       </div>
 
-      {(driverName || data.delivery_company || data.door_orientation) && (
+      {(driverName || carrier || data.door_orientation) && (
         <>
           <hr className={styles.rule} />
           {driverName && (
@@ -99,10 +106,10 @@ export default function DeliveryReceiptTemplate({ data }: Props) {
               <span className={styles.value}>{driverName}</span>
             </div>
           )}
-          {data.delivery_company && (
+          {carrier && (
             <div className={styles.metaRow}>
               <span className={styles.label}>Carrier</span>
-              <span className={styles.value}>{data.delivery_company}</span>
+              <span className={styles.value}>{carrier}</span>
             </div>
           )}
           {data.door_orientation && (

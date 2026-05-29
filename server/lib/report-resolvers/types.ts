@@ -39,6 +39,16 @@ export interface DeliveryData {
   payment_details: string | null;
   receipt_note: string | null;
   notes: string | null;
+  // Outbound carrier of record from the delivery epic (sold.
+  // outbound_trucking_company_id → trucking_companies). Distinct from
+  // the operator-typed delivery_company free-text; null when the sold
+  // row has no carrier assigned.
+  trucking: {
+    company_name: string;
+    dispatch_name: string | null;
+    dispatch_phone: string | null;
+    dispatch_email: string | null;
+  } | null;
   // Driver contact captured at create time (PR 9.6). Drives the
   // "Send to driver" SMS/email modal on ReportDetail. All fields
   // optional; missing values get prompted at send time.
@@ -127,6 +137,8 @@ export interface ShStatementData {
 }
 
 export interface ReleaseSummaryContainer {
+  /** 'sales' for inventory boxes (sold-out path), 'sh' for stored boxes. */
+  kind: 'sales' | 'sh';
   unit_number: string;
   size: string;
   damage: string | null;
