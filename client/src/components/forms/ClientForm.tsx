@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { AddressFields, Button } from '../ui';
+import { AddressFields, Button, CurrencyInput, PhoneInput } from '../ui';
 import styles from './ClientForm.module.css';
 
 export interface Client {
@@ -109,10 +109,9 @@ export function ClientForm({ initial, onSubmit, onCancel }: Props) {
         </label>
         <label className={styles.field}>
           <span>Phone</span>
-          <input
-            type="tel"
+          <PhoneInput
             value={form.contact_phone ?? ''}
-            onChange={update('contact_phone')}
+            onChange={(v) => setForm((f) => ({ ...f, contact_phone: v }))}
           />
         </label>
       </div>
@@ -144,30 +143,24 @@ export function ClientForm({ initial, onSubmit, onCancel }: Props) {
         <legend>Storage &amp; Handling rate defaults</legend>
         <div className={styles.row}>
           <label className={styles.field}>
-            <span>In fee ($)</span>
-            <input
-              type="number"
-              step="0.01"
+            <span>In fee</span>
+            <CurrencyInput
               value={form.default_in_fee ?? ''}
-              onChange={update('default_in_fee')}
+              onChange={(v) => setForm((f) => ({ ...f, default_in_fee: v }))}
             />
           </label>
           <label className={styles.field}>
-            <span>Out fee ($)</span>
-            <input
-              type="number"
-              step="0.01"
+            <span>Out fee</span>
+            <CurrencyInput
               value={form.default_out_fee ?? ''}
-              onChange={update('default_out_fee')}
+              onChange={(v) => setForm((f) => ({ ...f, default_out_fee: v }))}
             />
           </label>
           <label className={styles.field}>
-            <span>Daily rate ($)</span>
-            <input
-              type="number"
-              step="0.01"
+            <span>Daily rate</span>
+            <CurrencyInput
               value={form.default_daily_rate ?? ''}
-              onChange={update('default_daily_rate')}
+              onChange={(v) => setForm((f) => ({ ...f, default_daily_rate: v }))}
             />
           </label>
         </div>

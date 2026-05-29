@@ -22,3 +22,5 @@ export { PhotoLightbox } from './PhotoLightbox';
 export { AddressFields } from './AddressFields';
 export type { AddressValue } from './AddressFields';
 export { IconButton } from './IconButton';
+export { UnitNumberInput } from './UnitNumberInput';
+export { PhoneInput } from './PhoneInput';

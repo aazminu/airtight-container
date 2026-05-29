@@ -80,3 +80,9 @@
   color: var(--text-muted);
   font-size: 0.875rem;
 }
+
+.pickError {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--danger-fg, #82071e);
+}

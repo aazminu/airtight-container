@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { APILoader } from '@googlemaps/extended-component-library/react';
 import styles from './AddressFields.module.css';
 
@@ -59,17 +59,23 @@ const getMaps = (): {
 };
 
 // Mounts the native <gmp-place-autocomplete> element (Places API New) into a
-// container div. Emits the parsed address parts on selection.
+// container div. Emits the parsed address parts on selection. Rejects picks
+// that don't include a street (e.g. operator picked a locality instead of a
+// real address) and surfaces a hint so they can re-search.
 function PlacesAutocomplete({
   onSelect,
+  onInvalidPick,
 }: {
   onSelect: (addr: PickedAddress) => void;
+  onInvalidPick: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const elementRef = useRef<HTMLElement | null>(null);
-  // Pin the latest onSelect so we don't rebind the listener on every render.
+  // Pin the latest callbacks so we don't rebind listeners on every render.
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
+  const onInvalidPickRef = useRef(onInvalidPick);
+  onInvalidPickRef.current = onInvalidPick;
 
   useEffect(() => {
     let cancelled = false;
@@ -88,12 +94,19 @@ function PlacesAutocomplete({
         const placesLib = (await maps.importLibrary('places')) as {
           PlaceAutocompleteElement: new (opts: {
             includedRegionCodes?: string[];
+            includedPrimaryTypes?: string[];
           }) => HTMLElement;
         };
         if (cancelled) return;
 
+        // Restrict suggestions to street-level address types so the
+        // operator can't accidentally accept a city- or region-level
+        // result (which would land in the DB with empty street + zip
+        // and silently fall back to the client's billing address on the
+        // delivery sheet).
         const element = new placesLib.PlaceAutocompleteElement({
           includedRegionCodes: ['us'],
+          includedPrimaryTypes: ['street_address', 'premise', 'subpremise'],
         });
 
         element.addEventListener('gmp-select', async (ev: Event) => {
@@ -112,9 +125,15 @@ function PlacesAutocomplete({
             if (!place) return;
             await place.fetchFields({ fields: ['addressComponents'] });
             if (cancelled) return;
-            onSelectRef.current(
-              componentsToAddress(place.addressComponents ?? []),
-            );
+            const picked = componentsToAddress(place.addressComponents ?? []);
+            if (!picked.street) {
+              // Defense in depth — restriction above should prevent this,
+              // but if the API returns a locality-only place we'd otherwise
+              // silently store empty street + zip.
+              onInvalidPickRef.current();
+              return;
+            }
+            onSelectRef.current(picked);
           } catch {
             // swallow — user can pick a different match
           }
@@ -164,11 +183,14 @@ export function AddressFields({
   includeName = true,
   nameLabel = 'Recipient name',
 }: Props) {
+  const [pickError, setPickError] = useState<string | null>(null);
+
   const hasAddress = Boolean(
     value.street || value.city || value.state || value.zip,
   );
 
   const handlePicked = (picked: PickedAddress) => {
+    setPickError(null);
     onChange({
       ...value,
       street: picked.street,
@@ -179,6 +201,7 @@ export function AddressFields({
   };
 
   const clearAddress = () => {
+    setPickError(null);
     onChange({ ...value, street: '', city: '', state: '', zip: '' });
   };
 
@@ -210,7 +233,17 @@ export function AddressFields({
             </button>
           </div>
         ) : GOOGLE_MAPS_API_KEY ? (
-          <PlacesAutocomplete onSelect={handlePicked} />
+          <>
+            <PlacesAutocomplete
+              onSelect={handlePicked}
+              onInvalidPick={() =>
+                setPickError(
+                  'Pick a specific street address — that result has no street number.',
+                )
+              }
+            />
+            {pickError && <div className={styles.pickError}>{pickError}</div>}
+          </>
         ) : (
           <div className={styles.notice}>
             Address autofill unavailable. Set VITE_GOOGLE_MAPS_API_KEY to

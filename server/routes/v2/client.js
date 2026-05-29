@@ -3,6 +3,7 @@ import db from "../../db/index.js";
 import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
 import { createClientSchema } from "../../validation/client.js";
+import { normalizePhone } from "../../lib/phone.js";
 
 const router = express.Router();
 
@@ -79,7 +80,7 @@ router.post(
 					c.client_name ?? c.contact_name,
 					c.business_name ?? null,
 					c.contact_email ?? null,
-					c.contact_phone ?? null,
+					normalizePhone(c.contact_phone),
 					street,
 					c.city ?? null,
 					c.state ?? null,
@@ -119,7 +120,7 @@ router.put("/:id", checkAdmin, async (req, res) => {
 				c.client_name ?? c.contact_name,
 				c.business_name ?? null,
 				c.contact_email ?? null,
-				c.contact_phone ?? null,
+				normalizePhone(c.contact_phone),
 				street,
 				c.city ?? null,
 				c.state ?? null,

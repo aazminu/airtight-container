@@ -13,7 +13,10 @@
   font-size: 0.95rem;
 }
 
-.input {
+/* Bumped to .wrap .input so parent stylesheets with `.field input`
+   selectors (Audit, intake forms) don't blow away the padding-left
+   that makes room for the dollar glyph. */
+.wrap .input {
   width: 100%;
   padding: 0.5rem 0.6rem 0.5rem 1.4rem;
   border: 1px solid var(--border, #ccd);
@@ -23,6 +26,6 @@
   font: inherit;
 }
 
-.input:disabled {
+.wrap .input:disabled {
   opacity: 0.6;
 }

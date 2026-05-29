@@ -5,6 +5,7 @@ import {
   Button,
   Flow,
   FlowStep,
+  PhoneInput,
   Stepper,
 } from '../components/ui';
 import DeliveryTemplate from '../components/templates/delivery/DeliveryTemplate';
@@ -454,12 +455,10 @@ export default function Outbound() {
                 </label>
                 <label className={styles.field}>
                   <span className={styles.label}>{t('outbound.sms.phone_label')}</span>
-                  <input
-                    type="tel"
-                    inputMode="tel"
+                  <PhoneInput
                     className={styles.input}
                     value={smsPhone}
-                    onChange={(e) => setSmsPhone(e.target.value)}
+                    onChange={setSmsPhone}
                     placeholder={t('outbound.sms.phone_placeholder')}
                   />
                 </label>

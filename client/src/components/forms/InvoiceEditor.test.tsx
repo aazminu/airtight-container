@@ -177,43 +177,6 @@ describe('InvoiceEditor', () => {
     expect(screen.getByDisplayValue('Paint')).toBeInTheDocument();
   });
 
-  it('moves a modification down, reordering correctly', async () => {
-    render(
-      <InvoiceEditor
-        initial={baseInvoice()}
-        onCancel={() => {}}
-        onSave={() => {}}
-      />,
-    );
-    // Before: [Roll-up door, Paint]
-    const descInputs = () =>
-      screen
-        .getAllByPlaceholderText(/Description \(or pick a preset\)/)
-        .map((el) => (el as HTMLInputElement).value);
-    expect(descInputs()).toEqual(['Roll-up door', 'Paint']);
-
-    const moveDown = screen.getAllByRole('button', { name: 'Move down' });
-    // First mod's "Move down" → swap with second
-    await userEvent.click(moveDown[0]);
-    expect(descInputs()).toEqual(['Paint', 'Roll-up door']);
-  });
-
-  it('disables Move up on the first mod and Move down on the last', async () => {
-    render(
-      <InvoiceEditor
-        initial={baseInvoice()}
-        onCancel={() => {}}
-        onSave={() => {}}
-      />,
-    );
-    const moveUp = await screen.findAllByRole('button', { name: 'Move up' });
-    const moveDown = screen.getAllByRole('button', { name: 'Move down' });
-    expect(moveUp[0]).toBeDisabled();
-    expect(moveUp[1]).toBeEnabled();
-    expect(moveDown[0]).toBeEnabled();
-    expect(moveDown[1]).toBeDisabled();
-  });
-
   it('Cancel calls onCancel without saving', async () => {
     const onCancel = vi.fn();
     const onSave = vi.fn();

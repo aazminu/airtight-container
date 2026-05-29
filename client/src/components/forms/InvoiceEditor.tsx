@@ -4,7 +4,7 @@ import type {
   InvoiceLineContainer,
   InvoiceModification,
 } from '../templates/invoice/types';
-import { AddressFields, Button, CurrencyInput } from '../ui';
+import { AddressFields, Button, CurrencyInput, IconButton } from '../ui';
 import { fmtCurrency } from '../templates/invoice/format';
 import {
   MODIFICATION_DATALIST_ID,
@@ -330,18 +330,6 @@ export default function InvoiceEditor({
     });
   };
 
-  const moveMod = (ctIdx: number, modIdx: number, delta: -1 | 1) => {
-    setDraft((d) => {
-      const containers = d.containers.slice();
-      const mods = containers[ctIdx].modifications.slice();
-      const target = modIdx + delta;
-      if (target < 0 || target >= mods.length) return d;
-      [mods[modIdx], mods[target]] = [mods[target], mods[modIdx]];
-      containers[ctIdx] = { ...containers[ctIdx], modifications: mods };
-      return { ...d, containers };
-    });
-  };
-
   const handleSubmit = async () => {
     setSaving(true);
     try {
@@ -530,13 +518,12 @@ export default function InvoiceEditor({
                   {c.size} · {c.damage}
                 </span>
               </div>
-              <button
-                type="button"
-                className={`${styles.linkBtn} ${styles.linkBtnDanger}`}
+              <IconButton
+                icon="trash"
+                tone="danger"
+                label="Remove container"
                 onClick={() => removeContainer(ctIdx)}
-              >
-                Remove container
-              </button>
+              />
             </div>
             <div className={styles.fieldGrid}>
               <label className={styles.field}>
@@ -672,13 +659,6 @@ export default function InvoiceEditor({
             <div className={styles.modsList}>
               <div className={styles.modsHeader}>
                 <span className={styles.label}>Per-modification line items</span>
-                <button
-                  type="button"
-                  className={styles.linkBtn}
-                  onClick={() => addMod(ctIdx)}
-                >
-                  + Add modification
-                </button>
               </div>
               {c.modifications.map((m, mIdx) => (
                 <div key={m.id} className={styles.modRow}>
@@ -691,42 +671,26 @@ export default function InvoiceEditor({
                       updateMod(ctIdx, mIdx, { description: e.target.value })
                     }
                   />
-                  <input
-                    className={styles.input}
-                    type="number"
-                    step="0.01"
-                    placeholder="Price"
+                  <CurrencyInput
                     value={m.price}
-                    onChange={(e) => updateMod(ctIdx, mIdx, { price: e.target.value })}
+                    onChange={(v) => updateMod(ctIdx, mIdx, { price: v })}
+                    placeholder="0.00"
                   />
-                  <button
-                    type="button"
-                    className={styles.iconBtn}
-                    onClick={() => moveMod(ctIdx, mIdx, -1)}
-                    disabled={mIdx === 0}
-                    aria-label="Move up"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.iconBtn}
-                    onClick={() => moveMod(ctIdx, mIdx, 1)}
-                    disabled={mIdx === c.modifications.length - 1}
-                    aria-label="Move down"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.iconBtn}
+                  <IconButton
+                    icon="trash"
+                    tone="danger"
+                    label="Remove modification"
                     onClick={() => removeMod(ctIdx, mIdx)}
-                    aria-label="Remove modification"
-                  >
-                    ×
-                  </button>
+                  />
                 </div>
               ))}
+              <button
+                type="button"
+                className={styles.addRow}
+                onClick={() => addMod(ctIdx)}
+              >
+                + Add modification
+              </button>
             </div>
           </div>
         ))}

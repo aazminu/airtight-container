@@ -7,6 +7,7 @@ import {
   CurrencyInput,
   Flow,
   FlowStep,
+  IconButton,
   Stepper,
 } from '../components/ui';
 import { AddClientModal } from '../components/forms/AddClientModal';
@@ -976,19 +977,7 @@ export default function CreateInvoice() {
                   <div className={styles.modsSection}>
                     <div className={styles.modsHeader}>
                       <span className={styles.fieldLabel}>Modifications</span>
-                      <button
-                        type="button"
-                        className={styles.linkBtn}
-                        onClick={() => addMod(id)}
-                      >
-                        + Add modification
-                      </button>
                     </div>
-                    {d.modifications.length === 0 && (
-                      <p className={styles.modsEmpty}>
-                        No modifications. Click + Add modification to add a billable item.
-                      </p>
-                    )}
                     {d.modifications.map((m, mIdx) => (
                       <div key={m.id} className={styles.modRow}>
                         <input
@@ -1000,24 +989,26 @@ export default function CreateInvoice() {
                             updateMod(id, mIdx, { description: e.target.value })
                           }
                         />
-                        <input
-                          className={styles.input}
-                          type="number"
-                          step="0.01"
-                          placeholder="Price"
+                        <CurrencyInput
                           value={m.price}
-                          onChange={(e) => updateMod(id, mIdx, { price: e.target.value })}
+                          onChange={(v) => updateMod(id, mIdx, { price: v })}
+                          placeholder="0.00"
                         />
-                        <button
-                          type="button"
-                          className={styles.iconBtn}
+                        <IconButton
+                          icon="trash"
+                          tone="danger"
+                          label="Remove modification"
                           onClick={() => removeMod(id, mIdx)}
-                          aria-label="Remove modification"
-                        >
-                          ×
-                        </button>
+                        />
                       </div>
                     ))}
+                    <button
+                      type="button"
+                      className={styles.addRow}
+                      onClick={() => addMod(id)}
+                    >
+                      + Add modification
+                    </button>
                   </div>
                 </div>
               );
