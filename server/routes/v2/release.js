@@ -178,6 +178,48 @@ router.post("/company", checkAdmin, async (req, res) => {
 	}
 });
 
+// Edit quota on an existing release. Reject if new quota < live inventory
+// count — we never want to retroactively over-enroll a release. Pickup
+// has its own analogue at PATCH /api/v2/pickup/:id/quota.
+router.patch("/:id/quota", checkAdmin, async (req, res) => {
+	try {
+		const releaseId = Number(req.params.id);
+		const newQuota = Number(req.body.release_count);
+		if (!Number.isInteger(releaseId) || !Number.isInteger(newQuota) || newQuota < 1) {
+			return res.status(400).json({ message: "Invalid quota" });
+		}
+		const usedRes = await db.query(
+			`SELECT
+			   (SELECT COUNT(*)::int FROM inventory inv WHERE inv.release_number_id = $1) +
+			   (SELECT COUNT(*)::int FROM sh_inventory shi WHERE shi.release_number_id = $1)
+			   AS used`,
+			[releaseId],
+		);
+		const used = usedRes.rows[0]?.used ?? 0;
+		if (newQuota < used) {
+			return res.status(409).json({
+				code: "quota_below_used",
+				message: `Release already has ${used} container${used === 1 ? "" : "s"} logged; quota can't drop below that.`,
+				details: { used, requested: newQuota },
+			});
+		}
+		const upd = await db.query(
+			`UPDATE release_numbers
+			 SET release_number_count = $1
+			 WHERE release_number_id = $2
+			 RETURNING release_number_id`,
+			[newQuota, releaseId],
+		);
+		if (upd.rows.length === 0) {
+			return res.status(404).json({ message: "Release not found" });
+		}
+		res.status(200).json({ status: "success" });
+	} catch (err) {
+		console.error("release.quota error:", err);
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
+
 // Soft-delete: mark complete instead of removing the row. Required because
 // inventory.release_number_id will be NOT NULL after PR 1.6 — a real DELETE
 // would either fail FK or cascade-destroy historical inventory.

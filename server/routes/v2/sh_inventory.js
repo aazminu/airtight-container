@@ -8,6 +8,7 @@ import {
 	checkoutShInventorySchema,
 	allowedNextStates,
 } from "../../validation/sh_inventory.js";
+import { shOutboundSchema } from "../../validation/pickup.js";
 import { presignedGet } from "../../lib/s3.js";
 
 const router = express.Router();
@@ -72,6 +73,56 @@ router.get("/", checkEmployee, async (req, res) => {
 		});
 	} catch (err) {
 		console.error("sh_inventory.get error:", err);
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
+
+// Pickup-receipt data. Mounted before GET /:id so the `/pickup-receipt`
+// suffix doesn't get swallowed. Powers the thermal print page after a
+// checkout — joins the box to its pickup_number_assignment so the
+// printed slip shows pickup #, customer, and operator-entered damage.
+router.get("/:id/pickup-receipt", checkEmployee, async (req, res) => {
+	try {
+		const results = await db.query(
+			`SELECT shi.id, shi.unit_number, shi.size, shi.damage,
+			        shi.intake_date, shi.checkout_date, shi.pickup_damage,
+			        c.client_name, c.business_name,
+			        pn.pickup_number_value,
+			        sc.sale_company_name
+			 FROM sh_inventory shi
+			 LEFT JOIN clients c ON c.id = shi.client_id
+			 LEFT JOIN pickup_number_assignments pna ON pna.sh_inventory_id = shi.id
+			 LEFT JOIN pickup_numbers pn ON pn.pickup_number_id = pna.pickup_number_id
+			 LEFT JOIN sale_companies sc ON sc.sale_company_id = pn.sale_company_id
+			 WHERE shi.id = $1`,
+			[req.params.id],
+		);
+		if (results.rows.length === 0) {
+			return res.status(404).json({ message: "Not found" });
+		}
+		const r = results.rows[0];
+		res.status(200).json({
+			status: "success",
+			data: {
+				receipt: {
+					sh_inventory_id: r.id,
+					unit_number: r.unit_number,
+					size: r.size,
+					damage: r.damage,
+					intake_date: r.intake_date,
+					checkout_date: r.checkout_date,
+					pickup_damage: r.pickup_damage,
+					customer: {
+						client_name: r.client_name,
+						business_name: r.business_name,
+					},
+					sale_company_name: r.sale_company_name,
+					pickup_number_value: r.pickup_number_value,
+				},
+			},
+		});
+	} catch (err) {
+		console.error("sh_inventory.pickup-receipt error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -377,8 +428,146 @@ router.put("/state/:id", checkAdmin, async (req, res) => {
 	}
 });
 
-// Check-out flow — sets checkout_date and transitions state to 'checked_out'.
-// Validates the box is in 'in_storage' state first.
+// Batch outbound — the routine flow for checking S&H boxes out. Picks
+// up N boxes under a single pickup number, records operator-entered
+// damage per box, flips state to 'checked_out', and atomically updates
+// the pickup's is_complete flag if quota was just hit.
+//
+// Quota race: SELECT ... FOR UPDATE on pickup_numbers serializes any
+// concurrent outbounds against the same pickup. SELECT ... FOR UPDATE
+// on the chosen sh_inventory rows (sorted ASC by id) prevents two
+// operators from outbounding the same box twice. Quota enforcement
+// happens INSIDE the lock window, so the second submitter sees the
+// first submitter's assignments before deciding whether to commit.
+router.post(
+	"/outbound",
+	checkEmployee,
+	validateBody(shOutboundSchema),
+	async (req, res) => {
+		const { pickup_number_id, outbound_date, boxes } = req.body;
+		const conn = await db.pool.connect();
+		try {
+			await conn.query("BEGIN");
+
+			const pn = await conn.query(
+				`SELECT pickup_number_id, pickup_count, is_complete
+				 FROM pickup_numbers
+				 WHERE pickup_number_id = $1
+				 FOR UPDATE`,
+				[pickup_number_id],
+			);
+			if (pn.rows.length === 0) {
+				await conn.query("ROLLBACK");
+				return res
+					.status(404)
+					.json({ code: "pickup_not_found", message: "Pickup not found" });
+			}
+			if (pn.rows[0].is_complete) {
+				await conn.query("ROLLBACK");
+				return res.status(409).json({
+					code: "pickup_already_complete",
+					message: "Pickup is already complete.",
+				});
+			}
+
+			const used = await conn.query(
+				`SELECT COUNT(*)::int AS n
+				 FROM pickup_number_assignments
+				 WHERE pickup_number_id = $1`,
+				[pickup_number_id],
+			);
+			const usedCount = used.rows[0].n;
+			const quota = pn.rows[0].pickup_count;
+			if (usedCount + boxes.length > quota) {
+				await conn.query("ROLLBACK");
+				return res.status(409).json({
+					code: "pickup_over_quota",
+					message: `Would exceed pickup quota: ${usedCount} used + ${boxes.length} requested > ${quota}.`,
+					details: { used: usedCount, requested: boxes.length, quota },
+				});
+			}
+
+			const ids = boxes.map((b) => Number(b.sh_inventory_id)).sort((a, b) => a - b);
+			const rows = await conn.query(
+				`SELECT id, state FROM sh_inventory
+				 WHERE id = ANY($1::int[])
+				 FOR UPDATE`,
+				[ids],
+			);
+			if (rows.rows.length !== ids.length) {
+				await conn.query("ROLLBACK");
+				const found = new Set(rows.rows.map((r) => r.id));
+				const missing = ids.find((id) => !found.has(id));
+				return res.status(404).json({
+					code: "box_not_found",
+					message: `Box not found: ${missing}`,
+					details: { sh_inventory_id: missing },
+				});
+			}
+			for (const r of rows.rows) {
+				if (r.state !== "in_storage") {
+					await conn.query("ROLLBACK");
+					return res.status(409).json({
+						code: "box_not_in_storage",
+						message: `Box ${r.id} is in state '${r.state}', expected 'in_storage'.`,
+						details: { sh_inventory_id: r.id, state: r.state },
+					});
+				}
+			}
+
+			for (const b of boxes) {
+				const damage = (b.pickup_damage ?? "").trim() || "Out good";
+				await conn.query(
+					`INSERT INTO pickup_number_assignments
+					   (sh_inventory_id, pickup_number_id, pickup_damage)
+					 VALUES ($1, $2, $3)`,
+					[b.sh_inventory_id, pickup_number_id, damage],
+				);
+				await conn.query(
+					`UPDATE sh_inventory
+					 SET state = 'checked_out',
+					     checkout_date = $1,
+					     pickup_damage = $2
+					 WHERE id = $3`,
+					[outbound_date, damage, b.sh_inventory_id],
+				);
+			}
+
+			// Auto-complete on quota hit. Recompute inside the lock so we
+			// don't trip on stale counts.
+			const completedRes = await conn.query(
+				`UPDATE pickup_numbers
+				 SET is_complete = true, completed_at = now()
+				 WHERE pickup_number_id = $1
+				   AND (SELECT COUNT(*) FROM pickup_number_assignments
+				        WHERE pickup_number_id = $1) >= pickup_count
+				 RETURNING pickup_number_id`,
+				[pickup_number_id],
+			);
+			const pickupComplete = completedRes.rows.length > 0;
+
+			await conn.query("COMMIT");
+			res.status(200).json({
+				status: "success",
+				data: {
+					checked_out: ids,
+					receipt_box_ids: ids,
+					pickup_complete: pickupComplete,
+				},
+			});
+		} catch (err) {
+			await conn.query("ROLLBACK").catch(() => {});
+			console.error("sh_inventory.outbound error:", err);
+			res.status(500).json({ message: "Internal server error" });
+		} finally {
+			conn.release();
+		}
+	},
+);
+
+// Admin-only single-box checkout — legacy override path retained for
+// one-off corrections. Routine outbound flows through POST /outbound
+// above, which enforces pickup-number quota.
 router.put(
 	"/checkout/:id",
 	checkAdmin,

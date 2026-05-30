@@ -128,7 +128,7 @@ export function InventoryEditor({
         const res = await fetch(`/api/v1/inventory/${row.id}`, {
           credentials: 'include',
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`Something went wrong`);
         const body = (await res.json()) as {
           data: { inventory: { photo_urls: string[] | null }[] };
         };

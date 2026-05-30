@@ -43,7 +43,7 @@ function UpcomingOutbounds({ type }: Props) {
     (async () => {
       try {
         const res = await fetch('/api/v1/inventory', { credentials: 'include' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`Something went wrong`);
         const body = (await res.json()) as ListResponse;
         if (cancelled) return;
         const filtered = body.data.inventory.filter((c) => STATE_PREDICATE[type](c.state));

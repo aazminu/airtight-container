@@ -11,6 +11,7 @@ import { auth } from "./auth.js";
 import soldRoute from "./routes/v1/sold.js";
 import inventoryRoute from "./routes/v1/inventory.js";
 import releaseRoute_2 from "./routes/v2/release.js";
+import pickupRoute from "./routes/v2/pickup.js";
 import invoiceRoute from "./routes/v2/invoice.js";
 import quoteRoute from "./routes/v2/quote.js";
 import dashboardRoute from "./routes/v2/dashboard.js";
@@ -73,6 +74,7 @@ app.use("/api/v1/inventory/sold", soldRoute);
 app.use("/api/v1/inventory", inventoryRoute);
 
 app.use("/api/v2/release", releaseRoute_2);
+app.use("/api/v2/pickup", pickupRoute);
 app.use("/api/v2/dashboard", dashboardRoute);
 app.use("/api/v2/invoice", invoiceRoute);
 app.use("/api/v2/quote", quoteRoute);

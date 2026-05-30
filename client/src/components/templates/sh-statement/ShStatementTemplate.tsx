@@ -121,7 +121,7 @@ export default function ShStatementTemplate({
           {data.lines.length === 0 && (
             <tr>
               <td colSpan={7} style={{ textAlign: 'center', padding: '14px' }}>
-                No S&amp;H invoices for this client in the selected window.
+                No Storage &amp; Handling invoices for this client in the selected window.
               </td>
             </tr>
           )}

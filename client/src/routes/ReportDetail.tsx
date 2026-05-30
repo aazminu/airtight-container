@@ -60,7 +60,7 @@ const TYPE_LABELS: Record<ReportType, string> = {
   delivery_sheet: 'Delivery sheet',
   io_report: 'In / Out report',
   pnl: 'Profit + Loss',
-  sh_statement: 'S&H statement',
+  sh_statement: 'Storage & Handling statement',
   release_summary: 'Release summary',
 };
 
@@ -104,7 +104,7 @@ export default function ReportDetail() {
       const res = await fetch(`/api/v2/report/${id}`, {
         credentials: 'include',
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       const body = (await res.json()) as ApiResponse;
       setReport(body.data.report);
     } catch (e) {
@@ -127,7 +127,7 @@ export default function ReportDetail() {
         credentials: 'include',
       });
       const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(body?.message ?? `Something went wrong`);
       setAction({ kind: 'ok', message: 'Resolver re-run; PDF cleared.' });
       await load();
     } catch (e) {
@@ -147,7 +147,7 @@ export default function ReportDetail() {
         credentials: 'include',
       });
       const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(body?.message ?? `Something went wrong`);
       setAction({ kind: 'ok', message: 'PDF rendered.' });
       await load();
     } catch (e) {
@@ -212,7 +212,7 @@ export default function ReportDetail() {
         body: JSON.stringify({ to: list }),
       });
       const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(body?.message ?? `Something went wrong`);
       setAction({ kind: 'ok', message: `Sent to ${list.join(', ')}.` });
       await load();
     } catch (e) {
@@ -239,7 +239,7 @@ export default function ReportDetail() {
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       navigate('/reports');
     } catch (e) {
       setAction({

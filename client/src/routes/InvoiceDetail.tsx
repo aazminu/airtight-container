@@ -50,7 +50,7 @@ export default function InvoiceDetail() {
     setError(null);
     try {
       const res = await fetch(`/api/v2/invoice/${id}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       const body = (await res.json()) as ApiResponse;
       const inv = body.data.invoices[0];
       if (!inv) throw new Error('Invoice not found');
@@ -81,7 +81,7 @@ export default function InvoiceDetail() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
+        throw new Error(body?.message ?? `Something went wrong`);
       }
       setAction({ kind: 'ok', message: 'PDF regenerated.' });
       await load();
@@ -102,7 +102,7 @@ export default function InvoiceDetail() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
+        throw new Error(body?.message ?? `Something went wrong`);
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -162,7 +162,7 @@ export default function InvoiceDetail() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
+        throw new Error(body?.message ?? `Something went wrong`);
       }
       setAction({ kind: 'ok', message: `Sent to ${to}.` });
       await load();
@@ -180,7 +180,7 @@ export default function InvoiceDetail() {
     if (next === 'cancelled') {
       const ok = await confirm({
         title: 'Cancel invoice?',
-        message: `Invoice #${invoice.invoice_number} will be marked cancelled. It stays in the record (use Delete for true tombstone). You can re-open it later by flipping the status back.`,
+        message: `Invoice #${invoice.invoice_number} will be marked cancelled but stays in the record — use Delete to remove it entirely. You can re-open it later by switching the status back.`,
         confirmLabel: 'Cancel invoice',
         cancelLabel: 'Keep current status',
         danger: true,
@@ -199,7 +199,7 @@ export default function InvoiceDetail() {
         },
       );
       const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(body?.message ?? `Something went wrong`);
       setAction({ kind: 'ok', message: `Status set to ${statusLabel(next)}.` });
       await load();
     } catch (e) {
@@ -225,7 +225,7 @@ export default function InvoiceDetail() {
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       navigate('/invoices');
     } catch (e) {
       setAction({
@@ -279,7 +279,7 @@ export default function InvoiceDetail() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
+        throw new Error(body?.message ?? `Something went wrong`);
       }
       setAction({ kind: 'ok', message: 'Saved.' });
       setEditing(false);

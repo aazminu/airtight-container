@@ -16,13 +16,19 @@ export default function Help() {
         <p>
           Start every box at <strong>/intake</strong>. Pick{' '}
           <strong>Sales</strong> (going on the lot to sell) or{' '}
-          <strong>Storage</strong> (a client is dropping it for S&amp;H).
-          Photograph the doors first &mdash; OCR reads the unit number and
-          size off the placard and pre-fills the form; confirm or correct on
-          the next screen. If the unit number matches a pre-loaded release,
+          <strong>Storage</strong> (a client is dropping it for Storage &amp; Handling).
+          Photograph the doors first &mdash; the app reads the unit number
+          and size off the placard and pre-fills the form; confirm or
+          correct on the next screen. If the unit number matches a pre-loaded release,
           the release auto-attaches. Submitted boxes land in{' '}
           <strong>Pending</strong> and wait for an admin to fill in price,
           in/out fees, and daily rate before they go live.
+        </p>
+        <p>
+          When a checked-out Storage &amp; Handling box comes back, just run
+          Intake again. Each drop-off is its own record &mdash; the unit
+          number can repeat across rows so prior storage periods stay on
+          file.
         </p>
       </div>
 
@@ -31,7 +37,7 @@ export default function Help() {
         <p>
           Read-only snapshot of what&rsquo;s on the lot right now: sales
           containers grouped by size and state, the currently-valid release
-          numbers, and the S&amp;H client roster with each client&rsquo;s
+          numbers, and the Storage &amp; Handling client roster with each client&rsquo;s
           boxes. Use it for &ldquo;do we have a 40HC?&rdquo; or &ldquo;is
           this release still good?&rdquo; questions at the gate.
         </p>
@@ -64,7 +70,7 @@ export default function Help() {
       </div>
 
       <div className={styles.contactCard}>
-        <h2 className={styles.sectionTitle}>S&amp;H invoices</h2>
+        <h2 className={styles.sectionTitle}>Storage &amp; Handling invoices</h2>
         <p>
           Generated automatically at the start of each month for every
           active storage client. Each one lists in-fees, out-fees, and
@@ -94,9 +100,9 @@ export default function Help() {
           Generators for the documents the yard hands out or keeps on file.{' '}
           <strong>Delivery sheet</strong>: one-pager for the driver at
           outbound. <strong>In&nbsp;/&nbsp;Out</strong>: inbound and
-          outbound activity for a date window, sales and S&amp;H combined.{' '}
+          outbound activity for a date window, sales and Storage &amp; Handling combined.{' '}
           <strong>P&amp;L</strong>: revenue vs. cost across a period.{' '}
-          <strong>S&amp;H statement</strong>: per-client billing roll-up.{' '}
+          <strong>Storage &amp; Handling statement</strong>: per-client billing roll-up.{' '}
           <strong>Release summary</strong>: every container logged under a
           single release.
         </p>

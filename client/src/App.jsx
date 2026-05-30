@@ -24,6 +24,8 @@ import Clients from "./routes/Clients";
 import Intake from "./routes/Intake";
 import Audit from "./routes/Audit";
 import Releases from "./routes/Releases";
+import PickupNumbers from "./routes/PickupNumbers";
+import PickupReceiptPrint from "./routes/PickupReceiptPrint";
 import TemplatesPreview from "./routes/TemplatesPreview";
 import InvoiceDetail from "./routes/InvoiceDetail";
 import Quotes from "./routes/Quotes";
@@ -68,6 +70,8 @@ const App = () => {
 				<Route path="/intake" element={<Intake />} />
 				<Route path="/audit" element={<Audit />} />
 				<Route path="/releases" element={<Releases />} />
+				<Route path="/pickup-numbers" element={<PickupNumbers />} />
+				<Route path="/sh-pickup-receipt/:id" element={<PickupReceiptPrint />} />
 				<Route path="/help" element={<Help />} />
 				{import.meta.env.DEV && (
 					<Route
@@ -89,7 +93,8 @@ const App = () => {
 								path !== "/sms-terms" &&
 								path !== "/privacy-policy" &&
 								!path.startsWith("/admin/templates") &&
-								!/^\/reports\/[^/]+\/print$/.test(path) && <Navbar />}
+								!/^\/reports\/[^/]+\/print$/.test(path) &&
+								!path.startsWith("/sh-pickup-receipt") && <Navbar />}
 							<PopupContainer />
 							<div className="container">
 								<RouterProvider router={router} />

@@ -234,6 +234,86 @@
   color: var(--muted, #6e7781);
 }
 
+.promoteRowMapWarn {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--danger, #d1242f);
+  font-weight: 600;
+}
+
+/* Line → container mapping panel — sits above the picker so the
+   operator sees what slot each container is filling. Default mapping
+   is positional; dropdown lets them rearrange. */
+.linesPanel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.linesPanelHead {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  background: var(--bg-surface-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.linePanelRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.linePanelRow:last-child {
+  border-bottom: 0;
+}
+
+.linePanelIndex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-surface-2);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.linePanelDesc {
+  font-size: 0.875rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linePanelSelect {
+  min-width: 180px;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.linePanelSelect[data-assigned='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
+}
+
 .promoteStepBody {
   margin: 1rem 0;
   min-height: 320px;

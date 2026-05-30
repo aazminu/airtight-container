@@ -68,7 +68,7 @@ export default function PresetsAdmin<T extends PresetRecord>({
     (async () => {
       try {
         const res = await fetch(apiPath, { credentials: 'include' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`Something went wrong`);
         const body = (await res.json()) as { data: { presets: T[] } };
         if (active) {
           setPresets(body.data.presets);
@@ -108,7 +108,7 @@ export default function PresetsAdmin<T extends PresetRecord>({
         setPopup('ERROR A preset with that label already exists.');
         return;
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       const payload = (await res.json()) as { data: { preset: T } };
       sync([...presets, payload.data.preset]);
       setNewLabel('');
@@ -132,7 +132,7 @@ export default function PresetsAdmin<T extends PresetRecord>({
         setPopup('ERROR A preset with that label already exists.');
         return;
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       sync(presets.map((p) => (p.id === preset.id ? { ...p, label: trimmed } : p)));
     } catch {
       setPopup('ERROR Unable to rename preset');
@@ -150,7 +150,7 @@ export default function PresetsAdmin<T extends PresetRecord>({
         credentials: 'include',
         body: JSON.stringify({ default_price: next }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       const body = (await res.json()) as { data: { preset: T } };
       sync(presets.map((p) => (p.id === preset.id ? body.data.preset : p)));
     } catch {
@@ -201,7 +201,7 @@ export default function PresetsAdmin<T extends PresetRecord>({
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       sync(presets.filter((p) => p.id !== preset.id));
     } catch {
       setPopup('ERROR Unable to delete preset');

@@ -529,7 +529,7 @@ export default function CreateInvoice() {
       });
       if (!createRes.ok) {
         const body = await createRes.json().catch(() => null);
-        throw new Error(body?.message ?? `Create failed: HTTP ${createRes.status}`);
+        throw new Error(body?.message ?? 'Create failed');
       }
       const created = (await createRes.json()) as {
         id: number;
@@ -605,7 +605,7 @@ export default function CreateInvoice() {
       });
       if (!putRes.ok) {
         const body = await putRes.json().catch(() => null);
-        throw new Error(body?.message ?? `Save failed: HTTP ${putRes.status}`);
+        throw new Error(body?.message ?? 'Save failed');
       }
 
       setSubmitState({ kind: 'done', id: created.id, invoice_number: created.invoice_number });

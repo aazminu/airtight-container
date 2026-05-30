@@ -50,7 +50,7 @@ export default function ShInvoices() {
     try {
       const qs = activeTab === 'all' ? '' : `?status=${activeTab}`;
       const res = await fetch(`/api/v2/sh-invoice${qs}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       const body = (await res.json()) as ListResponse;
       setInvoices(body.data.invoices ?? []);
     } catch (e) {
@@ -79,7 +79,7 @@ export default function ShInvoices() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <h1 className={styles.title}>S&amp;H Invoices</h1>
+          <h1 className={styles.title}>Storage &amp; Handling Invoices</h1>
           <p className={styles.subtitle}>
             {loading ? 'Loading…' : `${sorted.length} invoice${sorted.length === 1 ? '' : 's'}`}
           </p>
@@ -131,7 +131,7 @@ export default function ShInvoices() {
           </button>
         ))}
         {!loading && sorted.length === 0 && (
-          <div className={styles.empty}>No S&amp;H invoices in this view.</div>
+          <div className={styles.empty}>No Storage &amp; Handling invoices in this view.</div>
         )}
       </div>
     </div>

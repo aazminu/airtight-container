@@ -60,7 +60,7 @@ export default function ShInvoiceDetail() {
     setError(null);
     try {
       const res = await fetch(`/api/v2/sh-invoice/${id}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       const body = (await res.json()) as { data: { invoice: ShInvoice } };
       setInvoice(body.data.invoice);
     } catch (e) {
@@ -88,7 +88,7 @@ export default function ShInvoiceDetail() {
         method: 'PUT',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       setAction({ kind: 'ok', message: 'Marked as sent.' });
       await load();
     } catch (e) {
@@ -114,7 +114,7 @@ export default function ShInvoiceDetail() {
           className={styles.back}
           onClick={() => navigate('/sh-invoices')}
         >
-          ← S&amp;H invoices
+          ← Storage &amp; Handling invoices
         </button>
         <div className={styles.error}>{error ?? 'Not found'}</div>
       </div>
@@ -132,7 +132,7 @@ export default function ShInvoiceDetail() {
             className={styles.back}
             onClick={() => navigate('/sh-invoices')}
           >
-            ← S&amp;H invoices
+            ← Storage &amp; Handling invoices
           </button>
           <h1 className={styles.title}>
             #{invoice.invoice_number} ·{' '}

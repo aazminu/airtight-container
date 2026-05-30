@@ -38,7 +38,7 @@ const TYPE_LABELS: Record<ReportType, string> = {
   delivery_sheet: 'Delivery sheet',
   io_report: 'In / Out',
   pnl: 'Profit + Loss',
-  sh_statement: 'S&H statement',
+  sh_statement: 'Storage & Handling statement',
   release_summary: 'Release summary',
 };
 
@@ -147,7 +147,7 @@ export default function ReportsGrid() {
     (async () => {
       try {
         const res = await fetch('/api/v2/report', { credentials: 'include' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`Something went wrong`);
         const body = (await res.json()) as ListResponse;
         if (cancelled) return;
         setReports(body.data.reports);

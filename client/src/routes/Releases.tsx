@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Modal } from '../components/ui';
+import { Button, Modal, UnitNumberListInput } from '../components/ui';
 import styles from './Releases.module.css';
 
 type Bucket = 'active' | 'filled';
@@ -83,7 +83,7 @@ export default function Releases() {
     setError(null);
     try {
       const res = await fetch('/api/v2/release', { credentials: 'include' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       const body = (await res.json()) as ReleasesApi;
       setCompanies(body.data.releases);
     } catch (e) {
@@ -208,6 +208,7 @@ export default function Releases() {
             onToggleCompany={() => toggleCompany(c.id)}
             openReleaseId={openReleaseId}
             setOpenReleaseId={setOpenReleaseId}
+            onRefresh={load}
           />
         ))}
 
@@ -236,6 +237,7 @@ function CompanyBlock({
   onToggleCompany,
   openReleaseId,
   setOpenReleaseId,
+  onRefresh,
 }: {
   company: Company;
   expanded: boolean;
@@ -243,6 +245,7 @@ function CompanyBlock({
   onToggleCompany: () => void;
   openReleaseId: number | null;
   setOpenReleaseId: (n: number | null) => void;
+  onRefresh: () => void;
 }) {
   return (
     <section className={styles.companyGroup} data-expanded={expanded}>
@@ -272,6 +275,7 @@ function CompanyBlock({
               onToggle={() =>
                 setOpenReleaseId(openReleaseId === r.release_id ? null : r.release_id)
               }
+              onRefresh={onRefresh}
             />
           ))}
         </div>
@@ -284,20 +288,56 @@ function ReleaseRow({
   release,
   open,
   onToggle,
+  onRefresh,
 }: {
   release: ReleaseNumber;
   open: boolean;
   onToggle: () => void;
+  onRefresh: () => void;
 }) {
   const navigate = useNavigate();
   const [containers, setContainers] = useState<Container[]>([]);
   const [inventory, setInventory] = useState<InventoryUnderRelease[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [addText, setAddText] = useState('');
+  const [addNumbers, setAddNumbers] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [editingQuota, setEditingQuota] = useState(false);
+  const [quotaDraft, setQuotaDraft] = useState(String(release.release_count));
+  const [quotaBusy, setQuotaBusy] = useState(false);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
+
+  const saveQuota = async () => {
+    const n = Number(quotaDraft);
+    if (!Number.isInteger(n) || n < 1) {
+      setQuotaError('Quota must be a whole number ≥ 1.');
+      return;
+    }
+    setQuotaBusy(true);
+    setQuotaError(null);
+    try {
+      const res = await fetch(`/api/v2/release/${release.release_id}/quota`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ release_count: n }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          message?: string;
+        } | null;
+        throw new Error(body?.message ?? 'Quota update failed');
+      }
+      setEditingQuota(false);
+      onRefresh();
+    } catch (e) {
+      setQuotaError(e instanceof Error ? e.message : 'Quota update failed');
+    } finally {
+      setQuotaBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!open || loaded) return;
@@ -312,8 +352,8 @@ function ReleaseRow({
             credentials: 'include',
           }),
         ]);
-        if (!preRes.ok) throw new Error(`HTTP ${preRes.status}`);
-        if (!invRes.ok) throw new Error(`HTTP ${invRes.status}`);
+        if (!preRes.ok) throw new Error(`Something went wrong`);
+        if (!invRes.ok) throw new Error(`Something went wrong`);
         const preBody = (await preRes.json()) as ContainersApi;
         const invBody = (await invRes.json()) as InventoryApi;
         if (!cancelled) {
@@ -344,7 +384,7 @@ function ReleaseRow({
         }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(body?.message ?? `Something went wrong`);
       const reportId = body?.data?.report?.id;
       if (reportId) navigate(`/reports/${reportId}`);
     } catch (e) {
@@ -355,11 +395,7 @@ function ReleaseRow({
   };
 
   const addContainers = async () => {
-    const numbers = addText
-      .split(/[\n,]+/)
-      .map((s) => s.trim().toUpperCase())
-      .filter(Boolean);
-    if (numbers.length === 0) return;
+    if (addNumbers.length === 0) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -369,11 +405,11 @@ function ReleaseRow({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ numbers }),
+          body: JSON.stringify({ numbers: addNumbers }),
         },
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setAddText('');
+      if (!res.ok) throw new Error(`Something went wrong`);
+      setAddNumbers([]);
       const re = await fetch(
         `/api/v2/release/${release.release_id}/containers`,
         { credentials: 'include' },
@@ -394,7 +430,7 @@ function ReleaseRow({
         `/api/v2/release/${release.release_id}/containers/${encodeURIComponent(number)}`,
         { method: 'DELETE', credentials: 'include' },
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       setContainers((cs) => cs.filter((c) => c.container_number !== number));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Remove failed');
@@ -428,6 +464,60 @@ function ReleaseRow({
       {open && (
         <div className={styles.releaseBody}>
           {error && <div className={styles.error}>{error}</div>}
+
+          <div className={styles.quotaRow}>
+            {editingQuota ? (
+              <>
+                <input
+                  type="number"
+                  min={1}
+                  className={styles.quotaInput}
+                  value={quotaDraft}
+                  onChange={(e) => setQuotaDraft(e.target.value)}
+                  disabled={quotaBusy}
+                  autoFocus
+                />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={saveQuota}
+                  disabled={quotaBusy}
+                >
+                  {quotaBusy ? 'Saving…' : 'Save'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setEditingQuota(false);
+                    setQuotaDraft(String(release.release_count));
+                    setQuotaError(null);
+                  }}
+                  disabled={quotaBusy}
+                >
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className={styles.quotaLabel}>
+                  Quota {filled} / {quota}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setQuotaDraft(String(release.release_count));
+                    setEditingQuota(true);
+                    setQuotaError(null);
+                  }}
+                >
+                  Edit quota
+                </Button>
+              </>
+            )}
+          </div>
+          {quotaError && <div className={styles.error}>{quotaError}</div>}
 
           <div className={styles.progressOuter}>
             <div
@@ -545,22 +635,24 @@ function ReleaseRow({
 
             <div className={styles.addForm}>
               <label className={styles.addLabel}>
-                Add container numbers (one per line or comma-separated)
+                Add container numbers
               </label>
-              <textarea
-                className={styles.addTextarea}
-                value={addText}
-                onChange={(e) => setAddText(e.target.value)}
-                placeholder="MSCU1234567&#10;TRHU2174232"
-                spellCheck={false}
+              <UnitNumberListInput
+                value={addNumbers}
+                onChange={setAddNumbers}
+                disabled={submitting}
               />
               <div className={styles.addActions}>
                 <Button
                   variant="primary"
                   onClick={addContainers}
-                  disabled={submitting || addText.trim() === ''}
+                  disabled={submitting || addNumbers.length === 0}
                 >
-                  {submitting ? 'Adding…' : 'Add'}
+                  {submitting
+                    ? 'Saving…'
+                    : addNumbers.length === 0
+                      ? 'Save to release'
+                      : `Save ${addNumbers.length} to release`}
                 </Button>
               </div>
             </div>
@@ -573,18 +665,6 @@ function ReleaseRow({
 
 interface CreateReleaseResponse {
   data: Array<{ release_number_id: number }>;
-}
-
-function parseContainerNumbers(text: string): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const raw of text.split(/[\n,]+/)) {
-    const trimmed = raw.trim().toUpperCase();
-    if (!trimmed || seen.has(trimmed)) continue;
-    seen.add(trimmed);
-    out.push(trimmed);
-  }
-  return out;
 }
 
 function NewReleaseForm({
@@ -601,14 +681,9 @@ function NewReleaseForm({
   const [releaseNumber, setReleaseNumber] = useState('');
   const [count, setCount] = useState('1');
   const [countTouched, setCountTouched] = useState(false);
-  const [containerText, setContainerText] = useState('');
+  const [parsedNumbers, setParsedNumbers] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const parsedNumbers = useMemo(
-    () => parseContainerNumbers(containerText),
-    [containerText],
-  );
 
   // Auto-track count to parsed numbers until the admin types in the count
   // field themselves — then we stop nudging.
@@ -671,7 +746,7 @@ function NewReleaseForm({
           box_count: numericCount,
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       const body = (await res.json()) as CreateReleaseResponse;
       const newId = body.data?.[0]?.release_number_id;
       if (parsedNumbers.length > 0 && typeof newId === 'number') {
@@ -755,14 +830,12 @@ function NewReleaseForm({
       />
 
       <label className={styles.addLabel}>
-        Container numbers (optional — one per line or comma-separated)
+        Container numbers (optional)
       </label>
-      <textarea
-        className={styles.addTextarea}
-        value={containerText}
-        onChange={(e) => setContainerText(e.target.value)}
-        placeholder="MSCU1234567&#10;TRHU2174232"
-        spellCheck={false}
+      <UnitNumberListInput
+        value={parsedNumbers}
+        onChange={setParsedNumbers}
+        disabled={submitting}
       />
       {parsedNumbers.length > 0 && (
         <div className={styles.parsedHint}>

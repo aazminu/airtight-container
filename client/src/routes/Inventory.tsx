@@ -36,24 +36,29 @@ interface InventoryRow {
   invoice_id: number | null;
 }
 
-type Tab =
-  | 'available'
-  | 'pending'
-  | 'sold'
-  | 'sh_in_storage'
-  | 'sh_checked_out';
+type Kind = 'sales' | 'sh';
+type SalesTab = 'available' | 'pending' | 'sold';
+type ShTab = 'in_storage' | 'checked_out';
 
-// states[] is empty for the S&H tabs — those render their own component
-// against /api/v2/sh-inventory and the sales-state segmentation here
-// doesn't apply. S&H is split In-yard vs Checked-out to mirror the
-// Available vs Sold split on the sales side.
-const TABS: { id: Tab; label: string; states: InventoryState[] }[] = [
+// Two-tier tabs: top-level Sales | Storage & Handling; sub-tabs per
+// kind. Pending Storage & Handling boxes live on /audit, so they're
+// intentionally absent from the Storage & Handling sub-tabs here.
+const SALES_TABS: { id: SalesTab; label: string; states: InventoryState[] }[] = [
   { id: 'available', label: 'Available', states: ['available', 'hold'] },
   { id: 'pending', label: 'Pending', states: ['pending'] },
   { id: 'sold', label: 'Sold', states: ['sold', 'outbound'] },
-  { id: 'sh_in_storage', label: 'S&H — In yard', states: [] },
-  { id: 'sh_checked_out', label: 'S&H — Checked out', states: [] },
 ];
+
+const SH_TABS: { id: ShTab; label: string }[] = [
+  { id: 'in_storage', label: 'On site' },
+  { id: 'checked_out', label: 'Checked out' },
+];
+
+const STORAGE_KEYS = {
+  kind: 'inventory.kind',
+  salesTab: 'inventory.salesTab',
+  shTab: 'inventory.shTab',
+};
 
 const PER_PAGE_OPTIONS = [25, 50, 100];
 
@@ -122,18 +127,27 @@ const matchesSearch = (row: InventoryRow, q: string): boolean => {
 
 export default function Inventory() {
   const navigate = useNavigate();
-  const { user, setPopup } = useContext(userContext) as {
-    user?: { permissions?: string };
+  const { setPopup } = useContext(userContext) as {
     setPopup: (msg: string) => void;
   };
-  const isAdmin = user?.permissions === 'admin';
 
   const [rows, setRows] = useState<InventoryRow[]>([]);
   const [shInYardCount, setShInYardCount] = useState(0);
   const [shCheckedOutCount, setShCheckedOutCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('available');
+  const [kind, setKind] = useState<Kind>(() => {
+    const v = localStorage.getItem(STORAGE_KEYS.kind);
+    return v === 'sh' ? 'sh' : 'sales';
+  });
+  const [salesTab, setSalesTab] = useState<SalesTab>(() => {
+    const v = localStorage.getItem(STORAGE_KEYS.salesTab);
+    return v === 'pending' || v === 'sold' ? v : 'available';
+  });
+  const [shTab, setShTab] = useState<ShTab>(() => {
+    const v = localStorage.getItem(STORAGE_KEYS.shTab);
+    return v === 'checked_out' ? 'checked_out' : 'in_storage';
+  });
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
@@ -141,11 +155,21 @@ export default function Inventory() {
   const [editing, setEditing] = useState<InventoryRow | null>(null);
 
   useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.kind, kind);
+  }, [kind]);
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.salesTab, salesTab);
+  }, [salesTab]);
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.shTab, shTab);
+  }, [shTab]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch('/api/v1/inventory', { credentials: 'include' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`Something went wrong`);
         const body = (await res.json()) as {
           data: { inventory: InventoryRow[] };
         };
@@ -186,33 +210,33 @@ export default function Inventory() {
     };
   }, []);
 
-  // Tab counts apply state segmentation BUT not search — counts reflect
-  // total inventory in each bucket so the user can see what's hidden by
-  // the active search/tab. S&H counts come from a separate fetch above.
-  const tabCounts = useMemo(() => {
-    const c = {
-      available: 0,
-      pending: 0,
-      sold: 0,
-      sh_in_storage: shInYardCount,
-      sh_checked_out: shCheckedOutCount,
-    } as Record<Tab, number>;
+  // Counts apply state segmentation but not search — the user sees
+  // total inventory in each bucket so it's clear what's hidden by the
+  // current filter. Storage & Handling counts come from a separate
+  // fetch above.
+  const salesTabCounts = useMemo(() => {
+    const c: Record<SalesTab, number> = { available: 0, pending: 0, sold: 0 };
     for (const r of rows) {
-      for (const t of TABS) {
+      for (const t of SALES_TABS) {
         if (t.states.includes(r.state)) c[t.id] += 1;
       }
     }
     return c;
-  }, [rows, shInYardCount, shCheckedOutCount]);
+  }, [rows]);
 
-  const activeTab = TABS.find((t) => t.id === tab)!;
+  const shTabCounts: Record<ShTab, number> = {
+    in_storage: shInYardCount,
+    checked_out: shCheckedOutCount,
+  };
+
+  const activeSalesTab = SALES_TABS.find((t) => t.id === salesTab)!;
 
   const filtered = useMemo(() => {
     const q = search.trim();
     return rows
-      .filter((r) => activeTab.states.includes(r.state))
+      .filter((r) => activeSalesTab.states.includes(r.state))
       .filter((r) => matchesSearch(r, q));
-  }, [rows, activeTab, search]);
+  }, [rows, activeSalesTab, search]);
 
   const sorted = useMemo(() => {
     const copy = filtered.slice();
@@ -261,7 +285,7 @@ export default function Inventory() {
   // empty trailing page.
   useEffect(() => {
     setPage(1);
-  }, [tab, search, perPage]);
+  }, [kind, salesTab, shTab, search, perPage]);
 
   const toggleSort = (key: SortKey) => {
     setSort((prev) =>
@@ -283,19 +307,19 @@ export default function Inventory() {
     setPopup('Container deleted.');
   };
 
+  const salesSubtitle = `${filtered.length} of ${salesTabCounts[salesTab]} in ${activeSalesTab.label.toLowerCase()}`;
+  const shSubtitle =
+    shTab === 'in_storage'
+      ? `${shTabCounts.in_storage} Storage & Handling box${shTabCounts.in_storage === 1 ? '' : 'es'} currently on site`
+      : `${shTabCounts.checked_out} Storage & Handling box${shTabCounts.checked_out === 1 ? '' : 'es'} checked out`;
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
           <h1 className={styles.title}>Inventory</h1>
           <p className={styles.subtitle}>
-            {loading
-              ? 'Loading…'
-              : tab === 'sh_in_storage'
-                ? `${tabCounts.sh_in_storage} S&H box${tabCounts.sh_in_storage === 1 ? '' : 'es'} currently in the yard`
-                : tab === 'sh_checked_out'
-                  ? `${tabCounts.sh_checked_out} S&H box${tabCounts.sh_checked_out === 1 ? '' : 'es'} checked out`
-                  : `${filtered.length} of ${tabCounts[tab]} in ${activeTab.label.toLowerCase()}`}
+            {loading ? 'Loading…' : kind === 'sh' ? shSubtitle : salesSubtitle}
           </p>
         </div>
         <div className={styles.headerActions}>
@@ -313,38 +337,59 @@ export default function Inventory() {
 
       {error && <div className={styles.error}>Failed to load inventory: {error}</div>}
 
-      <div className={styles.tabs} role="tablist">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            className={`${styles.tab} ${tab === t.id ? styles.active : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-            <span className={styles.tabCount}>{tabCounts[t.id]}</span>
-          </button>
-        ))}
+      <div className={styles.kindSegment} role="tablist" aria-label="Inventory kind">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={kind === 'sales'}
+          className={`${styles.kindTab} ${kind === 'sales' ? styles.kindActive : ''}`}
+          onClick={() => setKind('sales')}
+        >
+          Sales
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={kind === 'sh'}
+          className={`${styles.kindTab} ${kind === 'sh' ? styles.kindActive : ''}`}
+          onClick={() => setKind('sh')}
+        >
+          Storage &amp; Handling
+        </button>
       </div>
 
-      {tab === 'sh_in_storage' || tab === 'sh_checked_out' ? (
-        <ShInventoryTable
-          state={tab === 'sh_in_storage' ? 'in_storage' : 'checked_out'}
-          search={search}
-          isAdmin={isAdmin}
-          onMessage={(msg) => {
-            setPopup(msg);
-            // Optimistic: a checkout flips one box from in-yard to
-            // checked-out. Decrement / increment so the badges update
-            // without a second round-trip.
-            if (msg === 'Box checked out.') {
-              setShInYardCount((c) => Math.max(0, c - 1));
-              setShCheckedOutCount((c) => c + 1);
-            }
-          }}
-        />
+      <div className={styles.tabs} role="tablist">
+        {kind === 'sales'
+          ? SALES_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={salesTab === t.id}
+                className={`${styles.tab} ${salesTab === t.id ? styles.active : ''}`}
+                onClick={() => setSalesTab(t.id)}
+              >
+                {t.label}
+                <span className={styles.tabCount}>{salesTabCounts[t.id]}</span>
+              </button>
+            ))
+          : SH_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={shTab === t.id}
+                className={`${styles.tab} ${shTab === t.id ? styles.active : ''}`}
+                onClick={() => setShTab(t.id)}
+              >
+                {t.label}
+                <span className={styles.tabCount}>{shTabCounts[t.id]}</span>
+              </button>
+            ))}
+      </div>
+
+      {kind === 'sh' ? (
+        <ShInventoryTable state={shTab} search={search} />
       ) : (
       <>
       <div className={styles.tableWrap}>
@@ -383,7 +428,7 @@ export default function Inventory() {
                 sort={sort}
                 onSort={toggleSort}
               />
-              {tab === 'sold' && (
+              {salesTab === 'sold' && (
                 <>
                   <Th
                     label="Outbound"
@@ -428,7 +473,7 @@ export default function Inventory() {
                 <td className={r.release_number_value ? '' : styles.muted}>
                   {r.release_number_value || '—'}
                 </td>
-                {tab === 'sold' && (
+                {salesTab === 'sold' && (
                   <>
                     <td className={r.outbound_date ? '' : styles.muted}>
                       {fmtDate(r.outbound_date)}
@@ -442,10 +487,10 @@ export default function Inventory() {
             ))}
             {!loading && pageItems.length === 0 && (
               <tr>
-                <td colSpan={tab === 'sold' ? 9 : 7} className={styles.empty}>
+                <td colSpan={salesTab === 'sold' ? 9 : 7} className={styles.empty}>
                   {search
                     ? 'No containers match the current search.'
-                    : `No containers in ${activeTab.label.toLowerCase()}.`}
+                    : `No containers in ${activeSalesTab.label.toLowerCase()}.`}
                 </td>
               </tr>
             )}
