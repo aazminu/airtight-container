@@ -127,8 +127,8 @@ export default function Audit() {
         fetch('/api/v2/sh-inventory?state=pending', { credentials: 'include' }),
         fetch('/api/v2/clients', { credentials: 'include' }),
       ]);
-      if (!salesRes.ok) throw new Error(`Sales HTTP ${salesRes.status}`);
-      if (!shRes.ok) throw new Error(`Storage HTTP ${shRes.status}`);
+      if (!salesRes.ok) throw new Error('Could not load sales boxes');
+      if (!shRes.ok) throw new Error('Could not load storage boxes');
       const salesBody = (await salesRes.json()) as {
         data: { inventory: PendingSalesBox[] };
       };
@@ -343,7 +343,7 @@ function SalesRow({
           return;
         }
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       setRenameConflict(null);
       onConfirmed();
     } catch (e) {
@@ -603,7 +603,7 @@ function ShRow({
           return;
         }
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       setRenameConflict(null);
       onConfirmed();
     } catch (e) {

@@ -68,6 +68,41 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
+/* ── top-level kind segment (Sales | Storage & Handling) ─────── */
+.kindSegment {
+  display: inline-flex;
+  padding: 3px;
+  margin-bottom: 12px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  gap: 2px;
+}
+
+.kindTab {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.kindTab:hover:not(.kindActive) {
+  color: var(--text-primary);
+}
+
+.kindActive {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
 /* ── tab strip ─────────────────────────────────────────────── */
 .tabs {
   display: flex;
@@ -282,23 +317,10 @@
   font-size: 13px;
 }
 
-/* S&H tab — inline check-out controls collapse into a flex row so the
-   date picker + Confirm/Cancel buttons sit neatly inside the table cell
-   rather than overflowing it. */
-.inlineCheckout {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.inlineCheckout input[type='datetime-local'] {
-  padding: 4px 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-input);
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
+/* Storage & Handling table — Outbound deep-link wrapper. Keeps the
+   inline-flex button anchored without the underline default for <a>. */
+.outboundLink {
+  text-decoration: none;
+  display: inline-flex;
 }
 

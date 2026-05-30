@@ -42,7 +42,7 @@ export default function TemplatesPreview() {
     (async () => {
       try {
         const res = await fetch('/api/v2/invoice', { credentials: 'include' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`Something went wrong`);
         const body = (await res.json()) as ListResponse;
         if (cancelled) return;
         setInvoices(body.data.invoices);
@@ -90,7 +90,7 @@ export default function TemplatesPreview() {
             <option value="delivery">Delivery sheet</option>
             <option value="io_report">In/Out report</option>
             <option value="pnl">Profit + Loss</option>
-            <option value="sh_statement">S&amp;H statement</option>
+            <option value="sh_statement">Storage &amp; Handling statement</option>
           </select>
         </div>
 

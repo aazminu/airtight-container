@@ -79,7 +79,7 @@ export default function InvoicesGrid() {
     (async () => {
       try {
         const res = await fetch('/api/v2/invoice', { credentials: 'include' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`Something went wrong`);
         const body = (await res.json()) as ListResponse;
         if (cancelled) return;
         setInvoices(body.data.invoices);

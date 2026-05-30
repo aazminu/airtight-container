@@ -23,4 +23,5 @@ export { AddressFields } from './AddressFields';
 export type { AddressValue } from './AddressFields';
 export { IconButton } from './IconButton';
 export { UnitNumberInput } from './UnitNumberInput';
+export { UnitNumberListInput } from './UnitNumberListInput';
 export { PhoneInput } from './PhoneInput';

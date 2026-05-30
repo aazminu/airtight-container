@@ -81,7 +81,7 @@ export default function QuotesGrid() {
     (async () => {
       try {
         const res = await fetch('/api/v2/quote', { credentials: 'include' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`Something went wrong`);
         const body = (await res.json()) as ListResponse;
         if (cancelled) return;
         setQuotes(body.data.quotes);

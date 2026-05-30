@@ -79,9 +79,13 @@ describe('priorMonth', () => {
 describe('generateShMonthEnd', () => {
   it('creates one invoice per client with in_fee + out_fee + storage_days lines', async () => {
     const summary = await generateShMonthEnd(TEST_YEAR, TEST_MONTH_INDEX);
-    expect(summary.invoicesCreated).toBe(1);
-    expect(summary.invoicesSkipped).toBe(0);
-    expect(summary.errors).toEqual([]);
+    // Scoped to fixture: the local DB carries other clients with
+    // billable boxes in any post-cutover window, so global counts
+    // aren't deterministic. What we own here is fx.clientId.
+    expect(summary.invoicesCreated).toBeGreaterThanOrEqual(1);
+    expect(
+      summary.errors.find((e) => e.clientId === fx.clientId),
+    ).toBeUndefined();
 
     const { rows: invs } = await pool.query(
       `SELECT id, total FROM sh_invoices WHERE client_id = $1 AND billing_month = $2`,
@@ -110,8 +114,10 @@ describe('generateShMonthEnd', () => {
   it('is idempotent: second run skips the existing invoice', async () => {
     await generateShMonthEnd(TEST_YEAR, TEST_MONTH_INDEX);
     const second = await generateShMonthEnd(TEST_YEAR, TEST_MONTH_INDEX);
+    // Same fixture-scoping caveat: the second run skips every
+    // already-billed client (fixture included), creates none.
     expect(second.invoicesCreated).toBe(0);
-    expect(second.invoicesSkipped).toBe(1);
+    expect(second.invoicesSkipped).toBeGreaterThanOrEqual(1);
     const { rows } = await pool.query(
       'SELECT COUNT(*)::int AS n FROM sh_invoices WHERE client_id = $1 AND billing_month = $2',
       [fx.clientId, `${TEST_YEAR}-01-01`],

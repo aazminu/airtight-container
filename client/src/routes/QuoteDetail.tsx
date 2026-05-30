@@ -104,9 +104,15 @@ export default function QuoteDetail() {
   const [available, setAvailable] = useState<InventoryRow[]>([]);
   const [availableLoaded, setAvailableLoaded] = useState(false);
   const [containerSearch, setContainerSearch] = useState('');
-  // Selection order is significant: chosen container[i] maps to quote
-  // line[i] positionally on promotion (see promote endpoint).
+  // Selection state: which containers are in play. Mapping to quote
+  // lines is held separately in lineAssignments below so the operator
+  // can rearrange without losing selections.
   const [promoteIds, setPromoteIds] = useState<number[]>([]);
+  // line_id → inventory_id (or null when unassigned). Filled positionally
+  // by togglePromote; operator can override via the Lines panel.
+  const [lineAssignments, setLineAssignments] = useState<
+    Record<number, number | null>
+  >({});
   const [truckingCompanies, setTruckingCompanies] = useState<TruckingCompany[]>(
     [],
   );
@@ -122,7 +128,7 @@ export default function QuoteDetail() {
     setError(null);
     try {
       const res = await fetch(`/api/v2/quote/${id}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       const body = (await res.json()) as ApiResponse;
       const q = body.data.quotes[0];
       if (!q) throw new Error('Quote not found');
@@ -143,6 +149,14 @@ export default function QuoteDetail() {
     return quote.customer.business_name || quote.customer.client_name || 'Unknown';
   }, [quote]);
 
+  // Promote requires every line to have a container assigned (which
+  // implicitly enforces the 1:1 count rule).
+  const mappingComplete = useMemo(() => {
+    if (!quote) return false;
+    if (promoteIds.length !== quote.lines.length) return false;
+    return quote.lines.every((l) => lineAssignments[l.id] != null);
+  }, [quote, promoteIds.length, lineAssignments]);
+
   const handleRegeneratePdf = async () => {
     if (!quote) return;
     setAction({ kind: 'busy', label: 'Regenerating PDF…' });
@@ -153,7 +167,7 @@ export default function QuoteDetail() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
+        throw new Error(body?.message ?? `Something went wrong`);
       }
       setAction({ kind: 'ok', message: 'PDF regenerated.' });
       await load();
@@ -193,7 +207,7 @@ export default function QuoteDetail() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
+        throw new Error(body?.message ?? `Something went wrong`);
       }
       setAction({ kind: 'ok', message: `Sent to ${to}.` });
       await load();
@@ -220,7 +234,7 @@ export default function QuoteDetail() {
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       navigate('/quotes');
     } catch (e) {
       setAction({
@@ -264,7 +278,7 @@ export default function QuoteDetail() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
+        throw new Error(body?.message ?? `Something went wrong`);
       }
       setAction({ kind: 'ok', message: 'Saved.' });
       setEditing(false);
@@ -279,6 +293,11 @@ export default function QuoteDetail() {
 
   const openPromote = async () => {
     setPromoteIds([]);
+    setLineAssignments(
+      quote
+        ? Object.fromEntries(quote.lines.map((l) => [l.id, null]))
+        : {},
+    );
     setContainerSearch('');
     setShipSameAsBilling(true);
     setShipTo(EMPTY_SHIP_TO);
@@ -319,21 +338,57 @@ export default function QuoteDetail() {
   const togglePromote = (containerId: number) => {
     setPromoteIds((prev) => {
       if (prev.includes(containerId)) {
-        // Drop the container + its collected delivery info.
+        // Drop the container + its delivery info + free its line slot.
         setDeliveryByContainer((d) => {
           const next = { ...d };
           delete next[containerId];
           return next;
         });
+        setLineAssignments((la) => {
+          const next = { ...la };
+          for (const [lineId, invId] of Object.entries(next)) {
+            if (invId === containerId) next[Number(lineId)] = null;
+          }
+          return next;
+        });
         return prev.filter((x) => x !== containerId);
       }
-      // Cap selection at quote.lines.length — every container needs a
-      // line to map onto.
+      // Cap at line count — every container needs a line to map onto.
       if (quote && prev.length >= quote.lines.length) return prev;
       setDeliveryByContainer((d) =>
         d[containerId] ? d : { ...d, [containerId]: { ...EMPTY_DELIVERY } },
       );
+      // Pin to the first open line slot. Operator can rearrange via the
+      // Lines panel.
+      if (quote) {
+        setLineAssignments((la) => {
+          for (const line of quote.lines) {
+            if (la[line.id] == null) {
+              return { ...la, [line.id]: containerId };
+            }
+          }
+          return la;
+        });
+      }
       return [...prev, containerId];
+    });
+  };
+
+  // Manual reassign from the Lines panel. Picking a container that's
+  // already on another line swaps the two — keeps the 1:1 invariant
+  // without confronting the operator with disabled options.
+  const assignLine = (lineId: number, containerId: number | null) => {
+    setLineAssignments((la) => {
+      const next = { ...la };
+      if (containerId != null) {
+        for (const [lid, cid] of Object.entries(next)) {
+          if (cid === containerId && Number(lid) !== lineId) {
+            next[Number(lid)] = next[lineId] ?? null;
+          }
+        }
+      }
+      next[lineId] = containerId;
+      return next;
     });
   };
 
@@ -349,6 +404,36 @@ export default function QuoteDetail() {
 
   const handlePromote = async () => {
     if (!quote || promoteIds.length === 0) return;
+    // Build the payload in line order so each container carries the
+    // explicit line_id it was mapped to. Skip any line that's still
+    // unassigned — guarded by the Promote button being disabled.
+    const containersPayload: Array<{
+      inventory_id: number;
+      line_id: number;
+      outbound_trucking_company_id: number | null;
+      door_orientation: string | null;
+      delivery_name: string | null;
+      delivery_street: string | null;
+      delivery_city: string | null;
+      delivery_state: string | null;
+      delivery_zip: string | null;
+    }> = [];
+    for (const line of quote.lines) {
+      const inventory_id = lineAssignments[line.id];
+      if (inventory_id == null) continue;
+      const d = deliveryByContainer[inventory_id] ?? EMPTY_DELIVERY;
+      containersPayload.push({
+        inventory_id,
+        line_id: line.id,
+        outbound_trucking_company_id: d.outbound_trucking_company_id,
+        door_orientation: d.door_orientation || null,
+        delivery_name: d.delivery_same_as_ship ? null : d.delivery_name || null,
+        delivery_street: d.delivery_same_as_ship ? null : d.delivery_street || null,
+        delivery_city: d.delivery_same_as_ship ? null : d.delivery_city || null,
+        delivery_state: d.delivery_same_as_ship ? null : d.delivery_state || null,
+        delivery_zip: d.delivery_same_as_ship ? null : d.delivery_zip || null,
+      });
+    }
     setAction({ kind: 'busy', label: 'Creating invoice…' });
     setPromoteOpen(false);
     try {
@@ -363,24 +448,12 @@ export default function QuoteDetail() {
           ship_to_city: shipSameAsBilling ? null : shipTo.city || null,
           ship_to_state: shipSameAsBilling ? null : shipTo.state || null,
           ship_to_zip: shipSameAsBilling ? null : shipTo.zip || null,
-          containers: promoteIds.map((inventory_id) => {
-            const d = deliveryByContainer[inventory_id] ?? EMPTY_DELIVERY;
-            return {
-              inventory_id,
-              outbound_trucking_company_id: d.outbound_trucking_company_id,
-              door_orientation: d.door_orientation || null,
-              delivery_name: d.delivery_same_as_ship ? null : d.delivery_name || null,
-              delivery_street: d.delivery_same_as_ship ? null : d.delivery_street || null,
-              delivery_city: d.delivery_same_as_ship ? null : d.delivery_city || null,
-              delivery_state: d.delivery_same_as_ship ? null : d.delivery_state || null,
-              delivery_zip: d.delivery_same_as_ship ? null : d.delivery_zip || null,
-            };
-          }),
+          containers: containersPayload,
         }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
+        throw new Error(body?.message ?? `Something went wrong`);
       }
       const created = (await res.json()) as {
         id: number;
@@ -662,12 +735,60 @@ export default function QuoteDetail() {
           <Flow step={promoteStep}>
             <FlowStep>
               <p className={styles.promoteHint}>
-                Pick up to {quote.lines.length} container
-                {quote.lines.length === 1 ? '' : 's'}. The quote's line pricing
-                (sale price, trucking, modifications) is copied onto them in
-                order — the 1st container selected takes the 1st quote line,
-                and so on. The quote stays as-is and can be promoted again.
+                Pick {quote.lines.length} container
+                {quote.lines.length === 1 ? '' : 's'} — one per quote line.
+                The Lines panel below shows which container is going to
+                which line; default mapping is the order you pick them in,
+                but you can rearrange. The quote stays as-is and can be
+                promoted again.
               </p>
+
+              <div className={styles.linesPanel}>
+                <div className={styles.linesPanelHead}>Lines</div>
+                {quote.lines.map((line, idx) => {
+                  const assignedId = lineAssignments[line.id];
+                  const assignedBox = assignedId
+                    ? available.find((a) => a.id === assignedId)
+                    : null;
+                  return (
+                    <div key={line.id} className={styles.linePanelRow}>
+                      <span className={styles.linePanelIndex}>{idx + 1}</span>
+                      <span className={styles.linePanelDesc}>
+                        {line.description || `Line ${idx + 1}`}
+                      </span>
+                      <select
+                        className={styles.linePanelSelect}
+                        value={assignedId ?? ''}
+                        onChange={(e) =>
+                          assignLine(
+                            line.id,
+                            e.target.value ? Number(e.target.value) : null,
+                          )
+                        }
+                        data-assigned={assignedId != null ? true : undefined}
+                      >
+                        <option value="">— pick a container —</option>
+                        {promoteIds.map((cid) => {
+                          const box = available.find((a) => a.id === cid);
+                          if (!box) return null;
+                          return (
+                            <option key={cid} value={cid}>
+                              {box.unit_number} · {box.size}
+                            </option>
+                          );
+                        })}
+                        {assignedBox &&
+                          !promoteIds.includes(assignedBox.id) && (
+                            <option value={assignedBox.id}>
+                              {assignedBox.unit_number} · {assignedBox.size}
+                            </option>
+                          )}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+
               <input
                 type="search"
                 className={styles.promoteSearch}
@@ -684,9 +805,12 @@ export default function QuoteDetail() {
                   </div>
                 )}
                 {filteredAvailable.map((row) => {
-                  const order = promoteIds.indexOf(row.id);
-                  const checked = order !== -1;
-                  const mappedLine = checked ? quote.lines[order] : undefined;
+                  const checked = promoteIds.includes(row.id);
+                  const mappedLineIdx = quote.lines.findIndex(
+                    (l) => lineAssignments[l.id] === row.id,
+                  );
+                  const mappedLine =
+                    mappedLineIdx >= 0 ? quote.lines[mappedLineIdx] : undefined;
                   const atCap =
                     !checked && promoteIds.length >= quote.lines.length;
                   return (
@@ -711,12 +835,17 @@ export default function QuoteDetail() {
                       <span className={styles.promoteRowMeta}>
                         {row.size} · {row.damage}
                       </span>
-                      {checked && (
+                      {checked && mappedLine && (
                         <span className={styles.promoteRowMap}>
-                          → line {order + 1}
-                          {mappedLine?.description
+                          → line {mappedLineIdx + 1}
+                          {mappedLine.description
                             ? `: ${mappedLine.description}`
                             : ''}
+                        </span>
+                      )}
+                      {checked && !mappedLine && (
+                        <span className={styles.promoteRowMapWarn}>
+                          unassigned
                         </span>
                       )}
                     </button>
@@ -910,12 +1039,17 @@ export default function QuoteDetail() {
             {promoteStep < 3 ? (
               <Button
                 onClick={() => setPromoteStep((s) => s + 1)}
-                disabled={promoteIds.length === 0}
+                disabled={!mappingComplete}
+                title={
+                  !mappingComplete
+                    ? 'Assign every line to a container first'
+                    : undefined
+                }
               >
                 Next →
               </Button>
             ) : (
-              <Button onClick={handlePromote} disabled={promoteIds.length === 0}>
+              <Button onClick={handlePromote} disabled={!mappingComplete}>
                 Create invoice
               </Button>
             )}

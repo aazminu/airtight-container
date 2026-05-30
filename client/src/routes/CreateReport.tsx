@@ -24,7 +24,7 @@ const TYPE_LABELS: Record<ReportType, string> = {
   delivery_sheet: 'Delivery sheet',
   io_report: 'In / Out report',
   pnl: 'Profit + Loss',
-  sh_statement: 'S&H statement',
+  sh_statement: 'Storage & Handling statement',
   release_summary: 'Release summary',
 };
 
@@ -32,9 +32,9 @@ const TYPE_DESCRIPTIONS: Record<ReportType, string> = {
   delivery_sheet:
     'One-pager handed to the driver at outbound. Pulls customer, container, and modifications from the invoice; takes operator-entered fields (delivery company, on-site contact, door orientation, payment details).',
   io_report:
-    'Inbound + outbound activity over a date window. Includes container intake and sold-container delivery (sales) as well as S&H box check-ins and pickups.',
+    'Inbound + outbound activity over a date window. Includes container intake and sold-container delivery (sales) as well as Storage & Handling box check-ins and pickups.',
   pnl:
-    'Profit + Loss for a month, quarter, or year. Sales revenue vs. acquisition + modification cost, plus S&H revenue.',
+    'Profit + Loss for a month, quarter, or year. Sales revenue vs. acquisition + modification cost, plus Storage & Handling revenue.',
   sh_statement:
     'Per-client storage & handling statement. Lists every monthly invoice in a date window with in/out fees and storage-day charges.',
   release_summary:
@@ -141,7 +141,7 @@ async function submitReport(
     });
     const body = await res.json();
     if (!res.ok) {
-      return { error: body?.message ?? `HTTP ${res.status}` };
+      return { error: body?.message ?? `Something went wrong` };
     }
     return {
       id: body?.data?.report?.id,
@@ -576,7 +576,7 @@ function DeliveryFlow() {
       });
       const body = await res.json();
       if (!res.ok) {
-        setPreviewError(body?.message ?? `HTTP ${res.status}`);
+        setPreviewError(body?.message ?? `Something went wrong`);
         setPreview(null);
         return;
       }
@@ -670,7 +670,7 @@ function DeliveryFlow() {
           setSubmitState({
             kind: 'error',
             message:
-              body?.message ?? `Container update failed (HTTP ${patchRes.status})`,
+              body?.message ?? 'Container update failed',
           });
           return;
         }
@@ -716,7 +716,7 @@ function DeliveryFlow() {
           <FlowStep>
             <p className={styles.hint}>
               Pick the container this delivery sheet is for. Sold/outbound
-              sales boxes and stored S&H boxes are eligible.
+              sales boxes and stored Storage & Handling boxes are eligible.
             </p>
             <input
               type="search"
@@ -753,7 +753,7 @@ function DeliveryFlow() {
                           row.source === 'sales' ? styles.tagSales : styles.tagSh
                         }
                       >
-                        {row.source === 'sales' ? 'Sales' : 'S&H'}
+                        {row.source === 'sales' ? 'Sales' : 'Storage'}
                       </span>{' '}
                       {row.unit_number.trim()}
                     </span>
@@ -775,7 +775,7 @@ function DeliveryFlow() {
                 <>
                   Selected: <strong>{selected.unit_number.trim()}</strong> (
                   {selected.size}
-                  {selected.source === 'sh' ? ', S&H box' : ''}). Customer
+                  {selected.source === 'sh' ? ', Storage & Handling box' : ''}). Customer
                   auto-pulled. Override delivery details on the next step.
                 </>
               ) : (

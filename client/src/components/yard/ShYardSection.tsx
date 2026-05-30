@@ -53,7 +53,7 @@ export function ShYardSection() {
       const res = await fetch('/api/v2/sh-inventory?state=in_storage', {
         credentials: 'include',
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       const body = (await res.json()) as { data: { boxes: InStorageBox[] } };
       setBoxes(body.data.boxes);
     } catch (e) {
@@ -132,7 +132,7 @@ function ShYardRow({
         credentials: 'include',
         body: JSON.stringify({ checkout_date: iso }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       setCheckoutOpen(false);
       onCheckedOut();
     } catch (e) {

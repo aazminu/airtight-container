@@ -347,7 +347,7 @@ export default function CreateQuote() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? `Create failed: HTTP ${res.status}`);
+        throw new Error(body?.message ?? 'Create failed');
       }
       const created = (await res.json()) as { id: number; quote_number: string };
       setSubmitState({

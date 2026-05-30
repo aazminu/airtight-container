@@ -250,7 +250,7 @@ export default function PnLPanel() {
       ]);
       const pnlBody = await pnlRes.json();
       if (!pnlRes.ok) {
-        setError(pnlBody?.message ?? `HTTP ${pnlRes.status}`);
+        setError(pnlBody?.message ?? 'Something went wrong');
         setData(null);
         return;
       }
@@ -320,7 +320,7 @@ export default function PnLPanel() {
       });
       const body = await res.json();
       if (!res.ok) {
-        setBreakdownError(body?.message ?? `HTTP ${res.status}`);
+        setBreakdownError(body?.message ?? `Something went wrong`);
         return;
       }
       setBreakdown((body.data?.rows ?? []) as BreakdownRow[]);
@@ -407,7 +407,7 @@ export default function PnLPanel() {
       });
       const body = await res.json();
       if (!res.ok) {
-        setPdfError(body?.message ?? `HTTP ${res.status}`);
+        setPdfError(body?.message ?? `Something went wrong`);
         return;
       }
       const reportId = body?.data?.report?.id;
@@ -567,7 +567,7 @@ export default function PnLPanel() {
             <KpiCard
               label="Net Profit"
               value={fmtCurrency(netProfit)}
-              subtle="Sales + S&H combined"
+              subtle="Sales + Storage combined"
               tone={netProfit >= 0 ? 'profit' : 'loss'}
               onClick={() => openBreakdown('profit')}
             />
@@ -597,7 +597,7 @@ export default function PnLPanel() {
               }
             />
             <KpiCard
-              label="S&H Revenue"
+              label="Storage Revenue"
               value={fmtCurrency(data.sh.revenue)}
               subtle={`${data.sh.client_count} client${
                 data.sh.client_count === 1 ? '' : 's'
@@ -836,7 +836,7 @@ export default function PnLPanel() {
                   <Row label="In-fees" value={data.sh.in_fee} />
                   <Row label="Out-fees" value={data.sh.out_fee} />
                   <Row label="Storage days" value={data.sh.storage_days} />
-                  <Row label="S&H revenue" value={data.sh.revenue} bold />
+                  <Row label="Storage revenue" value={data.sh.revenue} bold />
                 </tbody>
               </table>
             </section>

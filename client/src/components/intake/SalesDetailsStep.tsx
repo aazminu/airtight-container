@@ -52,7 +52,7 @@ export function SalesDetailsStep({ value, onChange, lockedRelease, onLoadError }
         const res = await fetch('/api/v2/release/numbers', {
           credentials: 'include',
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`Something went wrong`);
         const body = (await res.json()) as { data: { releases: ReleaseOption[] } };
         if (!cancelled) setReleases(body.data.releases);
       } catch (e) {

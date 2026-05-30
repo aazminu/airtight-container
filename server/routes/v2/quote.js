@@ -360,6 +360,25 @@ router.post(
 		const client = await pool.connect();
 		try {
 			await client.query("BEGIN");
+			// Operator must pick exactly one container per quote line. The
+			// promote helper used to silently drop excess containers or
+			// leave lines unpriced when counts mismatched — the operator
+			// asked us to enforce 1:1 so the promoted invoice always
+			// matches the quoted scope.
+			const { rows: lineRows } = await client.query(
+				"SELECT COUNT(*)::int AS n FROM quote_lines WHERE quote_id = $1",
+				[quoteId],
+			);
+			const lineCount = lineRows[0].n;
+			const containerCount = req.body.containers.length;
+			if (containerCount !== lineCount) {
+				await client.query("ROLLBACK");
+				return res.status(400).json({
+					code: "container_count_mismatch",
+					message: `Quote has ${lineCount} line${lineCount === 1 ? "" : "s"} but ${containerCount} container${containerCount === 1 ? "" : "s"} were submitted.`,
+					details: { lineCount, containerCount },
+				});
+			}
 			const result = await promoteQuoteToInvoice(client, quoteId, req.body);
 			await client.query("COMMIT");
 			res.status(200).json({ status: "success", ...result });

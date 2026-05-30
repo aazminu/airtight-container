@@ -306,7 +306,7 @@ export default function Intake() {
           release: [release],
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       setPopup(t('intake.logged_sales'));
       resetForNextBox();
     } catch (e) {
@@ -335,7 +335,7 @@ export default function Intake() {
           },
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Something went wrong`);
       setPopup(t('intake.logged_sh'));
       resetForNextBox();
     } catch (e) {

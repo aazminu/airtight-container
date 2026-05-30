@@ -46,7 +46,7 @@ export default function PrintReceipt() {
         const res = await fetch(`/api/v2/report/${id}`, {
           credentials: 'include',
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`Something went wrong`);
         const body = (await res.json()) as ApiResponse;
         if (cancelled) return;
         const row = body.data.report;

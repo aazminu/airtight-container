@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Badge, Button } from '../ui';
 import { formatUnitNumber } from '../../lib/unitNumber';
 import styles from '../../routes/Inventory.module.css';
@@ -30,17 +31,15 @@ interface ShInventoryRow {
 }
 
 interface Props {
-  /** Which S&H lifecycle state to show. Pending S&H boxes live on /audit
-   *  and are never surfaced here. */
+  /** Which Storage & Handling lifecycle state to show. Pending boxes
+   *  live on /audit and are never surfaced here. */
   state: 'in_storage' | 'checked_out';
   search: string;
-  isAdmin: boolean;
-  onMessage: (msg: string) => void;
 }
 
 const STATE_LABELS: Record<ShState, string> = {
   pending: 'Pending audit',
-  in_storage: 'In storage',
+  in_storage: 'On site',
   checked_out: 'Checked out',
 };
 
@@ -59,11 +58,6 @@ const daysOnsite = (intake: string, checkout: string | null): number => {
   start.setHours(0, 0, 0, 0);
   end.setHours(0, 0, 0, 0);
   return Math.max(0, Math.floor((end.getTime() - start.getTime()) / MS_PER_DAY) + 1);
-};
-
-const isoToLocalInput = (d: Date): string => {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
 const rateLabel = (row: ShInventoryRow): string => {
@@ -93,17 +87,15 @@ const matchesSearch = (row: ShInventoryRow, q: string): boolean => {
   return haystack.some((h) => h && h.toLowerCase().includes(needle));
 };
 
-// The Inventory page's S&H tabs — admin-facing desktop view, split by
-// lifecycle state to mirror sales (Available/Sold). The yard-facing
-// checkout flow on YardView is mobile-first; this one is desktop with
-// more context (release link, billing mode, rates). Inline check-out
-// mirrors YardView's UX so an admin sitting at the desk can flip a box
-// outbound without bouncing to the mobile page.
-export function ShInventoryTable({ state, search, isAdmin, onMessage }: Props) {
+// Storage & Handling tables on the Inventory page. Pending boxes live
+// on /audit; this surface splits between On Site (in_storage) and
+// Checked Out (checked_out). Outbound is its own page now — operators
+// click the Outbound link on an on-site row to deep-link into the
+// Storage & Handling outbound flow with the box pre-selected.
+export function ShInventoryTable({ state, search }: Props) {
   const [rows, setRows] = useState<ShInventoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [refreshSeq, setRefreshSeq] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,7 +107,7 @@ export function ShInventoryTable({ state, search, isAdmin, onMessage }: Props) {
           `/api/v2/sh-inventory?state=${encodeURIComponent(state)}`,
           { credentials: 'include' },
         );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`Something went wrong`);
         const body = (await res.json()) as { data: { boxes: ShInventoryRow[] } };
         if (cancelled) return;
         setRows(body.data.boxes);
@@ -128,12 +120,10 @@ export function ShInventoryTable({ state, search, isAdmin, onMessage }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [state, refreshSeq]);
+  }, [state]);
 
   const sorted = useMemo(() => {
     const q = search.trim();
-    // In-yard view: newest arrivals first.
-    // Checked-out view: most-recently-out first.
     const sortKey = (r: ShInventoryRow) =>
       state === 'checked_out' ? r.checkout_date ?? r.intake_date : r.intake_date;
     return rows
@@ -143,8 +133,17 @@ export function ShInventoryTable({ state, search, isAdmin, onMessage }: Props) {
   }, [rows, search, state]);
 
   if (error) {
-    return <div className={styles.error}>Failed to load S&amp;H inventory: {error}</div>;
+    return (
+      <div className={styles.error}>
+        Failed to load Storage &amp; Handling inventory: {error}
+      </div>
+    );
   }
+
+  // On Site rows can't have a checkout date by definition — drop that
+  // column entirely on the On Site sub-tab so the table reads cleanly.
+  const showCheckout = state === 'checked_out';
+  const cols = showCheckout ? 11 : 10;
 
   return (
     <div className={styles.tableWrap}>
@@ -160,30 +159,22 @@ export function ShInventoryTable({ state, search, isAdmin, onMessage }: Props) {
             <th>Release #</th>
             <th>Intake</th>
             <th>Days</th>
-            <th>Checkout</th>
-            {isAdmin && <th />}
+            {showCheckout && <th>Checkout</th>}
+            <th />
           </tr>
         </thead>
         <tbody>
           {sorted.map((r) => (
-            <ShRow
-              key={r.id}
-              row={r}
-              isAdmin={isAdmin}
-              onCheckedOut={() => {
-                onMessage('Box checked out.');
-                setRefreshSeq((s) => s + 1);
-              }}
-            />
+            <ShRow key={r.id} row={r} showCheckout={showCheckout} />
           ))}
           {!loading && sorted.length === 0 && (
             <tr>
-              <td colSpan={isAdmin ? 11 : 10} className={styles.empty}>
+              <td colSpan={cols} className={styles.empty}>
                 {search
-                  ? 'No S&H boxes match the current search.'
+                  ? 'No Storage & Handling boxes match the current search.'
                   : state === 'in_storage'
-                    ? 'No S&H boxes currently in the yard.'
-                    : 'No S&H boxes have been checked out yet.'}
+                    ? 'No Storage & Handling boxes currently on site.'
+                    : 'No Storage & Handling boxes have been checked out yet.'}
               </td>
             </tr>
           )}
@@ -195,18 +186,11 @@ export function ShInventoryTable({ state, search, isAdmin, onMessage }: Props) {
 
 function ShRow({
   row,
-  isAdmin,
-  onCheckedOut,
+  showCheckout,
 }: {
   row: ShInventoryRow;
-  isAdmin: boolean;
-  onCheckedOut: () => void;
+  showCheckout: boolean;
 }) {
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [checkoutDate, setCheckoutDate] = useState(() => isoToLocalInput(new Date()));
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const customerLabel = (() => {
     if (row.client_id == null) return 'Unassigned';
     if (row.business_name && row.client_name) {
@@ -214,27 +198,6 @@ function ShRow({
     }
     return row.client_name ?? `Client #${row.client_id}`;
   })();
-
-  const confirmCheckout = async () => {
-    setSubmitting(true);
-    setError(null);
-    try {
-      const iso = new Date(checkoutDate).toISOString();
-      const res = await fetch(`/api/v2/sh-inventory/checkout/${row.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ checkout_date: iso }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setCheckoutOpen(false);
-      onCheckedOut();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Check-out failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   return (
     <tr>
@@ -254,40 +217,32 @@ function ShRow({
       </td>
       <td>{fmtDate(row.intake_date)}</td>
       <td>{daysOnsite(row.intake_date, row.checkout_date)}</td>
-      <td className={row.checkout_date ? '' : styles.muted}>{fmtDate(row.checkout_date)}</td>
-      {isAdmin && (
-        <td>
-          {row.state === 'in_storage' && !checkoutOpen && (
-            <Button variant="ghost" onClick={() => setCheckoutOpen(true)}>
-              Check out
-            </Button>
-          )}
-          {checkoutOpen && (
-            <div className={styles.inlineCheckout}>
-              <input
-                type="datetime-local"
-                value={checkoutDate}
-                onChange={(e) => setCheckoutDate(e.target.value)}
-              />
-              <Button
-                variant="primary"
-                onClick={confirmCheckout}
-                disabled={submitting}
-              >
-                {submitting ? '…' : 'Confirm'}
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setCheckoutOpen(false)}
-                disabled={submitting}
-              >
-                Cancel
-              </Button>
-              {error && <div className={styles.error}>{error}</div>}
-            </div>
-          )}
+      {showCheckout && (
+        <td className={row.checkout_date ? '' : styles.muted}>
+          {fmtDate(row.checkout_date)}
         </td>
       )}
+      <td>
+        {row.state === 'in_storage' ? (
+          <Link
+            to={`/outbound?sh_inventory_id=${row.id}`}
+            className={styles.outboundLink}
+          >
+            <Button variant="ghost">Outbound</Button>
+          </Link>
+        ) : row.state === 'checked_out' ? (
+          <a
+            href={`/sh-pickup-receipt/${row.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className={styles.outboundLink}
+          >
+            <Button variant="ghost">Reprint</Button>
+          </a>
+        ) : (
+          <span className={styles.muted}>—</span>
+        )}
+      </td>
     </tr>
   );
 }

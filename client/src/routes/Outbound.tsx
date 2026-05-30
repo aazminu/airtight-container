@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Badge,
@@ -12,6 +13,59 @@ import DeliveryTemplate from '../components/templates/delivery/DeliveryTemplate'
 import type { DeliveryData } from '../components/templates/delivery/types';
 import { SMS_CONSENT_VERSION } from '../lib/smsConsent';
 import styles from './Outbound.module.css';
+
+type OutboundKind = 'sales' | 'sh';
+
+const KIND_STORAGE_KEY = 'outbound.kind';
+
+// Top-level wrapper: tabbed router between sales (existing 4-step
+// stepper) and Storage & Handling (new pickup-number flow). Deep link
+// from Inventory: /outbound?sh_inventory_id=X defaults to the Storage
+// & Handling tab with that box pre-selected on step 1.
+export default function Outbound() {
+  const [params] = useSearchParams();
+  const deepLinkShId = params.get('sh_inventory_id');
+
+  const [kind, setKind] = useState<OutboundKind>(() => {
+    if (deepLinkShId) return 'sh';
+    const v = localStorage.getItem(KIND_STORAGE_KEY);
+    return v === 'sh' ? 'sh' : 'sales';
+  });
+
+  useEffect(() => {
+    localStorage.setItem(KIND_STORAGE_KEY, kind);
+  }, [kind]);
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.kindSegment} role="tablist" aria-label="Outbound kind">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={kind === 'sales'}
+          className={`${styles.kindTab} ${kind === 'sales' ? styles.kindActive : ''}`}
+          onClick={() => setKind('sales')}
+        >
+          Sales
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={kind === 'sh'}
+          className={`${styles.kindTab} ${kind === 'sh' ? styles.kindActive : ''}`}
+          onClick={() => setKind('sh')}
+        >
+          Storage &amp; Handling
+        </button>
+      </div>
+      {kind === 'sales' ? (
+        <SalesOutboundFlow />
+      ) : (
+        <ShOutboundFlow preselectId={deepLinkShId ? Number(deepLinkShId) : null} />
+      )}
+    </div>
+  );
+}
 
 // Outbound stepper. The operator picks a scheduled delivery sheet,
 // confirms its details (read-only — yard ops don't get to edit sheets),
@@ -94,7 +148,7 @@ const validEmail = (raw: string): boolean => {
   return !t || /^\S+@\S+\.\S+$/.test(t);
 };
 
-export default function Outbound() {
+function SalesOutboundFlow() {
   const { t } = useTranslation();
   const [smsEnabled, setSmsEnabled] = useState<boolean | null>(null);
   const [step, setStep] = useState(0);
@@ -168,7 +222,7 @@ export default function Outbound() {
       const res = await fetch(`/api/v2/report/${id}`, { credentials: 'include' });
       const body = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
+        throw new Error(body?.message ?? `Something went wrong`);
       }
       return body?.data?.report as ReportRow;
     } catch (e) {
@@ -331,7 +385,7 @@ export default function Outbound() {
   const canPickUp = container?.state === 'sold';
 
   return (
-    <div className={styles.page}>
+    <>
       <header className={styles.header}>
         <h1>{t('outbound.title')}</h1>
         <p className={styles.sub}>{t('outbound.subtitle')}</p>
@@ -562,6 +616,433 @@ export default function Outbound() {
           )}
         </div>
       )}
-    </div>
+    </>
+  );
+}
+
+// ---- Storage & Handling outbound flow ------------------------------
+
+interface ShBox {
+  id: number;
+  client_id: number | null;
+  client_name: string | null;
+  business_name: string | null;
+  unit_number: string;
+  size: string;
+  damage: string | null;
+  intake_date: string;
+  state: 'pending' | 'in_storage' | 'checked_out';
+}
+
+interface PickupOption {
+  pickup_number_id: number;
+  pickup_number_value: string;
+  pickup_count: number;
+  assignment_count: number;
+  sale_company_id: number;
+  sale_company_name: string;
+}
+
+type ShStepId = 'select' | 'review' | 'print';
+
+function customerLabel(box: ShBox): string {
+  if (box.client_id == null) return 'Unassigned';
+  if (box.business_name && box.client_name) {
+    return `${box.client_name} — ${box.business_name}`;
+  }
+  return box.client_name ?? `Client #${box.client_id}`;
+}
+
+function isoToLocalInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function ShOutboundFlow({ preselectId }: { preselectId: number | null }) {
+  const navigate = useNavigate();
+  const [boxes, setBoxes] = useState<ShBox[]>([]);
+  const [boxesLoading, setBoxesLoading] = useState(true);
+  const [boxesError, setBoxesError] = useState<string | null>(null);
+
+  const [pickups, setPickups] = useState<PickupOption[]>([]);
+  const [pickupsError, setPickupsError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState('');
+  // Single-box flow — operator outbounds one box per run and re-runs
+  // for batches. Cuts UI complexity and keeps the Next button visible
+  // regardless of fleet size.
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [pickupId, setPickupId] = useState<number | null>(null);
+  const [damage, setDamage] = useState('');
+  const [outboundDate, setOutboundDate] = useState(() => isoToLocalInput(new Date()));
+
+  const [step, setStep] = useState<ShStepId>('select');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitFieldError, setSubmitFieldError] = useState<{
+    code: string;
+    details?: Record<string, unknown>;
+  } | null>(null);
+  const [printedId, setPrintedId] = useState<number | null>(null);
+
+  // Preselect from deep-link once boxes have loaded.
+  const preselectApplied = useRef(false);
+  useEffect(() => {
+    if (preselectApplied.current) return;
+    if (boxesLoading) return;
+    if (preselectId == null) return;
+    if (boxes.some((b) => b.id === preselectId)) {
+      setSelectedId(preselectId);
+    }
+    preselectApplied.current = true;
+  }, [preselectId, boxes, boxesLoading]);
+
+  // Load in_storage boxes.
+  useEffect(() => {
+    let cancelled = false;
+    setBoxesLoading(true);
+    (async () => {
+      try {
+        const res = await fetch('/api/v2/sh-inventory?state=in_storage', {
+          credentials: 'include',
+        });
+        if (!res.ok) throw new Error('Something went wrong');
+        const body = (await res.json()) as { data: { boxes: ShBox[] } };
+        if (cancelled) return;
+        setBoxes(body.data.boxes);
+      } catch (e) {
+        if (!cancelled)
+          setBoxesError(e instanceof Error ? e.message : 'Failed to load boxes');
+      } finally {
+        if (!cancelled) setBoxesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load active pickup numbers.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/v2/pickup/numbers', { credentials: 'include' });
+        if (!res.ok) throw new Error('Something went wrong');
+        const body = (await res.json()) as { data: { pickups: PickupOption[] } };
+        if (cancelled) return;
+        setPickups(body.data.pickups);
+      } catch (e) {
+        if (!cancelled)
+          setPickupsError(
+            e instanceof Error ? e.message : 'Failed to load pickup numbers',
+          );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filteredBoxes = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return boxes;
+    return boxes.filter((b) =>
+      [b.unit_number, b.client_name, b.business_name, b.size]
+        .filter((v): v is string => !!v)
+        .some((v) => v.toLowerCase().includes(q)),
+    );
+  }, [boxes, search]);
+
+  const selectedBox = boxes.find((b) => b.id === selectedId) ?? null;
+
+  const pickupGroups = useMemo(() => {
+    const groups = new Map<number, { name: string; items: PickupOption[] }>();
+    for (const p of pickups) {
+      if (!groups.has(p.sale_company_id)) {
+        groups.set(p.sale_company_id, { name: p.sale_company_name, items: [] });
+      }
+      groups.get(p.sale_company_id)!.items.push(p);
+    }
+    return [...groups.values()];
+  }, [pickups]);
+
+  const selectedPickup = pickups.find((p) => p.pickup_number_id === pickupId) ?? null;
+  const remainingSlots = selectedPickup
+    ? Math.max(0, selectedPickup.pickup_count - selectedPickup.assignment_count)
+    : null;
+
+  const canSubmit =
+    selectedBox != null &&
+    pickupId != null &&
+    !!outboundDate &&
+    !submitting &&
+    (remainingSlots == null || remainingSlots >= 1);
+
+  const submit = async () => {
+    if (!canSubmit || !selectedBox) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    setSubmitFieldError(null);
+    try {
+      const isoDate = new Date(outboundDate).toISOString();
+      const res = await fetch('/api/v2/sh-inventory/outbound', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pickup_number_id: pickupId,
+          outbound_date: isoDate,
+          boxes: [
+            {
+              sh_inventory_id: selectedBox.id,
+              pickup_damage: damage.trim() || 'Out good',
+            },
+          ],
+        }),
+      });
+      const body = (await res.json().catch(() => null)) as {
+        code?: string;
+        message?: string;
+        details?: Record<string, unknown>;
+        data?: { receipt_box_ids: number[] };
+      } | null;
+      if (!res.ok) {
+        if (body?.code) {
+          setSubmitFieldError({ code: body.code, details: body.details });
+        }
+        throw new Error(body?.message ?? 'Outbound failed');
+      }
+      const ids = body?.data?.receipt_box_ids ?? [selectedBox.id];
+      setPrintedId(ids[0] ?? selectedBox.id);
+      setStep('print');
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : 'Outbound failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const goToReview = () => {
+    if (selectedId == null) return;
+    setStep('review');
+  };
+
+  const resetForAnother = () => {
+    setSelectedId(null);
+    setDamage('');
+    setSubmitError(null);
+    setSubmitFieldError(null);
+    setPrintedId(null);
+    setStep('select');
+    // Refetch in case the in-storage list changed under us.
+    (async () => {
+      try {
+        const res = await fetch('/api/v2/sh-inventory?state=in_storage', {
+          credentials: 'include',
+        });
+        if (!res.ok) return;
+        const body = (await res.json()) as { data: { boxes: ShBox[] } };
+        setBoxes(body.data.boxes);
+        const pickupRes = await fetch('/api/v2/pickup/numbers', { credentials: 'include' });
+        if (!pickupRes.ok) return;
+        const pickupBody = (await pickupRes.json()) as { data: { pickups: PickupOption[] } };
+        setPickups(pickupBody.data.pickups);
+      } catch {
+        // non-fatal
+      }
+    })();
+  };
+
+  const steps: { id: ShStepId; label: string }[] = [
+    { id: 'select', label: 'Pick a box' },
+    { id: 'review', label: 'Pickup & damage' },
+    { id: 'print', label: 'Print' },
+  ];
+  const stepIndex = steps.findIndex((s) => s.id === step);
+
+  return (
+    <>
+      <header className={styles.header}>
+        <h1>Storage &amp; Handling Outbound</h1>
+        <p className={styles.sub}>
+          Pick a box, assign a pickup number, and print the receipt.
+        </p>
+      </header>
+
+      <Stepper labels={steps.map((s) => s.label)} current={stepIndex} />
+
+      <Flow step={stepIndex}>
+        <FlowStep>
+          <section className={styles.stepBody}>
+            {boxesError && <div className={styles.error}>{boxesError}</div>}
+            <input
+              type="search"
+              className={styles.search}
+              placeholder="Search unit #, customer, size…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <div className={styles.selectCount}>
+              {selectedId != null ? '1 selected' : 'None selected'} ·{' '}
+              {filteredBoxes.length} on site
+            </div>
+            <div className={styles.boxList}>
+              {boxesLoading ? (
+                <p>Loading…</p>
+              ) : filteredBoxes.length === 0 ? (
+                <p className={styles.muted}>No boxes on site match.</p>
+              ) : (
+                filteredBoxes.map((b) => {
+                  const checked = selectedId === b.id;
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      className={styles.boxRow}
+                      data-checked={checked}
+                      onClick={() => setSelectedId(b.id)}
+                    >
+                      <div className={styles.boxMain}>
+                        <div className={styles.boxUnit}>{b.unit_number.trim()}</div>
+                        <div className={styles.boxMeta}>
+                          {customerLabel(b)} · {b.size}
+                          {b.damage ? ` · ${b.damage}` : ''}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <div className={styles.nav}>
+              <Button
+                variant="primary"
+                onClick={goToReview}
+                disabled={selectedId == null}
+              >
+                Next
+              </Button>
+            </div>
+          </section>
+        </FlowStep>
+
+        <FlowStep>
+          <section className={styles.stepBody}>
+            {pickupsError && <div className={styles.error}>{pickupsError}</div>}
+
+            {selectedBox && (
+              <div className={styles.boxRow} data-checked>
+                <div className={styles.boxMain}>
+                  <div className={styles.boxUnit}>
+                    {selectedBox.unit_number.trim()}
+                  </div>
+                  <div className={styles.boxMeta}>
+                    {customerLabel(selectedBox)} · {selectedBox.size}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <label className={styles.fieldLabel}>Pickup number</label>
+            <select
+              className={styles.formInput}
+              value={pickupId ?? ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                setPickupId(v ? Number(v) : null);
+                setSubmitFieldError(null);
+              }}
+            >
+              <option value="" disabled>
+                Pick a pickup number
+              </option>
+              {pickupGroups.map((g, i) => (
+                <optgroup key={i} label={g.name}>
+                  {g.items.map((p) => {
+                    const remaining = p.pickup_count - p.assignment_count;
+                    return (
+                      <option
+                        key={p.pickup_number_id}
+                        value={p.pickup_number_id}
+                        disabled={remaining <= 0}
+                      >
+                        {p.pickup_number_value} — {remaining} of {p.pickup_count} left
+                      </option>
+                    );
+                  })}
+                </optgroup>
+              ))}
+            </select>
+
+            {selectedPickup && remainingSlots != null && remainingSlots < 1 && (
+              <div className={styles.error}>
+                This pickup has no remaining slots.
+              </div>
+            )}
+
+            <label className={styles.fieldLabel}>Outbound date</label>
+            <input
+              type="datetime-local"
+              className={styles.formInput}
+              value={outboundDate}
+              onChange={(e) => setOutboundDate(e.target.value)}
+            />
+
+            <label className={styles.fieldLabel}>Damage at pickup</label>
+            <input
+              type="text"
+              className={styles.formInput}
+              value={damage}
+              placeholder="Out good"
+              onChange={(e) => setDamage(e.target.value)}
+            />
+
+            {submitFieldError?.code === 'box_not_in_storage' && (
+              <div className={styles.error}>
+                This box isn't in storage anymore — refresh the list and try
+                again.
+              </div>
+            )}
+            {submitError && <div className={styles.error}>{submitError}</div>}
+
+            <div className={styles.nav}>
+              <Button variant="ghost" onClick={() => setStep('select')}>
+                Back
+              </Button>
+              <Button variant="primary" onClick={submit} disabled={!canSubmit}>
+                {submitting ? 'Saving…' : 'Outbound'}
+              </Button>
+            </div>
+          </section>
+        </FlowStep>
+
+        <FlowStep>
+          <section className={styles.stepBody}>
+            <p>
+              <Badge tone="success">Done</Badge> Box checked out.
+            </p>
+            <div className={styles.nav}>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  if (printedId == null) return;
+                  window.open(`/sh-pickup-receipt/${printedId}`, '_blank');
+                }}
+                disabled={printedId == null}
+              >
+                Print receipt
+              </Button>
+              <Button variant="secondary" onClick={resetForAnother}>
+                Outbound another box
+              </Button>
+              <Button variant="ghost" onClick={() => navigate('/inventory')}>
+                Back to Inventory
+              </Button>
+            </div>
+          </section>
+        </FlowStep>
+      </Flow>
+    </>
   );
 }

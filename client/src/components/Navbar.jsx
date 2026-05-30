@@ -81,6 +81,9 @@ function Navbar() {
 										<a href="/releases">Releases</a>
 									</li>
 									<li>
+										<a href="/pickup-numbers">Pickup #s</a>
+									</li>
+									<li>
 										<PendingAuditNav />
 									</li>
 								</>

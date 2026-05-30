@@ -69,7 +69,7 @@ export default function PnLTemplate({ data }: { data: PnLData }) {
           >
             {fmtCurrency(grandProfit)}
           </span>
-          <span className={styles.cardSubtle}>Sales + S&H combined</span>
+          <span className={styles.cardSubtle}>Sales + Storage combined</span>
         </div>
       </div>
 
@@ -153,7 +153,7 @@ export default function PnLTemplate({ data }: { data: PnLData }) {
             </tr>
             <tr>
               <td className={styles.lineLabel}>
-                <strong>S&amp;H revenue</strong>
+                <strong>Storage &amp; Handling revenue</strong>
               </td>
               <td className={`${styles.lineValue} ${styles.profit}`}>
                 <strong>{fmtCurrency(data.sh.revenue)}</strong>
