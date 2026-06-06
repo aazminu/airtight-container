@@ -13,6 +13,7 @@ import {
 import { AddClientModal } from '../components/forms/AddClientModal';
 import { DoorOrientationField } from '../components/forms/DoorOrientationField';
 import { useDirtyForm } from '../lib/useDirtyForm';
+import { useDraftPersistence } from '../lib/useDraftPersistence';
 import InvoiceTemplate from '../components/templates/invoice/InvoiceTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/invoice/format';
 import type {
@@ -180,6 +181,69 @@ export default function CreateInvoice() {
     submitState.kind !== 'done' &&
       (selectedIds.length > 0 || selectedClient !== null),
   );
+
+  const draftSnapshot = useMemo(
+    () => ({
+      step,
+      selectedIds,
+      drafts,
+      selectedClient,
+      invoiceTaxed,
+      invoiceCredit,
+      taxRate,
+      ccFeePct,
+      invoiceDate,
+      shipSameAsBilling,
+      shipTo,
+    }),
+    [
+      step,
+      selectedIds,
+      drafts,
+      selectedClient,
+      invoiceTaxed,
+      invoiceCredit,
+      taxRate,
+      ccFeePct,
+      invoiceDate,
+      shipSameAsBilling,
+      shipTo,
+    ],
+  );
+  const { hasDraft, clearDraft } = useDraftPersistence(
+    'airtight:draft:invoice-create',
+    draftSnapshot,
+    (saved) => {
+      if (saved.step != null) setStep(saved.step);
+      if (Array.isArray(saved.selectedIds)) setSelectedIds(saved.selectedIds);
+      if (saved.drafts) setDrafts(saved.drafts);
+      if (saved.selectedClient !== undefined)
+        setSelectedClient(saved.selectedClient);
+      if (saved.invoiceTaxed != null) setInvoiceTaxed(saved.invoiceTaxed);
+      if (saved.invoiceCredit != null) setInvoiceCredit(saved.invoiceCredit);
+      if (saved.taxRate != null) setTaxRate(saved.taxRate);
+      if (saved.ccFeePct != null) setCcFeePct(saved.ccFeePct);
+      if (saved.invoiceDate != null) setInvoiceDate(saved.invoiceDate);
+      if (saved.shipSameAsBilling != null)
+        setShipSameAsBilling(saved.shipSameAsBilling);
+      if (saved.shipTo) setShipTo(saved.shipTo);
+    },
+  );
+
+  const discardDraft = () => {
+    clearDraft();
+    setStep(0);
+    setSelectedIds([]);
+    setDrafts({});
+    setSelectedClient(null);
+    setInvoiceTaxed(false);
+    setInvoiceCredit(false);
+    setTaxRate('0.06625');
+    setCcFeePct('3.5');
+    setInvoiceDate(todayISO());
+    setShipSameAsBilling(true);
+    setShipTo({ name: '', street: '', city: '', state: '', zip: '' });
+  };
 
   const loadTruckingCompanies = async () => {
     try {
@@ -505,7 +569,11 @@ export default function CreateInvoice() {
     if (step === 2) {
       return selectedIds.every((id) => {
         const d = drafts[id];
-        return d && Number(d.sale_price || 0) > 0;
+        return (
+          d &&
+          d.sale_price.trim() !== '' &&
+          Number.isFinite(Number(d.sale_price))
+        );
       });
     }
     return true;
@@ -608,6 +676,7 @@ export default function CreateInvoice() {
         throw new Error(body?.message ?? 'Save failed');
       }
 
+      clearDraft();
       setSubmitState({ kind: 'done', id: created.id, invoice_number: created.invoice_number });
       setStep(4);
     } catch (e) {
@@ -625,9 +694,16 @@ export default function CreateInvoice() {
     <div className={styles.page}>
       <header className={styles.header}>
         <h1 className={styles.title}>New Invoice</h1>
-        <span className={styles.stepLabel}>
-          Step {Math.min(step + 1, STEP_NAMES.length)} of {STEP_NAMES.length}
-        </span>
+        <div className={styles.headerActions}>
+          {hasDraft && submitState.kind !== 'done' && (
+            <Button variant="secondary" onClick={discardDraft}>
+              Discard draft
+            </Button>
+          )}
+          <span className={styles.stepLabel}>
+            Step {Math.min(step + 1, STEP_NAMES.length)} of {STEP_NAMES.length}
+          </span>
+        </div>
       </header>
 
       <Stepper labels={STEP_NAMES} current={step} ariaLabel="Invoice progress" />
@@ -745,7 +821,8 @@ export default function CreateInvoice() {
           <FlowStep>
             <p className={styles.hint}>
               Fill in per-container prices and invoice-level charges. Totals
-              update live. Sale price is required on every container.
+              update live. Sale price is required on every container (0 is
+              allowed).
             </p>
             <div className={styles.invoiceMetaGrid}>
               <label className={styles.field}>

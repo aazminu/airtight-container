@@ -101,22 +101,36 @@ export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorPr
     }));
   };
 
+  // "+ Add line item" copies the line above (deep-copying modifications
+  // with fresh client-side ids) so similar lines don't have to be
+  // retyped. Falls back to a blank line when there's nothing to copy.
   const addLine = () => {
-    setDraft((d) => ({
-      ...d,
-      lines: [
-        ...d.lines,
-        {
-          id: newKey(),
-          description: '',
-          sale_price: null,
-          trucking_rate: null,
-          destination: null,
-          position: d.lines.length,
-          modifications: [],
-        },
-      ],
-    }));
+    setDraft((d) => {
+      const last = d.lines[d.lines.length - 1];
+      const lineKey = newKey();
+      const copied = last
+        ? {
+            ...last,
+            id: lineKey,
+            position: d.lines.length,
+            modifications: last.modifications.map((m, i) => ({
+              ...m,
+              id: -Date.now() - i,
+              quote_line_item_id: lineKey,
+              position: i,
+            })),
+          }
+        : {
+            id: lineKey,
+            description: '',
+            sale_price: null,
+            trucking_rate: null,
+            destination: null,
+            position: d.lines.length,
+            modifications: [],
+          };
+      return { ...d, lines: [...d.lines, copied] };
+    });
   };
 
   const removeLine = (id: number) =>

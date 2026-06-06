@@ -12,6 +12,7 @@ import {
 import { AddClientModal } from '../components/forms/AddClientModal';
 import { DestinationField } from '../components/forms/DestinationField';
 import { useDirtyForm } from '../lib/useDirtyForm';
+import { useDraftPersistence } from '../lib/useDraftPersistence';
 import QuoteTemplate from '../components/templates/quote/QuoteTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/quote/format';
 import type {
@@ -111,6 +112,59 @@ export default function CreateQuote() {
     submitState.kind !== 'done' &&
       (selectedClient !== null || notes.trim() !== ''),
   );
+
+  const draftSnapshot = useMemo(
+    () => ({
+      step,
+      selectedClient,
+      lines,
+      notes,
+      quoteTaxed,
+      quoteCredit,
+      taxRate,
+      ccFeePct,
+    }),
+    [step, selectedClient, lines, notes, quoteTaxed, quoteCredit, taxRate, ccFeePct],
+  );
+  const { hasDraft, clearDraft } = useDraftPersistence(
+    'airtight:draft:quote-create',
+    draftSnapshot,
+    (saved) => {
+      if (saved.step != null) setStep(saved.step);
+      if (saved.selectedClient !== undefined)
+        setSelectedClient(saved.selectedClient);
+      // Re-key restored lines + mods so module-level keySeq can't later
+      // mint a colliding negative key for a freshly added line.
+      if (Array.isArray(saved.lines))
+        setLines(
+          saved.lines.map((l) => ({
+            ...l,
+            key: keySeq--,
+            modifications: l.modifications.map((m, i) => ({
+              ...m,
+              id: -Date.now() - i,
+            })),
+          })),
+        );
+      if (saved.notes != null) setNotes(saved.notes);
+      if (saved.quoteTaxed != null) setQuoteTaxed(saved.quoteTaxed);
+      if (saved.quoteCredit != null) setQuoteCredit(saved.quoteCredit);
+      if (saved.taxRate != null) setTaxRate(saved.taxRate);
+      if (saved.ccFeePct != null) setCcFeePct(saved.ccFeePct);
+    },
+  );
+
+  const discardDraft = () => {
+    clearDraft();
+    setStep(0);
+    setSelectedClient(null);
+    setLines([blankLine()]);
+    setNotes('');
+    setQuoteTaxed(false);
+    setQuoteCredit(false);
+    setTaxRate('0.06625');
+    setCcFeePct('3.5');
+  };
 
   useEffect(() => {
     (async () => {
@@ -234,7 +288,26 @@ export default function CreateQuote() {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   };
 
-  const addLine = () => setLines((prev) => [...prev, blankLine()]);
+  // "+ Add line item" copies the line above so repeated, similar lines
+  // (same container size/price, tweak one field) don't have to be retyped.
+  // Modifications are deep-copied with fresh client-side ids. Falls back
+  // to a blank line when there's nothing to copy.
+  const addLine = () =>
+    setLines((prev) => {
+      const last = prev[prev.length - 1];
+      if (!last) return [...prev, blankLine()];
+      return [
+        ...prev,
+        {
+          ...last,
+          key: keySeq--,
+          modifications: last.modifications.map((m, i) => ({
+            ...m,
+            id: -Date.now() - i,
+          })),
+        },
+      ];
+    });
 
   const removeLine = (key: number) =>
     setLines((prev) => prev.filter((l) => l.key !== key));
@@ -308,7 +381,11 @@ export default function CreateQuote() {
     if (step === 1) {
       return (
         validLines.length > 0 &&
-        validLines.every((l) => Number(l.sale_price || 0) > 0)
+        validLines.every(
+          (l) =>
+            l.sale_price.trim() !== '' &&
+            Number.isFinite(Number(l.sale_price)),
+        )
       );
     }
     return true;
@@ -350,6 +427,7 @@ export default function CreateQuote() {
         throw new Error(body?.message ?? 'Create failed');
       }
       const created = (await res.json()) as { id: number; quote_number: string };
+      clearDraft();
       setSubmitState({
         kind: 'done',
         id: created.id,
@@ -371,9 +449,16 @@ export default function CreateQuote() {
     <div className={styles.page}>
       <header className={styles.header}>
         <h1 className={styles.title}>New Quote</h1>
-        <span className={styles.stepLabel}>
-          Step {Math.min(step + 1, STEP_NAMES.length)} of {STEP_NAMES.length}
-        </span>
+        <div className={styles.headerActions}>
+          {hasDraft && submitState.kind !== 'done' && (
+            <Button variant="secondary" onClick={discardDraft}>
+              Discard draft
+            </Button>
+          )}
+          <span className={styles.stepLabel}>
+            Step {Math.min(step + 1, STEP_NAMES.length)} of {STEP_NAMES.length}
+          </span>
+        </div>
       </header>
 
       <Stepper labels={STEP_NAMES} current={step} ariaLabel="Quote progress" />
