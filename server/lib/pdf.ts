@@ -214,16 +214,48 @@ async function fetchInvoiceData(invoiceId: number): Promise<InvoiceData | null> 
 
 // ---- HTML wrapper ---------------------------------------------------
 
+// Print overrides for multi-page invoices. The template is one tall
+// `.sheet` div whose padding + min-height:11in only apply at the element
+// edges — so before this, page 2+ began flush against the top of the
+// paper and a short invoice was still forced to a full 11in. We let the
+// Puppeteer page margins (set in page.pdf) own the top/bottom whitespace
+// on EVERY page and neutralize the sheet's own vertical sizing. `.sheet`
+// is a hashed CSS-module class, so we target it structurally as the sole
+// body child. html/body get the cream background so the Puppeteer margin
+// bands are paper-colored too, not white. Rows don't split across a page
+// break; the table header repeats per page (Chromium default, explicit).
+const PRINT_OVERRIDES = `
+html, body { background: #fdfcf8; margin: 0; }
+body > div:first-child {
+  min-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+table { page-break-inside: auto; }
+tr { page-break-inside: avoid; }
+thead { display: table-header-group; }
+`;
+
 function wrapHtml(ssrHtml: string, css: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <style>${css}</style>
+<style>${PRINT_OVERRIDES}</style>
 </head>
 <body>${ssrHtml}</body>
 </html>`;
 }
+
+// Small right-aligned "Page X / N" footer. Puppeteer header/footer
+// templates render in an isolated context with font-size 0 by default, so
+// size/padding are set inline. The horizontal padding matches the sheet's
+// 0.85in side inset; the bottom page margin reserves room for it.
+const FOOTER_TEMPLATE = `
+<div style="width:100%; font-size:8px; color:#5a6478; font-family: sans-serif; padding:0 0.85in; text-align:right;">
+  Page <span class="pageNumber"></span> / <span class="totalPages"></span>
+</div>`;
 
 // ---- public API -----------------------------------------------------
 
@@ -253,7 +285,13 @@ export async function renderInvoicePdf(invoiceId: number): Promise<Buffer> {
     const pdf = await page.pdf({
       format: 'Letter',
       printBackground: true,
-      margin: { top: 0, right: 0, bottom: 0, left: 0 },
+      // Top/bottom margins give every page (page 1 AND continuation
+      // pages) breathing room instead of starting flush at the edge.
+      // Left/right stay 0 — the sheet owns its 0.85in horizontal inset.
+      margin: { top: '0.55in', right: 0, bottom: '0.7in', left: 0 },
+      displayHeaderFooter: true,
+      headerTemplate: '<div></div>',
+      footerTemplate: FOOTER_TEMPLATE,
     });
     log(`pdf=${pdf.length} bytes`);
     return Buffer.from(pdf);
