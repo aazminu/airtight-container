@@ -39,6 +39,10 @@ const seed = async (state: 'in_storage' | 'checked_out' = 'in_storage') => {
   const cl = await pool.query(
     `INSERT INTO clients (client_name) VALUES ('Test Customer') RETURNING id`,
   );
+  // intake_date is a FIXED date before the May-2026 billing windows the
+  // tests below assert against — NOT now()-relative. A relative intake
+  // would drift past those hardcoded windows once the wall clock moved
+  // (e.g. the visibility test broke for every run after 2026-06-05).
   const box = await pool.query(
     `INSERT INTO sh_inventory (
        client_id, release_number_id, unit_number, size,
@@ -47,7 +51,7 @@ const seed = async (state: 'in_storage' | 'checked_out' = 'in_storage') => {
      ) VALUES (
        $1, $2, 'TCKU-CHKOUT-' || floor(random() * 1e9)::text, '20ft',
        'in_out_daily', '65', '65', '1',
-       $3::sh_state, false, now() - interval '5 days'
+       $3::sh_state, false, '2026-04-01'
      ) RETURNING id`,
     [cl.rows[0].id, rn.rows[0].release_number_id, state],
   );

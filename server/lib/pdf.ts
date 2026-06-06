@@ -15,11 +15,9 @@
 // Docker image, this lands via a multi-stage build copying the artifact
 // from a client-build stage into the backend image.
 //
-// The browser instance is intentionally module-singleton: launching
-// Chromium is ~300-500ms, and we'd rather amortize that cost across
-// many PDFs in the same backend process than pay it per request.
+// The headless Chromium is shared across all PDF render paths via
+// lib/puppeteer.ts (see that file for the recycle/lifecycle rationale).
 
-import puppeteer, { type Browser } from 'puppeteer';
 import { renderToString } from 'react-dom/server';
 import { createElement } from 'react';
 import { readFile } from 'node:fs/promises';
@@ -27,6 +25,12 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import db from '../db/index.js';
 import { putObject, getObjectBytes } from './s3.js';
+import { withPage, closeBrowser } from './puppeteer.js';
+
+// Re-exported so existing scripts (smoke-pdf, rerender-all-invoices) that
+// import closeBrowser from this module keep working after the browser
+// moved into lib/puppeteer.ts.
+export { closeBrowser };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,32 +48,9 @@ const BUNDLE_CSS = path.join(BUNDLE_DIR, 'InvoiceTemplate.css');
 
 // ---- shared lazy singletons -----------------------------------------
 
-let _browser: Browser | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _template: any = null;
 let _css: string | null = null;
-
-async function getBrowser(): Promise<Browser> {
-  if (_browser) return _browser;
-  _browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-  });
-  return _browser;
-}
-
-// Exported so a graceful-shutdown handler can call it; production
-// doesn't reuse this on hot-reload paths.
-export async function closeBrowser(): Promise<void> {
-  if (_browser) {
-    await _browser.close();
-    _browser = null;
-  }
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getTemplate(): Promise<any> {
@@ -259,11 +240,8 @@ export async function renderInvoicePdf(invoiceId: number): Promise<Buffer> {
   log('render-to-string');
   const ssrHtml = renderToString(createElement(Template, { data }));
   const html = wrapHtml(ssrHtml, css);
-  log(`html=${html.length} bytes, launching browser`);
-  const browser = await getBrowser();
-  log('new page');
-  const page = await browser.newPage();
-  try {
+  log(`html=${html.length} bytes, acquiring page`);
+  return withPage(async (page) => {
     log('setContent');
     // setContent's waitUntil excludes networkidle in Puppeteer 24.
     // Wait on the FontFaceSet promise instead so the rendered PDF uses
@@ -279,10 +257,7 @@ export async function renderInvoicePdf(invoiceId: number): Promise<Buffer> {
     });
     log(`pdf=${pdf.length} bytes`);
     return Buffer.from(pdf);
-  } finally {
-    log('close page');
-    await page.close();
-  }
+  });
 }
 
 export function invoicePdfS3Key(invoiceId: number): string {

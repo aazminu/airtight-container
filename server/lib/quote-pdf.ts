@@ -6,11 +6,9 @@
 // Builds depend on `npm run build:quote-template` (in client/) having
 // produced quote-template-dist/{QuoteTemplate.js,QuoteTemplate.css}.
 //
-// The browser singleton is intentionally separate from pdf.ts's so this
-// module has no import dependency on the invoice render path. Launching
-// a second Chromium is the cost of that isolation; quote volume is low.
+// The headless Chromium is shared with the invoice/report render paths
+// via lib/puppeteer.ts.
 
-import puppeteer, { type Browser } from 'puppeteer';
 import { renderToString } from 'react-dom/server';
 import { createElement } from 'react';
 import { readFile } from 'node:fs/promises';
@@ -18,6 +16,11 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import db from '../db/index.js';
 import { putObject, getObjectBytes } from './s3.js';
+import { withPage, closeBrowser } from './puppeteer.js';
+
+// Kept under the old name in case a caller imports it; the browser now
+// lives in lib/puppeteer.ts.
+export const closeQuoteBrowser = closeBrowser;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,26 +31,9 @@ const BUNDLE_DIR =
 const BUNDLE_JS = path.join(BUNDLE_DIR, 'QuoteTemplate.js');
 const BUNDLE_CSS = path.join(BUNDLE_DIR, 'QuoteTemplate.css');
 
-let _browser: Browser | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _template: any = null;
 let _css: string | null = null;
-
-async function getBrowser(): Promise<Browser> {
-  if (_browser) return _browser;
-  _browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  });
-  return _browser;
-}
-
-export async function closeQuoteBrowser(): Promise<void> {
-  if (_browser) {
-    await _browser.close();
-    _browser = null;
-  }
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getTemplate(): Promise<any> {
@@ -201,9 +187,7 @@ export async function renderQuotePdf(quoteId: number): Promise<Buffer> {
   const css = await getCss();
   const ssrHtml = renderToString(createElement(Template, { data }));
   const html = wrapHtml(ssrHtml, css);
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-  try {
+  return withPage(async (page) => {
     await page.setContent(html, { waitUntil: 'load' });
     await page.evaluate(() => document.fonts.ready);
     const pdf = await page.pdf({
@@ -212,9 +196,7 @@ export async function renderQuotePdf(quoteId: number): Promise<Buffer> {
       margin: { top: 0, right: 0, bottom: 0, left: 0 },
     });
     return Buffer.from(pdf);
-  } finally {
-    await page.close();
-  }
+  });
 }
 
 export function quotePdfS3Key(quoteId: number): string {

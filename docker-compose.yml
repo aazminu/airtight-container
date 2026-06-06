@@ -2,6 +2,10 @@ services:
   backend:
     image: ghcr.io/harrylynchh/airtight-backend:latest
     restart: unless-stopped
+    # Cap the blast radius: a PDF/Chromium memory spike OOM-kills and
+    # restarts THIS container in isolation instead of dragging the whole
+    # 1 GB host into a hard lock (see docs/postmortem.md, 2026-06-04).
+    mem_limit: 600m
     ports:
       - "3001:3001"
     extra_hosts:
