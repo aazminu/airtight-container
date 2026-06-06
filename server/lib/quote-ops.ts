@@ -16,6 +16,7 @@ import type { IncomingContainer, IncomingModification } from './invoice-ops.js';
 export interface IncomingQuoteMod {
   description?: string;
   price?: string | number | null;
+  quantity?: number | null;
   position?: number | null;
 }
 
@@ -77,8 +78,9 @@ export async function recomputeQuoteTotals(
     const { rows: modRows } = await client.query<{
       quote_line_item_id: number;
       price: string;
+      quantity: number;
     }>(
-      `SELECT quote_line_item_id, price
+      `SELECT quote_line_item_id, price, quantity
          FROM quote_line_modifications
         WHERE quote_line_item_id = ANY($1::int[])`,
       [lineIds],
@@ -86,7 +88,8 @@ export async function recomputeQuoteTotals(
     for (const m of modRows) {
       modsByLine.set(
         m.quote_line_item_id,
-        (modsByLine.get(m.quote_line_item_id) ?? 0) + Number(m.price),
+        (modsByLine.get(m.quote_line_item_id) ?? 0) +
+          Number(m.price) * (m.quantity || 1),
       );
     }
   }
@@ -163,9 +166,9 @@ async function replaceLines(
       if (!m.description || m.price == null) continue;
       await client.query(
         `INSERT INTO quote_line_modifications
-           (quote_line_item_id, description, price, position)
-         VALUES ($1, $2, $3, $4)`,
-        [lineId, m.description, m.price, m.position ?? j],
+           (quote_line_item_id, description, price, quantity, position)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [lineId, m.description, m.price, m.quantity ?? 1, m.position ?? j],
       );
     }
   }
@@ -359,9 +362,10 @@ export async function promoteQuoteToInvoice(
     quote_line_item_id: number;
     description: string;
     price: string;
+    quantity: number;
     position: number;
   }>(
-    `SELECT quote_line_item_id, description, price, position
+    `SELECT quote_line_item_id, description, price, quantity, position
        FROM quote_line_modifications
       WHERE quote_line_item_id = ANY($1::int[])
       ORDER BY quote_line_item_id, position, id`,
@@ -374,6 +378,7 @@ export async function promoteQuoteToInvoice(
     modsByLine.get(m.quote_line_item_id)!.push({
       description: m.description,
       price: m.price,
+      quantity: m.quantity,
       position: m.position,
     });
   }

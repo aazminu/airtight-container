@@ -271,6 +271,7 @@ export default function QuoteDetail() {
                 .map((m, j) => ({
                   description: m.description,
                   price: m.price,
+                  quantity: m.quantity ?? 1,
                   position: j,
                 })),
             })),
@@ -523,6 +524,7 @@ export default function QuoteDetail() {
           sold_id: -1,
           description: m.description,
           price: m.price ?? '0',
+          quantity: m.quantity ?? 1,
           position: mi,
         })),
       };
@@ -531,7 +533,10 @@ export default function QuoteDetail() {
     for (const c of containers) {
       subtotal += Number(c.sale_price ?? 0);
       subtotal += Number(c.trucking_rate ?? 0);
-      subtotal += c.modifications.reduce((s, m) => s + Number(m.price ?? 0), 0);
+      subtotal += c.modifications.reduce(
+        (s, m) => s + Number(m.price ?? 0) * (m.quantity || 1),
+        0,
+      );
     }
     const taxAmount = quote.quote_taxed ? subtotal * taxRate : 0;
     const ccAmount = quote.quote_credit ? (subtotal + taxAmount) * ccRate : 0;

@@ -85,9 +85,13 @@ export default function QuoteTemplate({ data }: QuoteTemplateProps) {
                     data-last={si === g.subs.length - 1}
                   >
                     <td className={styles.colN} />
-                    <td className={styles.colQty} />
+                    <td className={styles.colQty}>
+                      {sub.qty > 1 ? sub.qty : ''}
+                    </td>
                     <td className={styles.colDesc}>{sub.description}</td>
-                    <td className={styles.colPrice} />
+                    <td className={styles.colPrice}>
+                      {sub.unitPrice ? fmtCurrency(sub.unitPrice) : ''}
+                    </td>
                     <td className={styles.colTotal}>
                       {sub.lineTotal ? fmtCurrency(sub.lineTotal) : '—'}
                     </td>

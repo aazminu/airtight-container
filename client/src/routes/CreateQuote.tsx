@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Badge,
   Button,
-  CurrencyInput,
   Flow,
   FlowStep,
   IconButton,
@@ -20,11 +19,7 @@ import type {
   QuoteLine,
   QuoteModification,
 } from '../components/templates/quote/types';
-import {
-  MODIFICATION_DATALIST_ID,
-  useModPresetLabels,
-  useModPresets,
-} from '../components/forms/modificationPresets';
+import { ModificationRows } from '../components/forms/ModificationRows';
 import styles from './CreateQuote.module.css';
 
 interface ClientRow {
@@ -46,7 +41,12 @@ interface LineDraft {
   sale_price: string;
   trucking_rate: string;
   destination: string;
-  modifications: Array<{ id: number; description: string; price: string }>;
+  modifications: Array<{
+    id: number;
+    description: string;
+    price: string;
+    quantity: number;
+  }>;
 }
 
 const STEP_NAMES = ['Customer', 'Lines', 'Details', 'Preview', 'Done'] as const;
@@ -100,8 +100,6 @@ export default function CreateQuote() {
   const [taxRate, setTaxRate] = useState('0.06625');
   const [ccFeePct, setCcFeePct] = useState('3.5');
   const ccFeeRate = pctToDecimal(ccFeePct);
-  const modPresetLabels = useModPresetLabels();
-  const modPresets = useModPresets();
   const [submitState, setSubmitState] = useState<
     | { kind: 'idle' }
     | { kind: 'submitting' }
@@ -214,7 +212,10 @@ export default function CreateQuote() {
     for (const l of lines) {
       subtotal += Number(l.sale_price || 0);
       subtotal += Number(l.trucking_rate || 0);
-      subtotal += l.modifications.reduce((s, m) => s + Number(m.price || 0), 0);
+      subtotal += l.modifications.reduce(
+        (s, m) => s + Number(m.price || 0) * (m.quantity || 1),
+        0,
+      );
     }
     const tax = quoteTaxed ? subtotal * Number(taxRate || 0) : 0;
     const cc = quoteCredit ? (subtotal + tax) * Number(ccFeeRate || 0) : 0;
@@ -231,6 +232,7 @@ export default function CreateQuote() {
           quote_line_item_id: -1,
           description: m.description,
           price: m.price || '0',
+          quantity: m.quantity || 1,
           position: j,
         }));
         return {
@@ -312,67 +314,12 @@ export default function CreateQuote() {
   const removeLine = (key: number) =>
     setLines((prev) => prev.filter((l) => l.key !== key));
 
-  const addMod = (key: number) => {
-    setLines((prev) =>
-      prev.map((l) =>
-        l.key === key
-          ? {
-              ...l,
-              modifications: [
-                ...l.modifications,
-                {
-                  id: -Date.now() - l.modifications.length,
-                  description: '',
-                  price: '0',
-                },
-              ],
-            }
-          : l,
-      ),
-    );
-  };
-
-  const updateMod = (
-    key: number,
-    modIdx: number,
-    patch: Partial<{ description: string; price: string }>,
-  ) => {
-    setLines((prev) =>
-      prev.map((l) => {
-        if (l.key !== key) return l;
-        const mods = l.modifications.slice();
-        const next = { ...mods[modIdx], ...patch };
-        if (patch.description !== undefined) {
-          const match = modPresets.find(
-            (p) => p.label === patch.description?.trim(),
-          );
-          const currentPrice = Number(next.price);
-          const priceEmpty =
-            next.price === '' ||
-            next.price == null ||
-            (Number.isFinite(currentPrice) && currentPrice === 0);
-          if (match && match.default_price != null && priceEmpty) {
-            next.price = String(match.default_price);
-          }
-        }
-        mods[modIdx] = next;
-        return { ...l, modifications: mods };
-      }),
-    );
-  };
-
-  const removeMod = (key: number, modIdx: number) => {
-    setLines((prev) =>
-      prev.map((l) =>
-        l.key === key
-          ? {
-              ...l,
-              modifications: l.modifications.filter((_, i) => i !== modIdx),
-            }
-          : l,
-      ),
-    );
-  };
+  const blankMod = (existing: number) => ({
+    id: -Date.now() - existing,
+    description: '',
+    price: '0',
+    quantity: 1,
+  });
 
   const validLines = lines.filter((l) => l.description.trim() !== '');
 
@@ -417,6 +364,7 @@ export default function CreateQuote() {
               .map((m, j) => ({
                 description: m.description,
                 price: m.price || '0',
+                quantity: m.quantity || 1,
                 position: j,
               })),
           })),
@@ -531,12 +479,6 @@ export default function CreateQuote() {
               a price — there are no containers on a quote. Sale price is
               required on every line.
             </p>
-            <datalist id={MODIFICATION_DATALIST_ID}>
-              {modPresetLabels.map((d) => (
-                <option key={d} value={d} />
-              ))}
-            </datalist>
-
             {lines.map((l) => (
               <div key={l.key} className={styles.containerCard}>
                 <div className={styles.containerHead}>
@@ -598,44 +540,13 @@ export default function CreateQuote() {
                   <div className={styles.modsHeader}>
                     <span className={styles.fieldLabel}>Modifications</span>
                   </div>
-                  {l.modifications.length === 0 && (
-                    <p className={styles.modsEmpty}>
-                      No modifications yet.
-                    </p>
-                  )}
-                  {l.modifications.map((m, mIdx) => (
-                    <div key={m.id} className={styles.modRow}>
-                      <input
-                        className={styles.input}
-                        list={MODIFICATION_DATALIST_ID}
-                        placeholder="Description (or pick a preset)"
-                        value={m.description}
-                        onChange={(e) =>
-                          updateMod(l.key, mIdx, { description: e.target.value })
-                        }
-                      />
-                      <CurrencyInput
-                        value={m.price}
-                        onChange={(v) =>
-                          updateMod(l.key, mIdx, { price: v })
-                        }
-                        placeholder="0.00"
-                      />
-                      <IconButton
-                        icon="trash"
-                        tone="danger"
-                        label="Remove modification"
-                        onClick={() => removeMod(l.key, mIdx)}
-                      />
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    className={styles.addRow}
-                    onClick={() => addMod(l.key)}
-                  >
-                    + Add modification
-                  </button>
+                  <ModificationRows
+                    mods={l.modifications}
+                    onChange={(next) =>
+                      updateLine(l.key, { modifications: next })
+                    }
+                    makeBlank={() => blankMod(l.modifications.length)}
+                  />
                 </div>
               </div>
             ))}

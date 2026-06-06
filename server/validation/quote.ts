@@ -13,6 +13,7 @@ const moneyish = z
 const quoteModSchema = z.object({
   description: z.string().trim().max(500).optional(),
   price: moneyish,
+  quantity: z.number().int().min(1).default(1),
   position: z.number().int().optional().nullable(),
 });
 

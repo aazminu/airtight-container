@@ -216,6 +216,7 @@ export const sold_modifications = pgTable(
       .references(() => sold.id, { onDelete: 'cascade' }),
     description: text('description').notNull(),
     price: numeric('price').notNull(),
+    quantity: integer('quantity').notNull().default(1),
     position: integer('position').notNull().default(0),
   },
   (table) => ({
@@ -558,6 +559,7 @@ export const quote_line_modifications = pgTable(
       .references(() => quote_line_items.id, { onDelete: 'cascade' }),
     description: text('description').notNull(),
     price: numeric('price').notNull(),
+    quantity: integer('quantity').notNull().default(1),
     position: integer('position').notNull().default(0),
   },
   (table) => ({

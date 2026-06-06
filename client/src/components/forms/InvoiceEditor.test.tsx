@@ -63,8 +63,8 @@ const baseInvoice = (over: Partial<InvoiceData> = {}): InvoiceData => ({
       delivery_state: null,
       delivery_zip: null,
       modifications: [
-        { id: 1, sold_id: 10, description: 'Roll-up door', price: '300', position: 0 },
-        { id: 2, sold_id: 10, description: 'Paint', price: '200', position: 1 },
+        { id: 1, sold_id: 10, description: 'Roll-up door', price: '300', quantity: 1, position: 0 },
+        { id: 2, sold_id: 10, description: 'Paint', price: '200', quantity: 1, position: 1 },
       ],
     },
   ],

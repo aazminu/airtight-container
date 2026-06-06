@@ -7,7 +7,6 @@ import {
   CurrencyInput,
   Flow,
   FlowStep,
-  IconButton,
   Stepper,
 } from '../components/ui';
 import { AddClientModal } from '../components/forms/AddClientModal';
@@ -21,11 +20,7 @@ import type {
   InvoiceLineContainer,
   InvoiceModification,
 } from '../components/templates/invoice/types';
-import {
-  MODIFICATION_DATALIST_ID,
-  useModPresetLabels,
-  useModPresets,
-} from '../components/forms/modificationPresets';
+import { ModificationRows } from '../components/forms/ModificationRows';
 import styles from './CreateInvoice.module.css';
 
 interface InventoryRow {
@@ -68,7 +63,12 @@ interface ContainerDraft {
   delivery_city: string;
   delivery_state: string;
   delivery_zip: string;
-  modifications: Array<{ id: number; description: string; price: string }>;
+  modifications: Array<{
+    id: number;
+    description: string;
+    price: string;
+    quantity: number;
+  }>;
 }
 
 interface TruckingCompany {
@@ -169,8 +169,6 @@ export default function CreateInvoice() {
   const [truckingCompanies, setTruckingCompanies] = useState<TruckingCompany[]>(
     [],
   );
-  const modPresetLabels = useModPresetLabels();
-  const modPresets = useModPresets();
   const [submitState, setSubmitState] = useState<
     | { kind: 'idle' }
     | { kind: 'submitting' }
@@ -385,7 +383,10 @@ export default function CreateInvoice() {
       if (!d) continue;
       subtotal += Number(d.sale_price || 0);
       subtotal += Number(d.trucking_rate || 0);
-      subtotal += d.modifications.reduce((s, m) => s + Number(m.price || 0), 0);
+      subtotal += d.modifications.reduce(
+        (s, m) => s + Number(m.price || 0) * (m.quantity || 1),
+        0,
+      );
     }
     const tax = invoiceTaxed ? subtotal * Number(taxRate || 0) : 0;
     const cc = invoiceCredit ? (subtotal + tax) * Number(ccFeeRate || 0) : 0;
@@ -402,6 +403,7 @@ export default function CreateInvoice() {
           sold_id: -1,
           description: m.description,
           price: m.price || '0',
+          quantity: m.quantity || 1,
           position: i,
         }),
       );
@@ -502,66 +504,19 @@ export default function CreateInvoice() {
     setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   };
 
-  const addMod = (id: number) => {
+  const setMods = (id: number, mods: ContainerDraft['modifications']) =>
     setDrafts((prev) => {
       const d = prev[id];
       if (!d) return prev;
-      return {
-        ...prev,
-        [id]: {
-          ...d,
-          modifications: [
-            ...d.modifications,
-            { id: -Date.now() - d.modifications.length, description: '', price: '0' },
-          ],
-        },
-      };
-    });
-  };
-
-  const updateMod = (
-    id: number,
-    modIdx: number,
-    patch: Partial<{ description: string; price: string }>,
-  ) => {
-    setDrafts((prev) => {
-      const d = prev[id];
-      if (!d) return prev;
-      const mods = d.modifications.slice();
-      const next = { ...mods[modIdx], ...patch };
-      // Autofill the price when the description matches a preset and
-      // the price field is empty / 0 — a typed value wins.
-      if (patch.description !== undefined) {
-        const match = modPresets.find(
-          (p) => p.label === patch.description?.trim(),
-        );
-        const currentPrice = Number(next.price);
-        const priceEmpty =
-          next.price === '' ||
-          next.price == null ||
-          (Number.isFinite(currentPrice) && currentPrice === 0);
-        if (match && match.default_price != null && priceEmpty) {
-          next.price = String(match.default_price);
-        }
-      }
-      mods[modIdx] = next;
       return { ...prev, [id]: { ...d, modifications: mods } };
     });
-  };
 
-  const removeMod = (id: number, modIdx: number) => {
-    setDrafts((prev) => {
-      const d = prev[id];
-      if (!d) return prev;
-      return {
-        ...prev,
-        [id]: {
-          ...d,
-          modifications: d.modifications.filter((_, i) => i !== modIdx),
-        },
-      };
-    });
-  };
+  const blankMod = (existing: number) => ({
+    id: -Date.now() - existing,
+    description: '',
+    price: '0',
+    quantity: 1,
+  });
 
   const canAdvance = () => {
     if (step === 0) return selectedIds.length > 0;
@@ -665,6 +620,7 @@ export default function CreateInvoice() {
                 .map((m, i) => ({
                   description: m.description,
                   price: m.price || '0',
+                  quantity: m.quantity || 1,
                   position: i,
                 })),
             };
@@ -900,12 +856,6 @@ export default function CreateInvoice() {
                 </label>
               </div>
             </div>
-            <datalist id={MODIFICATION_DATALIST_ID}>
-              {modPresetLabels.map((d) => (
-                <option key={d} value={d} />
-              ))}
-            </datalist>
-
             <div className={styles.containerCard}>
               <div className={styles.containerHead}>
                 <strong>Shipping address</strong>
@@ -1055,37 +1005,11 @@ export default function CreateInvoice() {
                     <div className={styles.modsHeader}>
                       <span className={styles.fieldLabel}>Modifications</span>
                     </div>
-                    {d.modifications.map((m, mIdx) => (
-                      <div key={m.id} className={styles.modRow}>
-                        <input
-                          className={styles.input}
-                          list={MODIFICATION_DATALIST_ID}
-                          placeholder="Description (or pick a preset)"
-                          value={m.description}
-                          onChange={(e) =>
-                            updateMod(id, mIdx, { description: e.target.value })
-                          }
-                        />
-                        <CurrencyInput
-                          value={m.price}
-                          onChange={(v) => updateMod(id, mIdx, { price: v })}
-                          placeholder="0.00"
-                        />
-                        <IconButton
-                          icon="trash"
-                          tone="danger"
-                          label="Remove modification"
-                          onClick={() => removeMod(id, mIdx)}
-                        />
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      className={styles.addRow}
-                      onClick={() => addMod(id)}
-                    >
-                      + Add modification
-                    </button>
+                    <ModificationRows
+                      mods={d.modifications}
+                      onChange={(next) => setMods(id, next)}
+                      makeBlank={() => blankMod(d.modifications.length)}
+                    />
                   </div>
                 </div>
               );

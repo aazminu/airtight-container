@@ -111,11 +111,12 @@ export const buildLineGroups = (data: InvoiceData): InvoiceLineGroup[] => {
     const mods = Array.isArray(c.modifications) ? c.modifications : [];
     if (mods.length > 0) {
       for (const m of mods) {
+        const qty = m.quantity || 1;
         subs.push({
-          qty: 1,
+          qty,
           description: m.description,
-          unitPrice: null,
-          lineTotal: m.price,
+          unitPrice: qty > 1 ? m.price : null,
+          lineTotal: String(Number(m.price ?? 0) * qty),
         });
       }
     } else {

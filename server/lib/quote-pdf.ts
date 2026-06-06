@@ -98,6 +98,7 @@ interface QuoteData {
       id: number;
       description: string;
       price: string;
+      quantity: number;
       position: number;
     }>;
   }>;
@@ -133,7 +134,7 @@ export async function fetchQuoteData(quoteId: number): Promise<QuoteData | null>
   const modsByLine = new Map<number, any[]>();
   if (lineIds.length > 0) {
     const { rows: modRows } = await db.query(
-      `SELECT id, quote_line_item_id, description, price, position
+      `SELECT id, quote_line_item_id, description, price, quantity, position
          FROM quote_line_modifications
         WHERE quote_line_item_id = ANY($1::int[])
         ORDER BY quote_line_item_id, position, id`,
