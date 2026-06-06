@@ -13,13 +13,18 @@
 // Builds depend on `npm run build:report-templates` (in client/)
 // producing server/report-template-dist/{ReportTemplate.js,.css}.
 
-import puppeteer, { type Browser } from 'puppeteer';
 import { renderToString } from 'react-dom/server';
 import { createElement } from 'react';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { putObject, getObjectBytes } from './s3.js';
+import { withPage, closeBrowser } from './puppeteer.js';
+
+// The browser now lives in lib/puppeteer.ts. Kept under the old name so
+// scripts (smoke-report-pdf, smoke-release-summary) that import
+// closeReportBrowser from here keep working.
+export const closeReportBrowser = closeBrowser;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,30 +35,9 @@ const BUNDLE_DIR =
 const BUNDLE_JS = path.join(BUNDLE_DIR, 'ReportTemplate.js');
 const BUNDLE_CSS = path.join(BUNDLE_DIR, 'ReportTemplate.css');
 
-let _browser: Browser | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _template: any = null;
 let _css: string | null = null;
-
-async function getBrowser(): Promise<Browser> {
-  if (_browser) return _browser;
-  _browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-  });
-  return _browser;
-}
-
-export async function closeReportBrowser(): Promise<void> {
-  if (_browser) {
-    await _browser.close();
-    _browser = null;
-  }
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getTemplate(): Promise<any> {
@@ -101,10 +85,8 @@ export async function renderReportPdf(
     createElement(Template, { type: reportType, data }),
   );
   const html = wrapHtml(ssrHtml, css);
-  log(`html=${html.length} bytes, launching browser`);
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-  try {
+  log(`html=${html.length} bytes, acquiring page`);
+  return withPage(async (page) => {
     await page.setContent(html, { waitUntil: 'load' });
     await page.evaluate(() => document.fonts.ready);
     const pdf = await page.pdf({
@@ -114,9 +96,7 @@ export async function renderReportPdf(
     });
     log(`pdf=${pdf.length} bytes`);
     return Buffer.from(pdf);
-  } finally {
-    await page.close();
-  }
+  });
 }
 
 export function reportPdfS3Key(reportId: number): string {
