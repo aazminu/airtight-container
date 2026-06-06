@@ -366,7 +366,7 @@ router.post(
 			// asked us to enforce 1:1 so the promoted invoice always
 			// matches the quoted scope.
 			const { rows: lineRows } = await client.query(
-				"SELECT COUNT(*)::int AS n FROM quote_lines WHERE quote_id = $1",
+				"SELECT COUNT(*)::int AS n FROM quote_line_items WHERE quote_id = $1",
 				[quoteId],
 			);
 			const lineCount = lineRows[0].n;
