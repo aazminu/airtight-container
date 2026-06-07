@@ -27,24 +27,36 @@ body > div:first-child > footer { margin-top: 0 !important; }
 table { page-break-inside: auto; }
 tr { page-break-inside: avoid; }
 thead { display: table-header-group; }
-/* The templates set break-after:avoid on every parent row to keep a line
-   attached to its modification/delivery sub-rows. For a line with NO subs
-   that chains into "never break after any row", making the whole table
-   atomic so it jumps wholesale to page 2. Re-allow a break after subless
-   rows (rows with subs still stay glued to their children). */
-tr[data-has-subs='false'] {
-  break-after: auto !important;
-  page-break-after: auto !important;
+/* Each line item (parent row + its modification/delivery sub-rows) is its
+   own <tbody>. Keep that group atomic so a line that doesn't fit moves to
+   the next page whole, instead of gluing the parent to a sub-row that then
+   spills past the content area and prints on top of the page footer. The
+   table still breaks freely between groups. */
+tbody { page-break-inside: avoid; break-inside: avoid; }
+/* The Terms + totals block is a grid; Chromium honors break-inside:avoid on
+   tables/table-row-groups but NOT on grid or block containers, so the block
+   would fragment onto the footer. Give its wrapper table semantics so the
+   avoid is respected and the whole block drops to the next page intact
+   instead of overprinting the page number. */
+[data-print-keep] {
+  display: table;
+  width: 100%;
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 `;
 
-// Small right-aligned "Page X / N" footer. Puppeteer header/footer
-// templates render in an isolated context with font-size 0 by default, so
-// size/padding are set inline. The horizontal padding matches the sheet's
-// 0.85in side inset; the bottom page margin reserves room for it.
+// Centered "X / N" page marker that reads as deliberate page furniture
+// rather than a number tacked onto the bottom edge: a hairline rule spans
+// the content width (inset to match the sheet's 0.85in sides) with the
+// counter centered beneath it. Puppeteer header/footer templates render in
+// an isolated context with font-size 0 by default, so size/spacing/colors
+// are set inline; the bottom page margin reserves the band it sits in.
 export const FOOTER_TEMPLATE = `
-<div style="width:100%; font-size:8px; color:#5a6478; font-family: sans-serif; padding:0 0.85in; text-align:right;">
-  Page <span class="pageNumber"></span> / <span class="totalPages"></span>
+<div style="width:100%; padding:0 0.85in; font-family:'Helvetica Neue',Arial,sans-serif;">
+  <div style="border-top:0.75px solid #e2ddd0; padding-top:6px; text-align:center; font-size:8.5px; letter-spacing:0.06em; color:#8a93a5;">
+    <span class="pageNumber"></span> / <span class="totalPages"></span>
+  </div>
 </div>`;
 
 export function wrapPrintHtml(ssrHtml: string, css: string): string {
@@ -60,12 +72,15 @@ export function wrapPrintHtml(ssrHtml: string, css: string): string {
 }
 
 // page.pdf options that give every page (page 1 AND continuation pages)
-// top/bottom breathing room and a page-number footer. Left/right stay 0 —
-// the sheet owns its 0.85in horizontal inset.
+// top/bottom breathing room and a page-number footer. The top margin is
+// generous so a continuation page's repeated table header doesn't sit
+// flush against the paper edge; it's roughly square with the 0.85in side
+// inset for a balanced frame. Left/right stay 0 — the sheet owns its
+// horizontal inset. Bottom reserves room for the footer rule + counter.
 export const PAGINATED_PDF_OPTIONS = {
   format: 'Letter' as const,
   printBackground: true,
-  margin: { top: '0.55in', right: 0, bottom: '0.7in', left: 0 },
+  margin: { top: '0.85in', right: 0, bottom: '0.8in', left: 0 },
   displayHeaderFooter: true,
   headerTemplate: '<div></div>',
   footerTemplate: FOOTER_TEMPLATE,

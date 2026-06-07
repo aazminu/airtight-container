@@ -1,4 +1,3 @@
-import { Fragment } from 'react';
 import type { InvoiceTemplateProps } from './types';
 import {
   fmtCurrency,
@@ -62,12 +61,11 @@ export default function InvoiceTemplate({ data }: InvoiceTemplateProps) {
             <th className={styles.colTotal}>Amount</th>
           </tr>
         </thead>
-        <tbody>
-          {groups.map((g, gi) => {
+        {groups.map((g, gi) => {
             lineCounter += 1;
             const parentNo = lineCounter;
             return (
-              <Fragment key={gi}>
+              <tbody key={gi} className={styles.lineGroup}>
                 <tr
                   className={styles.parentRow}
                   data-has-subs={g.subs.length > 0}
@@ -107,13 +105,13 @@ export default function InvoiceTemplate({ data }: InvoiceTemplateProps) {
                     </td>
                   </tr>
                 ))}
-              </Fragment>
+              </tbody>
             );
           })}
-        </tbody>
       </table>
 
-      <section className={styles.summaryRow}>
+      <div className={styles.summaryKeep} data-print-keep>
+        <section className={styles.summaryRow}>
         <div className={styles.terms}>
           <div className={styles.termsTitle}>Terms</div>
           <p>
@@ -150,7 +148,8 @@ export default function InvoiceTemplate({ data }: InvoiceTemplateProps) {
             <dd>{fmtCurrency(data.total)}</dd>
           </div>
         </dl>
-      </section>
+        </section>
+      </div>
 
       <DocFooter
         left="Thank you for your business. · Salesperson Michelle"
