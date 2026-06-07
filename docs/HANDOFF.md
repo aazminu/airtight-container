@@ -4,34 +4,55 @@
 
 ---
 
-## TL;DR
+## TL;DR — 5 PRs from the 2026-06-06 session; tomorrow = validate + merge
 
-**2.0 + structural batch ready to ship.** PR [#12](https://github.com/harrylynchh/airtight-container/pull/12) (`phase-struct/structural-batch` → `main`) carries 61 commits: delivery epic, Quote domain, Outbound stepper, promote-to-invoice rework, address picker, S&H domain expansion (billing modes + release linkage), polish pass (Toast bridge, masked inputs, CurrencyInput sweep, Stepper bg fix), P&L `deleted_at` filter. **Tests: client 50/50, server 211/211, tsc clean both sides.**
+**Live now:** prod on migrations **0022/0023**. PR **#14** (quote-promote `quote_lines` typo) already merged + deployed; operator unblocked.
 
-**Prod DB is already audited + restored** as of 2026-05-29:
-- `containers_2.0_POST-AUDIT_20260529_140725.psql` restored to `containers_prod` on EC2.
-- Audit verifier `POST_RESTORE_VERIFY.sql` reports **39/39 PASS** on prod.
-- Migrations 0016 → 0021 baked into the dump; no manual `psql -f` needed on prod.
-- Pre-audit + pre-restore dumps both archived in `~/airtight-cutover/` on EC2 (rollback artifacts).
+**Open PRs** (full plan in `~/.claude/plans/indexed-growing-neumann.md`):
 
-**Stack is `docker compose down` on prod.** Merging PR #12 fires the GHA deploy workflow → builds new images → SSHes to EC2 → `docker compose up -d` against the audited DB. **Add the GH secret `VITE_GOOGLE_MAPS_API_KEY` first** if you want the address picker live (absent = picker hidden, no crash).
+| PR | Branch → base | State | What |
+| --- | --- | --- | --- |
+| [#15](https://github.com/harrylynchh/airtight-container/pull/15) | `fix/puppeteer-consolidation` → `main` | **ready** | Outage fix: one shared Chromium (`server/lib/puppeteer.ts`) + render-count/age recycle; dropped `--single-process` (hangs `page.pdf()`); `mem_limit: 600m` in compose. Also pins the `sh-checkout.test.ts` date flake. |
+| [#16](https://github.com/harrylynchh/airtight-container/pull/16) | `feat/quote-invoice-quickwins` → `main` | **ready** | $0 sale price allowed in both create steppers; quote "+ Add line item" copies the line above; localStorage draft autosave (`useDraftPersistence`) + "Discard draft". No migration. |
+| [#17](https://github.com/harrylynchh/airtight-container/pull/17) | `feat/mod-rows-quantity` → **#16** | **DRAFT — holds for qty sign-off + `0024`** | Shared `ModificationRows.tsx` (real `<select>` + "Custom" write-in, replaces iPad datalist, fixes preset price-rebind); per-mod **quantity** dropdown 1–20 (migration **0024**); **negative prices** in CurrencyInput; quote **"Download PDF"** (new `GET /api/v2/quote/:id/pdf`). |
+| [#18](https://github.com/harrylynchh/airtight-container/pull/18) | `feat/invoice-pagination` → **#15** | **DRAFT** | Multi-page for **invoices + quotes** via shared `server/lib/pdf-print.ts`: page margins + "Page X / N" footer + print-layout fixes (block layout so tables fragment; break-after on subless rows). |
 
----
+**Two stacks** (don't merge a child before its parent): `main ← #15 ← #18` and `main ← #16 ← #17`. **All four can merge independently in the right order** — they touch mostly disjoint files; only #15↔#18 and the quote files in #16/#17 share paths (that's why they're stacked, no conflicts expected).
 
-## Post-deploy spot-checks
-
-| Surface | Expected |
-| --- | --- |
-| `/inventory` | 55 available · S&H tabs visible (empty until you intake) |
-| `/releases` | `AUDIT-5-29-26` with 8/50 used |
-| `/dashboard` | Active total = $656,924.05 (tombstones excluded) |
-| Auth | Sign-in works (Better Auth tables came over in the dump) |
-
-If anything looks off, run `POST_RESTORE_VERIFY.sql` again — should still be 39/39.
+**Health:** server tests 226/226 (on #15's branch), client 50/50, `tsc` clean throughout. Rendered real quote + invoice PDFs to confirm qty (`4× $25` → Qty 4 / $25.00 / $100.00) and quote pagination.
 
 ---
 
-## Operator to-do once prod is back up
+## Tomorrow's playbook
+
+**Stack A — outage + pagination:**
+1. Merge **#15** → GHA deploys. Post-deploy on EC2:
+   - `docker inspect airtight-container-backend-1 --format '{{.HostConfig.Memory}}'` → `629145600`
+   - `docker stats airtight-container-backend-1` ~30 min light traffic → RSS plateaus, doesn't climb
+   - generate a few quote/invoice/report PDFs, then `docker exec … ps -ef | grep chromium` → one browser, recycles after 50 renders / 6 h
+   - `free -m` → Swap 2047, nonzero used (already verified)
+2. Retarget **#18** base `#15`→`main` (GitHub does this automatically on #15 merge), merge → GHA deploys. Validate: download a **>1-page invoice** and a **>1-page quote** → page-2 content is inset from the top, "Page 2 / 2" footer, column headers repeat; a short invoice/quote stays one page. **Heads-up (owner judgment call):** block-for-print means the doc footer ("Thank you…") now trails the content instead of being pinned to the page bottom on short one-pagers. If you want it bottom-pinned on single-page docs, say so and it's a quick special-case.
+
+**Stack B — features:**
+3. Merge **#16** → GHA deploys. Validate in the app: $0 line advances + submits (quote + invoice create); "+ Add line item" duplicates the previous quote line; leave/return to a create page → draft auto-restores, "Discard draft" wipes, submit clears.
+4. **#17 is gated on YOUR qty sign-off** (screenshots already sent). When good:
+   - apply `server/db/migrations/0024_modification_quantity.sql` to `containers_prod` (manual `psql -f`, additive/idempotent/safe) — coordinate with the merge so schema + code land together;
+   - mark #17 ready, retarget base `#16`→`main`, merge → GHA deploys.
+   - Validate: mod row is a dropdown; picking/**changing** a preset rebinds its price; "Custom…" reveals free text; qty dropdown 1–20; a `$25` mod at qty 4 reads `$100`; a negative price (e.g. `-50` discount line) is accepted; quote "Download PDF" downloads.
+
+**`0024` is already applied to the LOCAL DB.** Prod is the only place it still needs to run.
+
+---
+
+## Deferred / open decisions
+
+- **Quote email → @airtightstorage inbox** — Proofpoint same-domain anti-spoof quarantines mail `From: @airtightstorage.com` relayed via Resend; **not a code bug** (sending is healthy, customers + Gmail BCC receive). Fix is a mail-config change (allowlist Resend in Proofpoint, or send from a different domain). Owner-owned; full writeup in auto-memory `quote_email_proofpoint_diagnosis.md`.
+- **Single-page footer pinning** — see the #18 heads-up above; awaiting owner preference.
+- **t3.small (2 GB) instance bump** — postmortem floor; hold ~1 week of post-#15 observation.
+
+---
+
+## Operator to-do (outstanding)
 
 42 S&H units pre-enrolled in `AUDIT-5-29-26` waiting for manual `/intake` (auto-match will lock to the release on the right unit number):
 
@@ -90,7 +111,7 @@ Full spec + step ordering: [docs/AUDIT_MIGRATION.md](AUDIT_MIGRATION.md).
 ## Conventions
 
 - `main` deploys on push.
-- Migrations stay numbered + applied manually (`psql -f`); drizzle-kit not at runtime. Prod is at `0021` (baked into the audited dump).
+- Migrations stay numbered + applied manually (`psql -f`); drizzle-kit not at runtime. **Prod is at `0023`.**
 - `userContext.jsx` is the global user/popup/theme context (popup state now bridges to the Toast viewport — every existing `setPopup` call still works).
 - Deploy build runs `tsc --noEmit && vite build` inside `Dockerfile.frontend` — any tsc error breaks deploy. `App.jsx` is `.jsx` so it's not type-checked; eyeball on back-merge.
 
