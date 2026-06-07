@@ -40,7 +40,7 @@
   border-top: 1px solid #e3e2dc;
 }
 
-.parentRow:first-child td {
+.items tbody:first-of-type .parentRow td {
   border-top: 0;
 }
 
@@ -64,7 +64,7 @@
   padding-left: 22px;
 }
 
-.items tbody tr:last-child td {
+.items tbody:last-of-type tr:last-child td {
   border-bottom: 1px solid #2a3142;
 }
 
@@ -173,11 +173,11 @@
     page-break-inside: avoid;
     break-inside: avoid;
   }
-  .parentRow {
-    page-break-after: avoid;
-    break-after: avoid;
+  .lineGroup {
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
-  .summaryRow {
+  .summaryKeep {
     page-break-inside: avoid;
     break-inside: avoid;
   }

@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, CurrencyInput, IconButton } from '../ui';
+import { Button, IconButton } from '../ui';
 import type { QuoteData } from '../templates/quote/types';
 import { fmtCurrency } from '../templates/quote/format';
-import {
-  MODIFICATION_DATALIST_ID,
-  useModPresetLabels,
-  useModPresets,
-} from './modificationPresets';
+import { ModificationRows } from './ModificationRows';
 import { DestinationField } from './DestinationField';
 import styles from '../../routes/CreateQuote.module.css';
 
@@ -36,8 +32,6 @@ export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorPr
   const [draft, setDraft] = useState<QuoteData>(() => structuredClone(initial));
   const [saving, setSaving] = useState(false);
   const [clients, setClients] = useState<ClientSummary[]>([]);
-  const modPresetLabels = useModPresetLabels();
-  const modPresets = useModPresets();
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +76,10 @@ export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorPr
     for (const l of draft.lines) {
       subtotal += Number(l.sale_price || 0);
       subtotal += Number(l.trucking_rate || 0);
-      subtotal += l.modifications.reduce((s, m) => s + Number(m.price || 0), 0);
+      subtotal += l.modifications.reduce(
+        (s, m) => s + Number(m.price || 0) * (m.quantity || 1),
+        0,
+      );
     }
     const tax = draft.quote_taxed ? subtotal * Number(draft.tax_rate || 0) : 0;
     const cc = draft.quote_credit
@@ -101,90 +98,60 @@ export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorPr
     }));
   };
 
+  // "+ Add line item" copies the line above (deep-copying modifications
+  // with fresh client-side ids) so similar lines don't have to be
+  // retyped. Falls back to a blank line when there's nothing to copy.
   const addLine = () => {
-    setDraft((d) => ({
-      ...d,
-      lines: [
-        ...d.lines,
-        {
-          id: newKey(),
-          description: '',
-          sale_price: null,
-          trucking_rate: null,
-          destination: null,
-          position: d.lines.length,
-          modifications: [],
-        },
-      ],
-    }));
+    setDraft((d) => {
+      const last = d.lines[d.lines.length - 1];
+      const lineKey = newKey();
+      const copied = last
+        ? {
+            ...last,
+            id: lineKey,
+            position: d.lines.length,
+            modifications: last.modifications.map((m, i) => ({
+              ...m,
+              id: -Date.now() - i,
+              quote_line_item_id: lineKey,
+              position: i,
+            })),
+          }
+        : {
+            id: lineKey,
+            description: '',
+            sale_price: null,
+            trucking_rate: null,
+            destination: null,
+            position: d.lines.length,
+            modifications: [],
+          };
+      return { ...d, lines: [...d.lines, copied] };
+    });
   };
 
   const removeLine = (id: number) =>
     setDraft((d) => ({ ...d, lines: d.lines.filter((l) => l.id !== id) }));
 
-  const addMod = (lineId: number) => {
-    setDraft((d) => ({
-      ...d,
-      lines: d.lines.map((l) =>
-        l.id === lineId
-          ? {
-              ...l,
-              modifications: [
-                ...l.modifications,
-                {
-                  id: -Date.now() - l.modifications.length,
-                  quote_line_item_id: l.id,
-                  description: '',
-                  price: '0',
-                  position: l.modifications.length,
-                },
-              ],
-            }
-          : l,
-      ),
-    }));
-  };
-
-  const updateMod = (
+  const setLineMods = (
     lineId: number,
-    modIdx: number,
-    patch: Partial<{ description: string; price: string }>,
-  ) => {
-    setDraft((d) => ({
-      ...d,
-      lines: d.lines.map((l) => {
-        if (l.id !== lineId) return l;
-        const mods = l.modifications.slice();
-        const next = { ...mods[modIdx], ...patch };
-        if (patch.description !== undefined) {
-          const match = modPresets.find(
-            (p) => p.label === patch.description?.trim(),
-          );
-          const currentPrice = Number(next.price);
-          const priceEmpty =
-            next.price === '' ||
-            next.price == null ||
-            (Number.isFinite(currentPrice) && currentPrice === 0);
-          if (match && match.default_price != null && priceEmpty) {
-            next.price = String(match.default_price);
-          }
-        }
-        mods[modIdx] = next;
-        return { ...l, modifications: mods };
-      }),
-    }));
-  };
-
-  const removeMod = (lineId: number, modIdx: number) => {
+    mods: QuoteData['lines'][number]['modifications'],
+  ) =>
     setDraft((d) => ({
       ...d,
       lines: d.lines.map((l) =>
-        l.id === lineId
-          ? { ...l, modifications: l.modifications.filter((_, i) => i !== modIdx) }
-          : l,
+        l.id === lineId ? { ...l, modifications: mods } : l,
       ),
     }));
-  };
+
+  const blankMod = (lineId: number, existing: number) => ({
+    id: -Date.now() - existing,
+    quote_line_item_id: lineId,
+    description: '',
+    price: '0',
+    quantity: 1,
+    position: existing,
+  });
 
   const save = async () => {
     setSaving(true);
@@ -202,11 +169,6 @@ export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorPr
 
   return (
     <div className={styles.body}>
-      <datalist id={MODIFICATION_DATALIST_ID}>
-        {modPresetLabels.map((d) => (
-          <option key={d} value={d} />
-        ))}
-      </datalist>
 
       <div className={styles.containerCard}>
         <div className={styles.containerHead}>
@@ -290,37 +252,11 @@ export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorPr
             <div className={styles.modsHeader}>
               <span className={styles.fieldLabel}>Modifications</span>
             </div>
-            {l.modifications.map((m, mIdx) => (
-              <div key={m.id} className={styles.modRow}>
-                <input
-                  className={styles.input}
-                  list={MODIFICATION_DATALIST_ID}
-                  placeholder="Description (or pick a preset)"
-                  value={m.description}
-                  onChange={(e) =>
-                    updateMod(l.id, mIdx, { description: e.target.value })
-                  }
-                />
-                <CurrencyInput
-                  value={m.price}
-                  onChange={(v) => updateMod(l.id, mIdx, { price: v })}
-                  placeholder="0.00"
-                />
-                <IconButton
-                  icon="trash"
-                  tone="danger"
-                  label="Remove modification"
-                  onClick={() => removeMod(l.id, mIdx)}
-                />
-              </div>
-            ))}
-            <button
-              type="button"
-              className={styles.addRow}
-              onClick={() => addMod(l.id)}
-            >
-              + Add modification
-            </button>
+            <ModificationRows
+              mods={l.modifications}
+              onChange={(next) => setLineMods(l.id, next)}
+              makeBlank={() => blankMod(l.id, l.modifications.length)}
+            />
           </div>
         </div>
       ))}

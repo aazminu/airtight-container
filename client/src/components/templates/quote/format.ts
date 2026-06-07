@@ -26,11 +26,12 @@ export const buildQuoteLineGroups = (data: QuoteData): QuoteLineGroup[] => {
     const subs: QuoteLineRow[] = [];
     const mods = Array.isArray(line.modifications) ? line.modifications : [];
     for (const m of mods) {
+      const qty = m.quantity || 1;
       subs.push({
-        qty: 1,
+        qty,
         description: m.description,
-        unitPrice: null,
-        lineTotal: m.price,
+        unitPrice: qty > 1 ? m.price : null,
+        lineTotal: String(Number(m.price ?? 0) * qty),
       });
     }
     const truck = Number(line.trucking_rate ?? 0);

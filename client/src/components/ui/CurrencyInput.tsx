@@ -17,25 +17,33 @@ const toText = (v: string | number | null | undefined): string =>
   v == null || v === '' ? '' : String(v);
 
 // Keep only digits and a single decimal point.
+// Keep only digits and a single decimal point, plus an optional leading
+// minus — negative prices are allowed (e.g. a discount / credit line).
+// The minus is preserved even before any digit is typed, so "-" → "-5".
 const sanitize = (raw: string): string => {
+  const neg = /^\s*-/.test(raw);
   const cleaned = raw.replace(/[^0-9.]/g, '');
   const firstDot = cleaned.indexOf('.');
-  if (firstDot === -1) return cleaned;
-  return (
-    cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '')
-  );
+  const digits =
+    firstDot === -1
+      ? cleaned
+      : cleaned.slice(0, firstDot + 1) +
+        cleaned.slice(firstDot + 1).replace(/\./g, '');
+  return (neg ? '-' : '') + digits;
 };
 
 // 2-dp banker's rounding (HALF_EVEN), returned as a fixed-2 string.
+// Sign-aware: round the magnitude then reapply the sign, never "-0.00".
 const toHalfEven2 = (n: number): string => {
-  const scaled = n * 100;
+  const scaled = Math.abs(n) * 100;
   const floor = Math.floor(scaled);
   const diff = scaled - floor;
   let rounded: number;
   if (diff > 0.5) rounded = floor + 1;
   else if (diff < 0.5) rounded = floor;
   else rounded = floor % 2 === 0 ? floor : floor + 1; // exactly .5 → to even
-  return (rounded / 100).toFixed(2);
+  const sign = n < 0 && rounded !== 0 ? -1 : 1;
+  return ((sign * rounded) / 100).toFixed(2);
 };
 
 // Strip leading zeros ("025.50" → "25.50", "0.5" stays) + clamp to 2dp.

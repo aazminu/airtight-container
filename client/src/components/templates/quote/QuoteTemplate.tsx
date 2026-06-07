@@ -1,4 +1,3 @@
-import { Fragment } from 'react';
 import type { QuoteTemplateProps } from './types';
 import { fmtCurrency, fmtDate, fmtRate, buildQuoteLineGroups } from './format';
 import {
@@ -52,12 +51,11 @@ export default function QuoteTemplate({ data }: QuoteTemplateProps) {
             <th className={styles.colTotal}>Amount</th>
           </tr>
         </thead>
-        <tbody>
-          {groups.map((g, gi) => {
+        {groups.map((g, gi) => {
             lineCounter += 1;
             const parentNo = lineCounter;
             return (
-              <Fragment key={gi}>
+              <tbody key={gi} className={styles.lineGroup}>
                 <tr
                   className={styles.parentRow}
                   data-has-subs={g.subs.length > 0}
@@ -85,18 +83,21 @@ export default function QuoteTemplate({ data }: QuoteTemplateProps) {
                     data-last={si === g.subs.length - 1}
                   >
                     <td className={styles.colN} />
-                    <td className={styles.colQty} />
+                    <td className={styles.colQty}>
+                      {sub.qty > 1 ? sub.qty : ''}
+                    </td>
                     <td className={styles.colDesc}>{sub.description}</td>
-                    <td className={styles.colPrice} />
+                    <td className={styles.colPrice}>
+                      {sub.unitPrice ? fmtCurrency(sub.unitPrice) : ''}
+                    </td>
                     <td className={styles.colTotal}>
                       {sub.lineTotal ? fmtCurrency(sub.lineTotal) : '—'}
                     </td>
                   </tr>
                 ))}
-              </Fragment>
+              </tbody>
             );
           })}
-        </tbody>
       </table>
 
       {data.notes && data.notes.trim() && (
@@ -106,7 +107,8 @@ export default function QuoteTemplate({ data }: QuoteTemplateProps) {
         </section>
       )}
 
-      <section className={styles.summaryRow}>
+      <div className={styles.summaryKeep} data-print-keep>
+        <section className={styles.summaryRow}>
         <div className={styles.terms}>
           <div className={styles.termsTitle}>Terms</div>
           <p>
@@ -144,7 +146,8 @@ export default function QuoteTemplate({ data }: QuoteTemplateProps) {
             <dd>{fmtCurrency(data.total)}</dd>
           </div>
         </dl>
-      </section>
+        </section>
+      </div>
 
       <DocFooter
         left="Thank you for your business. · Salesperson Michelle"

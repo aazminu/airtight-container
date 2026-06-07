@@ -20,6 +20,7 @@ export interface QuoteModification {
   quote_line_item_id: number;
   description: string;
   price: string;
+  quantity: number;
   position: number;
 }
 

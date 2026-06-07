@@ -82,6 +82,7 @@
   },
   "intake": {
     "page_title": "Add a box",
+    "discard_draft": "Discard draft",
     "kind_heading": "What kind of box is this?",
     "kind_sales": "Sales",
     "kind_sales_subtitle": "A box we bought and will resell. Has a release number.",
@@ -101,6 +102,7 @@
     "take_photo": "Take a photo",
     "add_another": "+ Add another photo",
     "uploading": "Uploading…",
+    "saved": "Saved",
     "upload_failed": "Failed",
     "photo_alt": "Photo {{n}}",
     "remove": "Remove photo",
