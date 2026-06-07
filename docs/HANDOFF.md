@@ -6,39 +6,28 @@
 
 ## TL;DR
 
-**Shipped & live.** PR #12 and PR #13 are merged and deployed; cutover ran and **prod is on migrations 0022/0023** (confirmed live 2026-06-06 via `server/scripts/prod-diagnose.sh`).
+**2.0 + structural batch ready to ship.** PR [#12](https://github.com/harrylynchh/airtight-container/pull/12) (`phase-struct/structural-batch` → `main`) carries 61 commits: delivery epic, Quote domain, Outbound stepper, promote-to-invoice rework, address picker, S&H domain expansion (billing modes + release linkage), polish pass (Toast bridge, masked inputs, CurrencyInput sweep, Stepper bg fix), P&L `deleted_at` filter. **Tests: client 50/50, server 211/211, tsc clean both sides.**
 
-**Post-ship bug week (2026-06-06).** Three operator-reported issues triaged:
+**Prod DB is already audited + restored** as of 2026-05-29:
+- `containers_2.0_POST-AUDIT_20260529_140725.psql` restored to `containers_prod` on EC2.
+- Audit verifier `POST_RESTORE_VERIFY.sql` reports **39/39 PASS** on prod.
+- Migrations 0016 → 0021 baked into the dump; no manual `psql -f` needed on prod.
+- Pre-audit + pre-restore dumps both archived in `~/airtight-cutover/` on EC2 (rollback artifacts).
 
-1. **Quote promote 500'd** — `relation "quote_lines" does not exist` (typo for `quote_line_items` in `routes/v2/quote.js`). **Fixed → PR #14 merged → deploy green, operator unblocked.**
-2. **Quotes "not reaching the work email"** — *not a bug.* Sending is healthy (customers + Gmail BCC receive). Root cause: Proofpoint same-domain anti-spoof on `airtightstorage.com` quarantines mail that's `From: @airtightstorage.com` but relayed via Resend, so the self-addressed copy never lands. **Deferred by owner.** Full writeup in auto-memory `quote_email_proofpoint_diagnosis.md`.
-3. **Outage remediation (2026-06-04 OOM hard-lock).** **PR [#15](https://github.com/harrylynchh/airtight-container/pull/15) OPEN — next step is review + merge.** Consolidates the 3 separate Puppeteer browsers into one shared instance (`server/lib/puppeteer.ts`) with a render-count/age recycle, drops `--single-process` (verified it hangs `page.pdf()`), and adds `mem_limit: 600m` to the backend in `docker-compose.yml`. Swap (2 GB) is already live on EC2. Also folds in a fix for the date-relative `sh-checkout.test.ts` flake (fixture `intake_date` was `now()`-relative against hardcoded 2026 windows; now pinned to `2026-04-01`).
-
-**Feature batch (2026-06-06), 3 more PRs open** (plan in `~/.claude/plans/indexed-growing-neumann.md`):
-
-4. **PR [#16](https://github.com/harrylynchh/airtight-container/pull/16) — quick wins** (`feat/quote-invoice-quickwins` → `main`, ready): $0 sale price allowed in both create steppers; quote "+ Add line item" copies the line above; localStorage draft autosave (`useDraftPersistence`) on quote+invoice create with auto-restore + "Discard draft". No migration. client 50/50, tsc clean.
-5. **PR [#17](https://github.com/harrylynchh/airtight-container/pull/17) — mod dropdown + quantity** (`feat/mod-rows-quantity`, **DRAFT, stacked on #16**). Shared `ModificationRows.tsx` (real `<select>` + "Custom" write-in, replaces iPad-hostile datalist, fixes preset price-rebind). Per-modification **quantity** ("4× windows"): migration **0024** + schema/validation/ops/PDF. **HOLD: owner reviewing the qty render (screenshots sent); apply `0024` to prod only after sign-off.**
-6. **PR [#18](https://github.com/harrylynchh/airtight-container/pull/18) — multi-page invoices** (`feat/invoice-pagination`, **DRAFT, stacked on #15**). Page top/bottom margins + "Page X / N" footer; short invoices no longer forced to 2 pages. Invoice-render-path only.
-
-**Tests:** server 226/226 (on #15's branch), client 50/50, tsc clean throughout.
+**Stack is `docker compose down` on prod.** Merging PR #12 fires the GHA deploy workflow → builds new images → SSHes to EC2 → `docker compose up -d` against the audited DB. **Add the GH secret `VITE_GOOGLE_MAPS_API_KEY` first** if you want the address picker live (absent = picker hidden, no crash).
 
 ---
 
-## Next concrete step
+## Post-deploy spot-checks
 
-**Merge order matters** (two stacks):
-
-1. **PR #15** (outage) → then **PR #18** retargets `main` & merges (pagination). Post-#15 checks:
-
-| Check | Expected |
+| Surface | Expected |
 | --- | --- |
-| `docker inspect airtight-container-backend-1 --format '{{.HostConfig.Memory}}'` | `629145600` (600 MB) |
-| `docker stats …` (~30 min) | RSS plateaus | 
-| `docker exec … ps -ef \| grep chromium` after a few PDFs | one browser, recycles after 50/6h |
+| `/inventory` | 55 available · S&H tabs visible (empty until you intake) |
+| `/releases` | `AUDIT-5-29-26` with 8/50 used |
+| `/dashboard` | Active total = $656,924.05 (tombstones excluded) |
+| Auth | Sign-in works (Better Auth tables came over in the dump) |
 
-2. **PR #16** (quick wins) → then, after owner signs off on the qty render, **PR #17**: apply `server/db/migrations/0024_modification_quantity.sql` to `containers_prod` (additive, safe), retarget #17 to `main`, merge. (`0024` already applied to **local** DB.)
-
-**Deferred:** quote-email Proofpoint config (owner); t3.small instance bump (~1 wk observation).
+If anything looks off, run `POST_RESTORE_VERIFY.sql` again — should still be 39/39.
 
 ---
 
@@ -101,7 +90,7 @@ Full spec + step ordering: [docs/AUDIT_MIGRATION.md](AUDIT_MIGRATION.md).
 ## Conventions
 
 - `main` deploys on push.
-- Migrations stay numbered + applied manually (`psql -f`); drizzle-kit not at runtime. **Prod is at `0023`.**
+- Migrations stay numbered + applied manually (`psql -f`); drizzle-kit not at runtime. Prod is at `0021` (baked into the audited dump).
 - `userContext.jsx` is the global user/popup/theme context (popup state now bridges to the Toast viewport — every existing `setPopup` call still works).
 - Deploy build runs `tsc --noEmit && vite build` inside `Dockerfile.frontend` — any tsc error breaks deploy. `App.jsx` is `.jsx` so it's not type-checked; eyeball on back-merge.
 
