@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import db from '../db/index.js';
 import { putObject, getObjectBytes } from './s3.js';
+import { wrapPrintHtml, PAGINATED_PDF_OPTIONS } from './pdf-print.js';
 import { withPage, closeBrowser } from './puppeteer.js';
 
 // Re-exported so existing scripts (smoke-pdf, rerender-all-invoices) that
@@ -213,19 +214,6 @@ async function fetchInvoiceData(invoiceId: number): Promise<InvoiceData | null> 
   return data;
 }
 
-// ---- HTML wrapper ---------------------------------------------------
-
-function wrapHtml(ssrHtml: string, css: string): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<style>${css}</style>
-</head>
-<body>${ssrHtml}</body>
-</html>`;
-}
-
 // ---- public API -----------------------------------------------------
 
 export async function renderInvoicePdf(invoiceId: number): Promise<Buffer> {
@@ -240,7 +228,7 @@ export async function renderInvoicePdf(invoiceId: number): Promise<Buffer> {
   const css = await getCss();
   log('render-to-string');
   const ssrHtml = renderToString(createElement(Template, { data }));
-  const html = wrapHtml(ssrHtml, css);
+  const html = wrapPrintHtml(ssrHtml, css);
   log(`html=${html.length} bytes, acquiring page`);
   return withPage(async (page) => {
     log('setContent');
@@ -251,11 +239,7 @@ export async function renderInvoicePdf(invoiceId: number): Promise<Buffer> {
     log('await fonts.ready');
     await page.evaluate(() => document.fonts.ready);
     log('page.pdf');
-    const pdf = await page.pdf({
-      format: 'Letter',
-      printBackground: true,
-      margin: { top: 0, right: 0, bottom: 0, left: 0 },
-    });
+    const pdf = await page.pdf(PAGINATED_PDF_OPTIONS);
     log(`pdf=${pdf.length} bytes`);
     return Buffer.from(pdf);
   });
