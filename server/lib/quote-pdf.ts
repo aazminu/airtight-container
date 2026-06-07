@@ -17,6 +17,7 @@ import path from 'node:path';
 import db from '../db/index.js';
 import { putObject, getObjectBytes } from './s3.js';
 import { withPage, closeBrowser } from './puppeteer.js';
+import { wrapPrintHtml, PAGINATED_PDF_OPTIONS } from './pdf-print.js';
 
 // Kept under the old name in case a caller imports it; the browser now
 // lives in lib/puppeteer.ts.
@@ -169,32 +170,17 @@ export async function fetchQuoteData(quoteId: number): Promise<QuoteData | null>
   };
 }
 
-function wrapHtml(ssrHtml: string, css: string): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<style>${css}</style>
-</head>
-<body>${ssrHtml}</body>
-</html>`;
-}
-
 export async function renderQuotePdf(quoteId: number): Promise<Buffer> {
   const data = await fetchQuoteData(quoteId);
   if (!data) throw new Error(`Quote ${quoteId} not found`);
   const Template = await getTemplate();
   const css = await getCss();
   const ssrHtml = renderToString(createElement(Template, { data }));
-  const html = wrapHtml(ssrHtml, css);
+  const html = wrapPrintHtml(ssrHtml, css);
   return withPage(async (page) => {
     await page.setContent(html, { waitUntil: 'load' });
     await page.evaluate(() => document.fonts.ready);
-    const pdf = await page.pdf({
-      format: 'Letter',
-      printBackground: true,
-      margin: { top: 0, right: 0, bottom: 0, left: 0 },
-    });
+    const pdf = await page.pdf(PAGINATED_PDF_OPTIONS);
     return Buffer.from(pdf);
   });
 }
