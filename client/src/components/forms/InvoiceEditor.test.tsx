@@ -63,8 +63,8 @@ const baseInvoice = (over: Partial<InvoiceData> = {}): InvoiceData => ({
       delivery_state: null,
       delivery_zip: null,
       modifications: [
-        { id: 1, sold_id: 10, description: 'Roll-up door', price: '300', position: 0 },
-        { id: 2, sold_id: 10, description: 'Paint', price: '200', position: 1 },
+        { id: 1, sold_id: 10, description: 'Roll-up door', price: '300', quantity: 1, position: 0 },
+        { id: 2, sold_id: 10, description: 'Paint', price: '200', quantity: 1, position: 1 },
       ],
     },
   ],
@@ -155,9 +155,13 @@ describe('InvoiceEditor', () => {
         onSave={() => {}}
       />,
     );
-    expect(screen.getAllByPlaceholderText(/Description \(or pick a preset\)/)).toHaveLength(2);
+    expect(
+      screen.getAllByRole('button', { name: 'Remove modification' }),
+    ).toHaveLength(2);
     await userEvent.click(screen.getByRole('button', { name: '+ Add modification' }));
-    expect(screen.getAllByPlaceholderText(/Description \(or pick a preset\)/)).toHaveLength(3);
+    expect(
+      screen.getAllByRole('button', { name: 'Remove modification' }),
+    ).toHaveLength(3);
   });
 
   it('removing a modification drops its row', async () => {

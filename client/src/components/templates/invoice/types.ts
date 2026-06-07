@@ -20,6 +20,7 @@ export interface InvoiceModification {
   sold_id: number;
   description: string;
   price: string;
+  quantity: number;
   position: number;
 }
 

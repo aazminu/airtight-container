@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Badge,
   Button,
-  CurrencyInput,
   Flow,
   FlowStep,
   IconButton,
@@ -12,6 +11,7 @@ import {
 import { AddClientModal } from '../components/forms/AddClientModal';
 import { DestinationField } from '../components/forms/DestinationField';
 import { useDirtyForm } from '../lib/useDirtyForm';
+import { useDraftPersistence } from '../lib/useDraftPersistence';
 import QuoteTemplate from '../components/templates/quote/QuoteTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/quote/format';
 import type {
@@ -19,11 +19,7 @@ import type {
   QuoteLine,
   QuoteModification,
 } from '../components/templates/quote/types';
-import {
-  MODIFICATION_DATALIST_ID,
-  useModPresetLabels,
-  useModPresets,
-} from '../components/forms/modificationPresets';
+import { ModificationRows } from '../components/forms/ModificationRows';
 import styles from './CreateQuote.module.css';
 
 interface ClientRow {
@@ -45,7 +41,12 @@ interface LineDraft {
   sale_price: string;
   trucking_rate: string;
   destination: string;
-  modifications: Array<{ id: number; description: string; price: string }>;
+  modifications: Array<{
+    id: number;
+    description: string;
+    price: string;
+    quantity: number;
+  }>;
 }
 
 const STEP_NAMES = ['Customer', 'Lines', 'Details', 'Preview', 'Done'] as const;
@@ -99,8 +100,6 @@ export default function CreateQuote() {
   const [taxRate, setTaxRate] = useState('0.06625');
   const [ccFeePct, setCcFeePct] = useState('3.5');
   const ccFeeRate = pctToDecimal(ccFeePct);
-  const modPresetLabels = useModPresetLabels();
-  const modPresets = useModPresets();
   const [submitState, setSubmitState] = useState<
     | { kind: 'idle' }
     | { kind: 'submitting' }
@@ -111,6 +110,59 @@ export default function CreateQuote() {
     submitState.kind !== 'done' &&
       (selectedClient !== null || notes.trim() !== ''),
   );
+
+  const draftSnapshot = useMemo(
+    () => ({
+      step,
+      selectedClient,
+      lines,
+      notes,
+      quoteTaxed,
+      quoteCredit,
+      taxRate,
+      ccFeePct,
+    }),
+    [step, selectedClient, lines, notes, quoteTaxed, quoteCredit, taxRate, ccFeePct],
+  );
+  const { hasDraft, clearDraft } = useDraftPersistence(
+    'airtight:draft:quote-create',
+    draftSnapshot,
+    (saved) => {
+      if (saved.step != null) setStep(saved.step);
+      if (saved.selectedClient !== undefined)
+        setSelectedClient(saved.selectedClient);
+      // Re-key restored lines + mods so module-level keySeq can't later
+      // mint a colliding negative key for a freshly added line.
+      if (Array.isArray(saved.lines))
+        setLines(
+          saved.lines.map((l) => ({
+            ...l,
+            key: keySeq--,
+            modifications: l.modifications.map((m, i) => ({
+              ...m,
+              id: -Date.now() - i,
+            })),
+          })),
+        );
+      if (saved.notes != null) setNotes(saved.notes);
+      if (saved.quoteTaxed != null) setQuoteTaxed(saved.quoteTaxed);
+      if (saved.quoteCredit != null) setQuoteCredit(saved.quoteCredit);
+      if (saved.taxRate != null) setTaxRate(saved.taxRate);
+      if (saved.ccFeePct != null) setCcFeePct(saved.ccFeePct);
+    },
+  );
+
+  const discardDraft = () => {
+    clearDraft();
+    setStep(0);
+    setSelectedClient(null);
+    setLines([blankLine()]);
+    setNotes('');
+    setQuoteTaxed(false);
+    setQuoteCredit(false);
+    setTaxRate('0.06625');
+    setCcFeePct('3.5');
+  };
 
   useEffect(() => {
     (async () => {
@@ -160,7 +212,10 @@ export default function CreateQuote() {
     for (const l of lines) {
       subtotal += Number(l.sale_price || 0);
       subtotal += Number(l.trucking_rate || 0);
-      subtotal += l.modifications.reduce((s, m) => s + Number(m.price || 0), 0);
+      subtotal += l.modifications.reduce(
+        (s, m) => s + Number(m.price || 0) * (m.quantity || 1),
+        0,
+      );
     }
     const tax = quoteTaxed ? subtotal * Number(taxRate || 0) : 0;
     const cc = quoteCredit ? (subtotal + tax) * Number(ccFeeRate || 0) : 0;
@@ -177,6 +232,7 @@ export default function CreateQuote() {
           quote_line_item_id: -1,
           description: m.description,
           price: m.price || '0',
+          quantity: m.quantity || 1,
           position: j,
         }));
         return {
@@ -234,72 +290,36 @@ export default function CreateQuote() {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   };
 
-  const addLine = () => setLines((prev) => [...prev, blankLine()]);
+  // "+ Add line item" copies the line above so repeated, similar lines
+  // (same container size/price, tweak one field) don't have to be retyped.
+  // Modifications are deep-copied with fresh client-side ids. Falls back
+  // to a blank line when there's nothing to copy.
+  const addLine = () =>
+    setLines((prev) => {
+      const last = prev[prev.length - 1];
+      if (!last) return [...prev, blankLine()];
+      return [
+        ...prev,
+        {
+          ...last,
+          key: keySeq--,
+          modifications: last.modifications.map((m, i) => ({
+            ...m,
+            id: -Date.now() - i,
+          })),
+        },
+      ];
+    });
 
   const removeLine = (key: number) =>
     setLines((prev) => prev.filter((l) => l.key !== key));
 
-  const addMod = (key: number) => {
-    setLines((prev) =>
-      prev.map((l) =>
-        l.key === key
-          ? {
-              ...l,
-              modifications: [
-                ...l.modifications,
-                {
-                  id: -Date.now() - l.modifications.length,
-                  description: '',
-                  price: '0',
-                },
-              ],
-            }
-          : l,
-      ),
-    );
-  };
-
-  const updateMod = (
-    key: number,
-    modIdx: number,
-    patch: Partial<{ description: string; price: string }>,
-  ) => {
-    setLines((prev) =>
-      prev.map((l) => {
-        if (l.key !== key) return l;
-        const mods = l.modifications.slice();
-        const next = { ...mods[modIdx], ...patch };
-        if (patch.description !== undefined) {
-          const match = modPresets.find(
-            (p) => p.label === patch.description?.trim(),
-          );
-          const currentPrice = Number(next.price);
-          const priceEmpty =
-            next.price === '' ||
-            next.price == null ||
-            (Number.isFinite(currentPrice) && currentPrice === 0);
-          if (match && match.default_price != null && priceEmpty) {
-            next.price = String(match.default_price);
-          }
-        }
-        mods[modIdx] = next;
-        return { ...l, modifications: mods };
-      }),
-    );
-  };
-
-  const removeMod = (key: number, modIdx: number) => {
-    setLines((prev) =>
-      prev.map((l) =>
-        l.key === key
-          ? {
-              ...l,
-              modifications: l.modifications.filter((_, i) => i !== modIdx),
-            }
-          : l,
-      ),
-    );
-  };
+  const blankMod = (existing: number) => ({
+    id: -Date.now() - existing,
+    description: '',
+    price: '0',
+    quantity: 1,
+  });
 
   const validLines = lines.filter((l) => l.description.trim() !== '');
 
@@ -308,7 +328,11 @@ export default function CreateQuote() {
     if (step === 1) {
       return (
         validLines.length > 0 &&
-        validLines.every((l) => Number(l.sale_price || 0) > 0)
+        validLines.every(
+          (l) =>
+            l.sale_price.trim() !== '' &&
+            Number.isFinite(Number(l.sale_price)),
+        )
       );
     }
     return true;
@@ -340,6 +364,7 @@ export default function CreateQuote() {
               .map((m, j) => ({
                 description: m.description,
                 price: m.price || '0',
+                quantity: m.quantity || 1,
                 position: j,
               })),
           })),
@@ -350,6 +375,7 @@ export default function CreateQuote() {
         throw new Error(body?.message ?? 'Create failed');
       }
       const created = (await res.json()) as { id: number; quote_number: string };
+      clearDraft();
       setSubmitState({
         kind: 'done',
         id: created.id,
@@ -371,9 +397,16 @@ export default function CreateQuote() {
     <div className={styles.page}>
       <header className={styles.header}>
         <h1 className={styles.title}>New Quote</h1>
-        <span className={styles.stepLabel}>
-          Step {Math.min(step + 1, STEP_NAMES.length)} of {STEP_NAMES.length}
-        </span>
+        <div className={styles.headerActions}>
+          {hasDraft && submitState.kind !== 'done' && (
+            <Button variant="secondary" onClick={discardDraft}>
+              Discard draft
+            </Button>
+          )}
+          <span className={styles.stepLabel}>
+            Step {Math.min(step + 1, STEP_NAMES.length)} of {STEP_NAMES.length}
+          </span>
+        </div>
       </header>
 
       <Stepper labels={STEP_NAMES} current={step} ariaLabel="Quote progress" />
@@ -446,12 +479,6 @@ export default function CreateQuote() {
               a price — there are no containers on a quote. Sale price is
               required on every line.
             </p>
-            <datalist id={MODIFICATION_DATALIST_ID}>
-              {modPresetLabels.map((d) => (
-                <option key={d} value={d} />
-              ))}
-            </datalist>
-
             {lines.map((l) => (
               <div key={l.key} className={styles.containerCard}>
                 <div className={styles.containerHead}>
@@ -513,44 +540,13 @@ export default function CreateQuote() {
                   <div className={styles.modsHeader}>
                     <span className={styles.fieldLabel}>Modifications</span>
                   </div>
-                  {l.modifications.length === 0 && (
-                    <p className={styles.modsEmpty}>
-                      No modifications yet.
-                    </p>
-                  )}
-                  {l.modifications.map((m, mIdx) => (
-                    <div key={m.id} className={styles.modRow}>
-                      <input
-                        className={styles.input}
-                        list={MODIFICATION_DATALIST_ID}
-                        placeholder="Description (or pick a preset)"
-                        value={m.description}
-                        onChange={(e) =>
-                          updateMod(l.key, mIdx, { description: e.target.value })
-                        }
-                      />
-                      <CurrencyInput
-                        value={m.price}
-                        onChange={(v) =>
-                          updateMod(l.key, mIdx, { price: v })
-                        }
-                        placeholder="0.00"
-                      />
-                      <IconButton
-                        icon="trash"
-                        tone="danger"
-                        label="Remove modification"
-                        onClick={() => removeMod(l.key, mIdx)}
-                      />
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    className={styles.addRow}
-                    onClick={() => addMod(l.key)}
-                  >
-                    + Add modification
-                  </button>
+                  <ModificationRows
+                    mods={l.modifications}
+                    onChange={(next) =>
+                      updateLine(l.key, { modifications: next })
+                    }
+                    makeBlank={() => blankMod(l.modifications.length)}
+                  />
                 </div>
               </div>
             ))}

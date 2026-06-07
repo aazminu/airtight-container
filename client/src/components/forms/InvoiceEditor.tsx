@@ -6,11 +6,7 @@ import type {
 } from '../templates/invoice/types';
 import { AddressFields, Button, CurrencyInput, IconButton } from '../ui';
 import { fmtCurrency } from '../templates/invoice/format';
-import {
-  MODIFICATION_DATALIST_ID,
-  useModPresetLabels,
-  useModPresets,
-} from './modificationPresets';
+import { ModificationRows } from './ModificationRows';
 import { DoorOrientationField } from './DoorOrientationField';
 import styles from './InvoiceEditor.module.css';
 
@@ -69,8 +65,6 @@ export default function InvoiceEditor({
   >([]);
   const [pickerValue, setPickerValue] = useState<string>('');
   const [saving, setSaving] = useState(false);
-  const modPresetLabels = useModPresetLabels();
-  const modPresets = useModPresets();
 
   const loadTruckingCompanies = async () => {
     try {
@@ -174,7 +168,7 @@ export default function InvoiceEditor({
       subtotal += Number(c.sale_price ?? 0);
       subtotal += Number(c.trucking_rate ?? 0);
       const perMod = c.modifications.reduce(
-        (sum, m) => sum + Number(m.price ?? 0),
+        (sum, m) => sum + Number(m.price ?? 0) * (m.quantity || 1),
         0,
       );
       if (perMod > 0) subtotal += perMod;
@@ -274,61 +268,25 @@ export default function InvoiceEditor({
     setPickerValue('');
   };
 
-  const updateMod = (
+  const setContainerMods = (
     ctIdx: number,
-    modIdx: number,
-    patch: Partial<InvoiceModification>,
+    mods: InvoiceModification[],
   ) => {
     setDraft((d) => {
       const containers = d.containers.slice();
-      const mods = containers[ctIdx].modifications.slice();
-      const next = { ...mods[modIdx], ...patch };
-      // Autofill the price when the user picks (or types) a description
-      // matching a preset, but only when the current price is empty/0 —
-      // a typed value wins.
-      if (patch.description !== undefined) {
-        const match = modPresets.find(
-          (p) => p.label === patch.description?.trim(),
-        );
-        const currentPrice = Number(next.price);
-        const priceEmpty =
-          next.price === '' ||
-          next.price == null ||
-          (Number.isFinite(currentPrice) && currentPrice === 0);
-        if (match && match.default_price != null && priceEmpty) {
-          next.price = String(match.default_price);
-        }
-      }
-      mods[modIdx] = next;
       containers[ctIdx] = { ...containers[ctIdx], modifications: mods };
       return { ...d, containers };
     });
   };
 
-  const addMod = (ctIdx: number) => {
-    setDraft((d) => {
-      const containers = d.containers.slice();
-      const mods = containers[ctIdx].modifications.slice();
-      mods.push({
-        id: -Date.now() - mods.length,
-        sold_id: containers[ctIdx].sold_id ?? -1,
-        description: '',
-        price: '0',
-        position: mods.length,
-      });
-      containers[ctIdx] = { ...containers[ctIdx], modifications: mods };
-      return { ...d, containers };
-    });
-  };
-
-  const removeMod = (ctIdx: number, modIdx: number) => {
-    setDraft((d) => {
-      const containers = d.containers.slice();
-      const mods = containers[ctIdx].modifications.filter((_, i) => i !== modIdx);
-      containers[ctIdx] = { ...containers[ctIdx], modifications: mods };
-      return { ...d, containers };
-    });
-  };
+  const blankMod = (ctIdx: number, existing: number): InvoiceModification => ({
+    id: -Date.now() - existing,
+    sold_id: draft.containers[ctIdx].sold_id ?? -1,
+    description: '',
+    price: '0',
+    quantity: 1,
+    position: existing,
+  });
 
   const handleSubmit = async () => {
     setSaving(true);
@@ -343,12 +301,6 @@ export default function InvoiceEditor({
 
   return (
     <div className={styles.editor}>
-      <datalist id={MODIFICATION_DATALIST_ID}>
-        {modPresetLabels.map((d) => (
-          <option key={d} value={d} />
-        ))}
-      </datalist>
-
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Invoice</h2>
         <div className={styles.fieldGrid}>
@@ -660,37 +612,11 @@ export default function InvoiceEditor({
               <div className={styles.modsHeader}>
                 <span className={styles.label}>Per-modification line items</span>
               </div>
-              {c.modifications.map((m, mIdx) => (
-                <div key={m.id} className={styles.modRow}>
-                  <input
-                    className={styles.input}
-                    list={MODIFICATION_DATALIST_ID}
-                    placeholder="Description (or pick a preset)"
-                    value={m.description}
-                    onChange={(e) =>
-                      updateMod(ctIdx, mIdx, { description: e.target.value })
-                    }
-                  />
-                  <CurrencyInput
-                    value={m.price}
-                    onChange={(v) => updateMod(ctIdx, mIdx, { price: v })}
-                    placeholder="0.00"
-                  />
-                  <IconButton
-                    icon="trash"
-                    tone="danger"
-                    label="Remove modification"
-                    onClick={() => removeMod(ctIdx, mIdx)}
-                  />
-                </div>
-              ))}
-              <button
-                type="button"
-                className={styles.addRow}
-                onClick={() => addMod(ctIdx)}
-              >
-                + Add modification
-              </button>
+              <ModificationRows
+                mods={c.modifications}
+                onChange={(next) => setContainerMods(ctIdx, next)}
+                makeBlank={() => blankMod(ctIdx, c.modifications.length)}
+              />
             </div>
           </div>
         ))}

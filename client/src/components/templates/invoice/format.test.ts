@@ -112,6 +112,7 @@ describe('buildLineGroups', () => {
               sold_id: 10,
               description: 'Roll-up door',
               price: '300',
+              quantity: 1,
               position: 0,
             },
             {
@@ -119,6 +120,7 @@ describe('buildLineGroups', () => {
               sold_id: 10,
               description: 'Paint',
               price: '200',
+              quantity: 1,
               position: 1,
             },
           ],
@@ -172,7 +174,7 @@ describe('buildLineGroups', () => {
           trucking_rate: '400',
           destination: 'Marlboro',
           modifications: [
-            { id: 1, sold_id: 10, description: 'Paint', price: '200', position: 0 },
+            { id: 1, sold_id: 10, description: 'Paint', price: '200', quantity: 1, position: 0 },
           ],
         }),
       ]),

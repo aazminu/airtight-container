@@ -126,6 +126,7 @@ interface InvoiceModification {
   sold_id: number;
   description: string;
   price: string;
+  quantity: number;
   position: number;
 }
 
@@ -193,7 +194,7 @@ async function fetchInvoiceData(invoiceId: number): Promise<InvoiceData | null> 
     .filter((id): id is number => id != null);
   if (soldIds.length > 0) {
     const modResult = await db.query(
-      `SELECT id, sold_id, description, price, position
+      `SELECT id, sold_id, description, price, quantity, position
        FROM sold_modifications
        WHERE sold_id = ANY($1::int[])
        ORDER BY sold_id, position, id`,

@@ -262,6 +262,43 @@ router.post("/:id/pdf", checkAdmin, async (req, res) => {
 	}
 });
 
+// Re-render fresh, refresh the cached S3 object, then stream the PDF back
+// as an attachment. No email is sent. Mirrors invoice GET /:id/pdf.
+router.get("/:id/pdf", checkAdmin, async (req, res) => {
+	const id = parseInt(req.params.id, 10);
+	if (!Number.isFinite(id)) {
+		return res.status(400).json({ message: "Invalid quote id" });
+	}
+	try {
+		const { rows } = await db.query(
+			"SELECT quote_number, deleted_at FROM quotes WHERE id = $1",
+			[id],
+		);
+		const quote = rows[0];
+		if (!quote) return res.status(404).json({ message: "Not found" });
+		if (quote.deleted_at !== null) {
+			return res.status(409).json({ message: "Quote is deleted" });
+		}
+		const { s3Key } = await renderAndStoreQuotePdf(id);
+		await db.query("UPDATE quotes SET pdf_s3_key = $1 WHERE id = $2", [
+			s3Key,
+			id,
+		]);
+		const pdfBytes = await getQuotePdfBytes(s3Key);
+		res.status(200);
+		res.setHeader("Content-Type", "application/pdf");
+		res.setHeader(
+			"Content-Disposition",
+			`attachment; filename="quote-${quote.quote_number}.pdf"`,
+		);
+		res.setHeader("Content-Length", pdfBytes.length);
+		res.end(pdfBytes);
+	} catch (err) {
+		console.error("quote.pdf.download error:", err);
+		res.status(500).json({ message: err.message || "Internal server error" });
+	}
+});
+
 const SEND_BCC = (process.env.SEND_BCC ?? "")
 	.split(",")
 	.map((s) => s.trim())

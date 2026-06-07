@@ -7,12 +7,12 @@ import {
   CurrencyInput,
   Flow,
   FlowStep,
-  IconButton,
   Stepper,
 } from '../components/ui';
 import { AddClientModal } from '../components/forms/AddClientModal';
 import { DoorOrientationField } from '../components/forms/DoorOrientationField';
 import { useDirtyForm } from '../lib/useDirtyForm';
+import { useDraftPersistence } from '../lib/useDraftPersistence';
 import InvoiceTemplate from '../components/templates/invoice/InvoiceTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/invoice/format';
 import type {
@@ -20,11 +20,7 @@ import type {
   InvoiceLineContainer,
   InvoiceModification,
 } from '../components/templates/invoice/types';
-import {
-  MODIFICATION_DATALIST_ID,
-  useModPresetLabels,
-  useModPresets,
-} from '../components/forms/modificationPresets';
+import { ModificationRows } from '../components/forms/ModificationRows';
 import styles from './CreateInvoice.module.css';
 
 interface InventoryRow {
@@ -67,7 +63,12 @@ interface ContainerDraft {
   delivery_city: string;
   delivery_state: string;
   delivery_zip: string;
-  modifications: Array<{ id: number; description: string; price: string }>;
+  modifications: Array<{
+    id: number;
+    description: string;
+    price: string;
+    quantity: number;
+  }>;
 }
 
 interface TruckingCompany {
@@ -168,8 +169,6 @@ export default function CreateInvoice() {
   const [truckingCompanies, setTruckingCompanies] = useState<TruckingCompany[]>(
     [],
   );
-  const modPresetLabels = useModPresetLabels();
-  const modPresets = useModPresets();
   const [submitState, setSubmitState] = useState<
     | { kind: 'idle' }
     | { kind: 'submitting' }
@@ -180,6 +179,69 @@ export default function CreateInvoice() {
     submitState.kind !== 'done' &&
       (selectedIds.length > 0 || selectedClient !== null),
   );
+
+  const draftSnapshot = useMemo(
+    () => ({
+      step,
+      selectedIds,
+      drafts,
+      selectedClient,
+      invoiceTaxed,
+      invoiceCredit,
+      taxRate,
+      ccFeePct,
+      invoiceDate,
+      shipSameAsBilling,
+      shipTo,
+    }),
+    [
+      step,
+      selectedIds,
+      drafts,
+      selectedClient,
+      invoiceTaxed,
+      invoiceCredit,
+      taxRate,
+      ccFeePct,
+      invoiceDate,
+      shipSameAsBilling,
+      shipTo,
+    ],
+  );
+  const { hasDraft, clearDraft } = useDraftPersistence(
+    'airtight:draft:invoice-create',
+    draftSnapshot,
+    (saved) => {
+      if (saved.step != null) setStep(saved.step);
+      if (Array.isArray(saved.selectedIds)) setSelectedIds(saved.selectedIds);
+      if (saved.drafts) setDrafts(saved.drafts);
+      if (saved.selectedClient !== undefined)
+        setSelectedClient(saved.selectedClient);
+      if (saved.invoiceTaxed != null) setInvoiceTaxed(saved.invoiceTaxed);
+      if (saved.invoiceCredit != null) setInvoiceCredit(saved.invoiceCredit);
+      if (saved.taxRate != null) setTaxRate(saved.taxRate);
+      if (saved.ccFeePct != null) setCcFeePct(saved.ccFeePct);
+      if (saved.invoiceDate != null) setInvoiceDate(saved.invoiceDate);
+      if (saved.shipSameAsBilling != null)
+        setShipSameAsBilling(saved.shipSameAsBilling);
+      if (saved.shipTo) setShipTo(saved.shipTo);
+    },
+  );
+
+  const discardDraft = () => {
+    clearDraft();
+    setStep(0);
+    setSelectedIds([]);
+    setDrafts({});
+    setSelectedClient(null);
+    setInvoiceTaxed(false);
+    setInvoiceCredit(false);
+    setTaxRate('0.06625');
+    setCcFeePct('3.5');
+    setInvoiceDate(todayISO());
+    setShipSameAsBilling(true);
+    setShipTo({ name: '', street: '', city: '', state: '', zip: '' });
+  };
 
   const loadTruckingCompanies = async () => {
     try {
@@ -321,7 +383,10 @@ export default function CreateInvoice() {
       if (!d) continue;
       subtotal += Number(d.sale_price || 0);
       subtotal += Number(d.trucking_rate || 0);
-      subtotal += d.modifications.reduce((s, m) => s + Number(m.price || 0), 0);
+      subtotal += d.modifications.reduce(
+        (s, m) => s + Number(m.price || 0) * (m.quantity || 1),
+        0,
+      );
     }
     const tax = invoiceTaxed ? subtotal * Number(taxRate || 0) : 0;
     const cc = invoiceCredit ? (subtotal + tax) * Number(ccFeeRate || 0) : 0;
@@ -338,6 +403,7 @@ export default function CreateInvoice() {
           sold_id: -1,
           description: m.description,
           price: m.price || '0',
+          quantity: m.quantity || 1,
           position: i,
         }),
       );
@@ -438,66 +504,19 @@ export default function CreateInvoice() {
     setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   };
 
-  const addMod = (id: number) => {
+  const setMods = (id: number, mods: ContainerDraft['modifications']) =>
     setDrafts((prev) => {
       const d = prev[id];
       if (!d) return prev;
-      return {
-        ...prev,
-        [id]: {
-          ...d,
-          modifications: [
-            ...d.modifications,
-            { id: -Date.now() - d.modifications.length, description: '', price: '0' },
-          ],
-        },
-      };
-    });
-  };
-
-  const updateMod = (
-    id: number,
-    modIdx: number,
-    patch: Partial<{ description: string; price: string }>,
-  ) => {
-    setDrafts((prev) => {
-      const d = prev[id];
-      if (!d) return prev;
-      const mods = d.modifications.slice();
-      const next = { ...mods[modIdx], ...patch };
-      // Autofill the price when the description matches a preset and
-      // the price field is empty / 0 — a typed value wins.
-      if (patch.description !== undefined) {
-        const match = modPresets.find(
-          (p) => p.label === patch.description?.trim(),
-        );
-        const currentPrice = Number(next.price);
-        const priceEmpty =
-          next.price === '' ||
-          next.price == null ||
-          (Number.isFinite(currentPrice) && currentPrice === 0);
-        if (match && match.default_price != null && priceEmpty) {
-          next.price = String(match.default_price);
-        }
-      }
-      mods[modIdx] = next;
       return { ...prev, [id]: { ...d, modifications: mods } };
     });
-  };
 
-  const removeMod = (id: number, modIdx: number) => {
-    setDrafts((prev) => {
-      const d = prev[id];
-      if (!d) return prev;
-      return {
-        ...prev,
-        [id]: {
-          ...d,
-          modifications: d.modifications.filter((_, i) => i !== modIdx),
-        },
-      };
-    });
-  };
+  const blankMod = (existing: number) => ({
+    id: -Date.now() - existing,
+    description: '',
+    price: '0',
+    quantity: 1,
+  });
 
   const canAdvance = () => {
     if (step === 0) return selectedIds.length > 0;
@@ -505,7 +524,11 @@ export default function CreateInvoice() {
     if (step === 2) {
       return selectedIds.every((id) => {
         const d = drafts[id];
-        return d && Number(d.sale_price || 0) > 0;
+        return (
+          d &&
+          d.sale_price.trim() !== '' &&
+          Number.isFinite(Number(d.sale_price))
+        );
       });
     }
     return true;
@@ -597,6 +620,7 @@ export default function CreateInvoice() {
                 .map((m, i) => ({
                   description: m.description,
                   price: m.price || '0',
+                  quantity: m.quantity || 1,
                   position: i,
                 })),
             };
@@ -608,6 +632,7 @@ export default function CreateInvoice() {
         throw new Error(body?.message ?? 'Save failed');
       }
 
+      clearDraft();
       setSubmitState({ kind: 'done', id: created.id, invoice_number: created.invoice_number });
       setStep(4);
     } catch (e) {
@@ -625,9 +650,16 @@ export default function CreateInvoice() {
     <div className={styles.page}>
       <header className={styles.header}>
         <h1 className={styles.title}>New Invoice</h1>
-        <span className={styles.stepLabel}>
-          Step {Math.min(step + 1, STEP_NAMES.length)} of {STEP_NAMES.length}
-        </span>
+        <div className={styles.headerActions}>
+          {hasDraft && submitState.kind !== 'done' && (
+            <Button variant="secondary" onClick={discardDraft}>
+              Discard draft
+            </Button>
+          )}
+          <span className={styles.stepLabel}>
+            Step {Math.min(step + 1, STEP_NAMES.length)} of {STEP_NAMES.length}
+          </span>
+        </div>
       </header>
 
       <Stepper labels={STEP_NAMES} current={step} ariaLabel="Invoice progress" />
@@ -745,7 +777,8 @@ export default function CreateInvoice() {
           <FlowStep>
             <p className={styles.hint}>
               Fill in per-container prices and invoice-level charges. Totals
-              update live. Sale price is required on every container.
+              update live. Sale price is required on every container (0 is
+              allowed).
             </p>
             <div className={styles.invoiceMetaGrid}>
               <label className={styles.field}>
@@ -823,12 +856,6 @@ export default function CreateInvoice() {
                 </label>
               </div>
             </div>
-            <datalist id={MODIFICATION_DATALIST_ID}>
-              {modPresetLabels.map((d) => (
-                <option key={d} value={d} />
-              ))}
-            </datalist>
-
             <div className={styles.containerCard}>
               <div className={styles.containerHead}>
                 <strong>Shipping address</strong>
@@ -978,37 +1005,11 @@ export default function CreateInvoice() {
                     <div className={styles.modsHeader}>
                       <span className={styles.fieldLabel}>Modifications</span>
                     </div>
-                    {d.modifications.map((m, mIdx) => (
-                      <div key={m.id} className={styles.modRow}>
-                        <input
-                          className={styles.input}
-                          list={MODIFICATION_DATALIST_ID}
-                          placeholder="Description (or pick a preset)"
-                          value={m.description}
-                          onChange={(e) =>
-                            updateMod(id, mIdx, { description: e.target.value })
-                          }
-                        />
-                        <CurrencyInput
-                          value={m.price}
-                          onChange={(v) => updateMod(id, mIdx, { price: v })}
-                          placeholder="0.00"
-                        />
-                        <IconButton
-                          icon="trash"
-                          tone="danger"
-                          label="Remove modification"
-                          onClick={() => removeMod(id, mIdx)}
-                        />
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      className={styles.addRow}
-                      onClick={() => addMod(id)}
-                    >
-                      + Add modification
-                    </button>
+                    <ModificationRows
+                      mods={d.modifications}
+                      onChange={(next) => setMods(id, next)}
+                      makeBlank={() => blankMod(d.modifications.length)}
+                    />
                   </div>
                 </div>
               );

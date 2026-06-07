@@ -179,6 +179,35 @@ export default function QuoteDetail() {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!quote) return;
+    setAction({ kind: 'busy', label: 'Generating PDF…' });
+    try {
+      const res = await fetch(`/api/v2/quote/${quote.id}/pdf`, {
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? `Something went wrong`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `quote-${quote.quote_number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setAction({ kind: 'ok', message: 'PDF downloaded.' });
+    } catch (e) {
+      setAction({
+        kind: 'err',
+        message: e instanceof Error ? e.message : 'Download failed',
+      });
+    }
+  };
+
   const handleEmail = async () => {
     if (!quote) return;
     const fallbackTo = quote.customer.contact_email ?? '';
@@ -271,6 +300,7 @@ export default function QuoteDetail() {
                 .map((m, j) => ({
                   description: m.description,
                   price: m.price,
+                  quantity: m.quantity ?? 1,
                   position: j,
                 })),
             })),
@@ -523,6 +553,7 @@ export default function QuoteDetail() {
           sold_id: -1,
           description: m.description,
           price: m.price ?? '0',
+          quantity: m.quantity ?? 1,
           position: mi,
         })),
       };
@@ -531,7 +562,10 @@ export default function QuoteDetail() {
     for (const c of containers) {
       subtotal += Number(c.sale_price ?? 0);
       subtotal += Number(c.trucking_rate ?? 0);
-      subtotal += c.modifications.reduce((s, m) => s + Number(m.price ?? 0), 0);
+      subtotal += c.modifications.reduce(
+        (s, m) => s + Number(m.price ?? 0) * (m.quantity || 1),
+        0,
+      );
     }
     const taxAmount = quote.quote_taxed ? subtotal * taxRate : 0;
     const ccAmount = quote.quote_credit ? (subtotal + taxAmount) * ccRate : 0;
@@ -641,6 +675,11 @@ export default function QuoteDetail() {
             {isAdmin && (
               <Button variant="secondary" onClick={() => setEditing(true)}>
                 Edit
+              </Button>
+            )}
+            {isAdmin && (
+              <Button variant="secondary" onClick={handleDownloadPdf}>
+                Download PDF
               </Button>
             )}
             {isAdmin && (

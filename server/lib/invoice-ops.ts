@@ -16,6 +16,7 @@ const SALES_INVOICE_SEQ_LOCK_KEY = 0x4149_5253_4551_4e23n.toString();
 export interface IncomingModification {
   description?: string;
   price?: string | number | null;
+  quantity?: number | null;
   position?: number | null;
 }
 
@@ -129,12 +130,16 @@ export async function recomputeTotals(
     const { rows: modRows } = await client.query<{
       sold_id: number;
       price: string;
+      quantity: number;
     }>(
-      `SELECT sold_id, price FROM sold_modifications WHERE sold_id = ANY($1::int[])`,
+      `SELECT sold_id, price, quantity FROM sold_modifications WHERE sold_id = ANY($1::int[])`,
       [soldIds],
     );
     for (const m of modRows) {
-      modsBySold.set(m.sold_id, (modsBySold.get(m.sold_id) ?? 0) + Number(m.price));
+      modsBySold.set(
+        m.sold_id,
+        (modsBySold.get(m.sold_id) ?? 0) + Number(m.price) * (m.quantity || 1),
+      );
     }
   }
   let subtotal = 0;
@@ -355,8 +360,8 @@ export async function updateInvoiceFull(
         const m = mods[i];
         if (!m.description || m.price == null) continue;
         await client.query(
-          'INSERT INTO sold_modifications (sold_id, description, price, position) VALUES ($1, $2, $3, $4)',
-          [soldId, m.description, m.price, m.position ?? i],
+          'INSERT INTO sold_modifications (sold_id, description, price, quantity, position) VALUES ($1, $2, $3, $4, $5)',
+          [soldId, m.description, m.price, m.quantity ?? 1, m.position ?? i],
         );
       }
     }
