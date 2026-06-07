@@ -51,6 +51,14 @@ jobs:
           # hostname the next line connects to.
           echo "${{ secrets.EC2_HOST }} ${{ secrets.EC2_SSH_HOST_KEY }}" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
+          # `docker system prune -af` FIRST: each deploy pulls fresh :latest
+          # images (the backend carries Chromium, ~hundreds of MB), and the
+          # superseded layers pile up until the host volume fills — which is
+          # exactly what broke the #19 deploy ("no space left on device" mid
+          # pull). Pruning unused images/containers before the pull frees that
+          # space and keeps the host bounded. Running containers hold the
+          # current images, so they're protected.
+          #
           # Order matters and the && chain is the safety rail:
           #   pull new images
           #   → back up prod + apply pending migrations + validate, all in one
@@ -67,6 +75,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
             "cd /home/ubuntu/airtight-container \
+              && docker system prune -af \
               && docker compose pull \
               && mkdir -p /home/ubuntu/airtight-backups \
               && docker compose run --rm --user root \
