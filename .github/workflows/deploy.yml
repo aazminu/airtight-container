@@ -51,6 +51,28 @@ jobs:
           # hostname the next line connects to.
           echo "${{ secrets.EC2_HOST }} ${{ secrets.EC2_SSH_HOST_KEY }}" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
+          # Order matters and the && chain is the safety rail:
+          #   pull new images
+          #   → back up prod + apply pending migrations + validate, all in one
+          #     transaction, using the NEW image (scripts/migrate.ts). If the
+          #     validation callback throws, the migration ROLLS BACK and the
+          #     command exits non-zero, so `up -d` below never runs and the
+          #     OLD containers keep serving the unchanged schema.
+          #   → only on success: bring up the new code.
+          # Migrations here are additive/backward-compatible, so running them
+          # before the new code deploys is safe (old code ignores new columns).
+          # --user root: write the dump into the host-owned backups mount.
+          # --baseline-on-empty 0023: first run adopts prod's existing 0000-0023
+          #   (sentinel-guarded), then applies 0024+. A no-op once adopted.
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
-            "cd /home/ubuntu/airtight-container && docker compose pull && docker compose up -d"
+            "cd /home/ubuntu/airtight-container \
+              && docker compose pull \
+              && mkdir -p /home/ubuntu/airtight-backups \
+              && docker compose run --rm --user root \
+                   -v /home/ubuntu/airtight-backups:/backups \
+                   backend node_modules/.bin/tsx scripts/migrate.ts \
+                     --backup-dir /backups \
+                     --baseline-on-empty 0023 \
+                     --check ./scripts/migration-checks/current.ts \
+              && docker compose up -d"
