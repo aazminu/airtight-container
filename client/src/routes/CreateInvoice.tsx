@@ -226,6 +226,7 @@ export default function CreateInvoice() {
         setShipSameAsBilling(saved.shipSameAsBilling);
       if (saved.shipTo) setShipTo(saved.shipTo);
     },
+    submitState.kind !== 'done',
   );
 
   const discardDraft = () => {

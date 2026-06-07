@@ -150,6 +150,7 @@ export default function CreateQuote() {
       if (saved.taxRate != null) setTaxRate(saved.taxRate);
       if (saved.ccFeePct != null) setCcFeePct(saved.ccFeePct);
     },
+    submitState.kind !== 'done',
   );
 
   const discardDraft = () => {

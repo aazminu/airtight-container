@@ -131,8 +131,10 @@ export function PhotoStep({ kind, mode, photos, onChange, onOcr }: Props) {
                 <div className={styles.uploading}>{t('photo_step.uploading')}</div>
               ) : p.error ? (
                 <div className={styles.uploading}>{t('photo_step.upload_failed')}</div>
-              ) : (
+              ) : p.previewUrl ? (
                 <img src={p.previewUrl} alt={t('photo_step.photo_alt', { n: i + 1 })} />
+              ) : (
+                <div className={styles.uploading}>{t('photo_step.saved')}</div>
               )}
               <button
                 type="button"

@@ -18,6 +18,7 @@ import {
   type IntakePhoto,
 } from '../components/intake/PhotoStep';
 import { ConfirmStep, type OcrResult } from '../components/intake/ConfirmStep';
+import { useDraftPersistence } from '../lib/useDraftPersistence';
 import styles from './Intake.module.css';
 
 type Kind = 'sales' | 'sh' | null;
@@ -90,6 +91,46 @@ export default function Intake() {
   // Auto-match: filled when the typed unit number is pre-loaded under
   // an active release. Drives the locked-release affordance on Details.
   const [releaseMatch, setReleaseMatch] = useState<ReleaseMatch | null>(null);
+
+  // Draft autosave: an iPad backgrounding the tab mid-intake (or a misclick)
+  // shouldn't lose the typed details, the OCR result, or which photos are
+  // attached. Photos already live in S3 by this point, so we persist their
+  // durable keys (not the local blob preview, which dies on reload) — the
+  // submit still links them. Only autosaves once a kind is chosen.
+  const draftSnapshot = useMemo(
+    () => ({
+      kind,
+      step,
+      salesForm,
+      shForm,
+      ocr,
+      releaseMatch,
+      doorPhoto: doorPhoto?.key ? { key: doorPhoto.key } : null,
+      otherPhotos: otherPhotos.filter((p) => p.key).map((p) => ({ key: p.key })),
+    }),
+    [kind, step, salesForm, shForm, ocr, releaseMatch, doorPhoto, otherPhotos],
+  );
+  const { hasDraft, clearDraft } = useDraftPersistence(
+    'airtight:draft:intake',
+    draftSnapshot,
+    (saved) => {
+      if (saved.kind != null) setKind(saved.kind);
+      if (saved.step != null) setStep(saved.step);
+      if (saved.salesForm) setSalesForm(saved.salesForm);
+      if (saved.shForm) setShForm(saved.shForm);
+      if (saved.ocr !== undefined) setOcr(saved.ocr);
+      if (saved.releaseMatch !== undefined) setReleaseMatch(saved.releaseMatch);
+      if (saved.doorPhoto?.key)
+        setDoorPhoto({ key: saved.doorPhoto.key, previewUrl: '', uploading: false });
+      if (Array.isArray(saved.otherPhotos))
+        setOtherPhotos(
+          saved.otherPhotos
+            .filter((p) => p.key)
+            .map((p) => ({ key: p.key, previewUrl: '', uploading: false })),
+        );
+    },
+    kind !== null,
+  );
 
   // Cache the release list once so Review can label by value without
   // re-fetching. Both sales and S&H now use releases (migration 0021),
@@ -228,6 +269,7 @@ export default function Intake() {
   };
 
   const resetForNextBox = () => {
+    clearDraft();
     setSalesForm(EMPTY_SALES);
     setShForm(EMPTY_SH);
     if (doorPhoto?.previewUrl) URL.revokeObjectURL(doorPhoto.previewUrl);
@@ -369,6 +411,11 @@ export default function Intake() {
     <div className={styles.page}>
       <header className={styles.header}>
         <h1 className={styles.title}>{t('intake.page_title')}</h1>
+        {hasDraft && kind !== null && (
+          <Button variant="secondary" onClick={resetForNextBox}>
+            {t('intake.discard_draft')}
+          </Button>
+        )}
         <ol className={styles.stepper} aria-label="Intake progress">
           {labels.map((label, i) => (
             <li

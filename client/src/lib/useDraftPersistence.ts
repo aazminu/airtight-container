@@ -10,13 +10,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 //     'airtight:draft:quote-create',
 //     snapshot,          // a plain serializable object of the live form state
 //     (saved) => { ...setState from saved... },  // restore, called once on mount
+//     submitState.kind !== 'done',  // active: stop autosaving once submitted
 //   );
 // Call clearDraft() on successful submit; wire a "Discard draft" button
-// to clearDraft() + your own form reset.
+// to clearDraft() + your own form reset. Pass `active=false` in the
+// terminal/done state so the post-submit state change (e.g. step → done)
+// can't re-trigger the autosave effect and rewrite the draft we just
+// cleared.
 export function useDraftPersistence<T>(
   key: string,
   snapshot: T,
   onRestore: (saved: T) => void,
+  active = true,
 ) {
   const [hasDraft, setHasDraft] = useState(false);
   // Suppress the write effect until the one-time restore has run, so the
@@ -48,6 +53,10 @@ export function useDraftPersistence<T>(
 
   useEffect(() => {
     if (!writesEnabled.current) return;
+    // Terminal state (submitted/done): don't re-persist. Without this the
+    // state change that flips the form to "done" would schedule one last
+    // write that rewrites the draft clearDraft() just removed.
+    if (!active) return;
     const t = setTimeout(() => {
       try {
         localStorage.setItem(key, JSON.stringify(snapshot));
@@ -57,7 +66,7 @@ export function useDraftPersistence<T>(
       }
     }, 500);
     return () => clearTimeout(t);
-  }, [key, snapshot]);
+  }, [key, snapshot, active]);
 
   const clearDraft = useCallback(() => {
     localStorage.removeItem(key);

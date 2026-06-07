@@ -82,6 +82,7 @@
   },
   "intake": {
     "page_title": "Agregar una caja",
+    "discard_draft": "Descartar borrador",
     "kind_heading": "¿Qué tipo de caja es?",
     "kind_sales": "Venta",
     "kind_sales_subtitle": "Una caja que compramos y revenderemos. Tiene número de release.",
@@ -101,6 +102,7 @@
     "take_photo": "Tomar una foto",
     "add_another": "+ Agregar otra foto",
     "uploading": "Subiendo…",
+    "saved": "Guardada",
     "upload_failed": "Falló",
     "photo_alt": "Foto {{n}}",
     "remove": "Quitar foto",
