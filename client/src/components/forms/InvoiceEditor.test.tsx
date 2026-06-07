@@ -155,9 +155,13 @@ describe('InvoiceEditor', () => {
         onSave={() => {}}
       />,
     );
-    expect(screen.getAllByPlaceholderText(/Description \(or pick a preset\)/)).toHaveLength(2);
+    expect(
+      screen.getAllByRole('button', { name: 'Remove modification' }),
+    ).toHaveLength(2);
     await userEvent.click(screen.getByRole('button', { name: '+ Add modification' }));
-    expect(screen.getAllByPlaceholderText(/Description \(or pick a preset\)/)).toHaveLength(3);
+    expect(
+      screen.getAllByRole('button', { name: 'Remove modification' }),
+    ).toHaveLength(3);
   });
 
   it('removing a modification drops its row', async () => {

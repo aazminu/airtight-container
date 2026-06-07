@@ -15,6 +15,12 @@ import styles from './ModificationRows.module.css';
 
 const CUSTOM = '__custom__';
 
+// Quantity is a fixed dropdown (1..20) rather than a number spinner — the
+// up/down arrows are fiddly on iPad, and a dropdown makes a negative
+// quantity impossible by construction. Bump the ceiling if a real job
+// ever needs more than 20 of one modification.
+const QTY_OPTIONS = Array.from({ length: 20 }, (_, i) => i + 1);
+
 export interface ModLike {
   id: number;
   description: string;
@@ -83,18 +89,20 @@ export function ModificationRows<T extends ModLike>({
                 />
               )}
             </div>
-            <input
+            <select
               className={styles.qty}
-              type="number"
-              min={1}
-              step={1}
               aria-label="Quantity"
               value={m.quantity ?? 1}
-              onChange={(e) => {
-                const n = parseInt(e.target.value, 10);
-                patch(idx, { quantity: Number.isFinite(n) && n >= 1 ? n : 1 });
-              }}
-            />
+              onChange={(e) =>
+                patch(idx, { quantity: parseInt(e.target.value, 10) })
+              }
+            >
+              {QTY_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
             <CurrencyInput
               value={m.price}
               onChange={(v) => patch(idx, { price: v })}
