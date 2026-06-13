@@ -4,43 +4,25 @@
 
 ---
 
-## TL;DR — 5 PRs from the 2026-06-06 session; tomorrow = validate + merge
+## TL;DR — all 2026-06-06 work shipped; repo stabilized 2026-06-13
 
-**Live now:** prod on migrations **0022/0023**. PR **#14** (quote-promote `quote_lines` typo) already merged + deployed; operator unblocked.
+**Live now:** prod stable, no work in flight. All five 2026-06-06 PRs are merged + deployed:
+- **#14** quote-promote `quote_lines` fix · **#15** Puppeteer consolidation + `mem_limit: 600m` (outage fix) · **#16** $0 price / copy-line-above / draft autosave · **#17** mod dropdown + per-mod quantity + negative prices + quote "Download PDF" · **#18** multi-page pagination for invoices + quotes (`server/lib/pdf-print.ts`).
+- #17 + #18 were combined into `integration/combined-16-17-18` and merged as **#19** (instead of the two separate stacks the old plan described). **#20** then fixed an EC2 disk-space deploy failure (prune images before pull).
+- Migration **0024** (per-mod quantity) landed with #19; latest in tree.
 
-**Open PRs** (full plan in `~/.claude/plans/indexed-growing-neumann.md`):
+**Migrations are now automated (convention changed).** The deploy runs `server/scripts/migrate.ts` on the new image inside one transaction: `pg_dump` backup → apply pending → validate (`scripts/migration-checks/current.ts`) → COMMIT, rolling back if validation throws. Applied versions tracked in a `schema_migrations` table (`0000–0016` are baseline-adopted, never re-run). **No more manual `psql -f` for prod migrations.**
 
-| PR | Branch → base | State | What |
-| --- | --- | --- | --- |
-| [#15](https://github.com/harrylynchh/airtight-container/pull/15) | `fix/puppeteer-consolidation` → `main` | **ready** | Outage fix: one shared Chromium (`server/lib/puppeteer.ts`) + render-count/age recycle; dropped `--single-process` (hangs `page.pdf()`); `mem_limit: 600m` in compose. Also pins the `sh-checkout.test.ts` date flake. |
-| [#16](https://github.com/harrylynchh/airtight-container/pull/16) | `feat/quote-invoice-quickwins` → `main` | **ready** | $0 sale price allowed in both create steppers; quote "+ Add line item" copies the line above; localStorage draft autosave (`useDraftPersistence`) + "Discard draft". No migration. |
-| [#17](https://github.com/harrylynchh/airtight-container/pull/17) | `feat/mod-rows-quantity` → **#16** | **DRAFT — holds for qty sign-off + `0024`** | Shared `ModificationRows.tsx` (real `<select>` + "Custom" write-in, replaces iPad datalist, fixes preset price-rebind); per-mod **quantity** dropdown 1–20 (migration **0024**); **negative prices** in CurrencyInput; quote **"Download PDF"** (new `GET /api/v2/quote/:id/pdf`). |
-| [#18](https://github.com/harrylynchh/airtight-container/pull/18) | `feat/invoice-pagination` → **#15** | **DRAFT** | Multi-page for **invoices + quotes** via shared `server/lib/pdf-print.ts`: page margins + "Page X / N" footer + print-layout fixes (block layout so tables fragment; break-after on subless rows). |
+**2026-06-13 session — repo stabilization + dependency security pass:**
+- Retired the long-lived **`2.0`** branch and every stale feature/phase/worktree branch (8 agent worktrees removed). Repo is now **trunk-based**: only `main` exists locally and on origin. `CLAUDE.md` "Branching" rewritten to match.
+- Brought **`README.md`** current with the 2.0+ stack + features.
+- **Vuln pass (Dependabot flagged 14):** fixed the ones that ship to prod — `node-cron` 3→4 (server; drops the vulnerable `uuid`; verified 226 tests + `npm ci --omit=dev`) and `react-router-dom`→6.30.4 (client open-redirect; 50 tests + all 4 builds green).
+  - **`better-auth` (high) intentionally left at the deployed 1.6.10.** The advisory is the OAuth *device-authorization* flow, which this app doesn't enable (email/password + Google + admin only) → not reachable. Bumping to 1.6.18 pulls a **zod-4** peer via `better-call` and a `vite@8` svelte optional-peer, which breaks Docker's plain `npm ci`. Revisit alongside a planned better-auth/zod-4 upgrade, not as a one-off.
+  - **Remaining alerts are all dev/build tooling** (`vite`/`esbuild`/`vitest`/`vite-node`, `drizzle-kit`'s `@esbuild-kit`): not present in either prod image (frontend = static nginx; backend = `npm ci --omit=dev`), and the advisories are dev-server / Deno / Windows-dev class. **Currently unpatchable** — `esbuild`'s advisory is `<=0.28.0` with no fixed release, so bumping `vite`/`vitest` (majors) wouldn't clear it. Accepted; recheck when esbuild ships a fix.
 
-**Two stacks** (don't merge a child before its parent): `main ← #15 ← #18` and `main ← #16 ← #17`. **All four can merge independently in the right order** — they touch mostly disjoint files; only #15↔#18 and the quote files in #16/#17 share paths (that's why they're stacked, no conflicts expected).
-
-**Health:** server tests 226/226 (on #15's branch), client 50/50, `tsc` clean throughout. Rendered real quote + invoice PDFs to confirm qty (`4× $25` → Qty 4 / $25.00 / $100.00) and quote pagination.
-
----
-
-## Tomorrow's playbook
-
-**Stack A — outage + pagination:**
-1. Merge **#15** → GHA deploys. Post-deploy on EC2:
-   - `docker inspect airtight-container-backend-1 --format '{{.HostConfig.Memory}}'` → `629145600`
-   - `docker stats airtight-container-backend-1` ~30 min light traffic → RSS plateaus, doesn't climb
-   - generate a few quote/invoice/report PDFs, then `docker exec … ps -ef | grep chromium` → one browser, recycles after 50 renders / 6 h
-   - `free -m` → Swap 2047, nonzero used (already verified)
-2. Retarget **#18** base `#15`→`main` (GitHub does this automatically on #15 merge), merge → GHA deploys. Validate: download a **>1-page invoice** and a **>1-page quote** → page-2 content is inset from the top, "Page 2 / 2" footer, column headers repeat; a short invoice/quote stays one page. **Heads-up (owner judgment call):** block-for-print means the doc footer ("Thank you…") now trails the content instead of being pinned to the page bottom on short one-pagers. If you want it bottom-pinned on single-page docs, say so and it's a quick special-case.
-
-**Stack B — features:**
-3. Merge **#16** → GHA deploys. Validate in the app: $0 line advances + submits (quote + invoice create); "+ Add line item" duplicates the previous quote line; leave/return to a create page → draft auto-restores, "Discard draft" wipes, submit clears.
-4. **#17 is gated on YOUR qty sign-off** (screenshots already sent). When good:
-   - apply `server/db/migrations/0024_modification_quantity.sql` to `containers_prod` (manual `psql -f`, additive/idempotent/safe) — coordinate with the merge so schema + code land together;
-   - mark #17 ready, retarget base `#16`→`main`, merge → GHA deploys.
-   - Validate: mod row is a dropdown; picking/**changing** a preset rebinds its price; "Custom…" reveals free text; qty dropdown 1–20; a `$25` mod at qty 4 reads `$100`; a negative price (e.g. `-50` discount line) is accepted; quote "Download PDF" downloads.
-
-**`0024` is already applied to the LOCAL DB.** Prod is the only place it still needs to run.
+**Open since the merge (carryover from the old playbook):**
+- **Single-page PDF footer** — block-for-print means the doc footer ("Thank you…") now trails the content instead of pinning to the page bottom on short one-pagers. Owner judgment call; quick special-case if you want it bottom-pinned.
+- **#15 memory observation window** (~1 week post-deploy) is up — if RSS has stayed flat under load, the t3.small bump stays shelved.
 
 ---
 
@@ -111,7 +93,7 @@ Full spec + step ordering: [docs/AUDIT_MIGRATION.md](AUDIT_MIGRATION.md).
 ## Conventions
 
 - `main` deploys on push.
-- Migrations stay numbered + applied manually (`psql -f`); drizzle-kit not at runtime. **Prod is at `0023`.**
+- Migrations stay numbered SQL files; the deploy applies pending ones automatically + transactionally via `server/scripts/migrate.ts` (see TL;DR). Run locally with `tsx server/scripts/migrate.ts`. **Latest in tree: `0024`.**
 - `userContext.jsx` is the global user/popup/theme context (popup state now bridges to the Toast viewport — every existing `setPopup` call still works).
 - Deploy build runs `tsc --noEmit && vite build` inside `Dockerfile.frontend` — any tsc error breaks deploy. `App.jsx` is `.jsx` so it's not type-checked; eyeball on back-merge.
 

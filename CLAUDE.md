@@ -71,9 +71,9 @@ Other docs you may need:
 
 ## Branching
 
-- **`main`** — deploys to EC2 on push (GHA `deploy.yml`). Don't push to `main` unless you mean to ship. Currently 1 commit ahead of `origin/main` (docs-only planning commit, intentionally unpushed).
-- **`2.0`** — long-lived integration branch for the rewrite. All phase work merges here via `--no-ff` merge commits to preserve phase boundaries. `2.0` merges to `main` only when the rewrite is ready to ship.
-- **`phase-N/<slug>`** or **`phase-N-<slug>`** — feature branches off `2.0`. One per PR. Note: `phase-N` as a leaf branch and `phase-N/anything` can't coexist (git namespace conflict), so once a `phase-N` leaf exists, later sub-branches use a dash instead of a slash.
+- **`main`** — the trunk. Deploys to EC2 on push (GHA `deploy.yml`). Don't push to `main` unless you mean to ship.
+- **Feature branches** (`feat/<slug>`, `fix/<slug>`) — cut off `main`, one per PR, merged back into `main` via the GitHub PR. Delete the branch (local + remote) once merged. Stack a PR on another only when the work genuinely depends on it; otherwise branch from `main`.
+- The old long-lived **`2.0`** integration branch was retired 2026-06-13 — the rewrite now ships trunk-based straight through `main`. Historical `phase-N/*` branches are gone too; their work is all in `main`.
 
 ## Dev and deploy
 
