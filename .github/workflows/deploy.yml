@@ -10,30 +10,34 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push backend
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile.backend
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/airtight-backend:latest
+          # keep :latest a single linux/amd64 image; v6+ otherwise pushes an
+          # attestation index that the compose-pull host doesn't need
+          provenance: false
 
       - name: Build and push frontend
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile.frontend
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/airtight-frontend:latest
+          provenance: false
           build-args: |
             VITE_GOOGLE_MAPS_API_KEY=${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
 
