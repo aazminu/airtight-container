@@ -38,6 +38,12 @@ const port = process.env.PORT;
 app.set("trust proxy", 1);
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+// Stricter bucket for account-creation + password-reset — the enumeration
+// and spam-registration surfaces. These previously bypassed rate limiting
+// entirely: only sign-in/* was limited, and the /api/auth/* catch-all below
+// carries no limit, so sign-up and forget-password could be hammered at full
+// network speed.
+const signupLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 
 // CORS allowlist guard. Fail-fast at boot: every cookie-authenticated
 // endpoint is reachable via cross-origin when credentials:true, so a
@@ -94,7 +100,25 @@ app.use(
 // Rate-limit only sign-in endpoints — the broader /api/auth/* tree
 // includes get-session, which the client hits on every page load,
 // so a blanket limiter locks legitimate users out within a few minutes.
+// Impersonation has no legitimate use in this single-operator system and is
+// a lateral-movement path if an admin session is ever stolen. Block the
+// admin plugin's impersonate-user endpoint outright — setting
+// impersonationSessionDuration:0 does NOT disable it (0 is falsy, so Better
+// Auth falls back to its 1-hour default).
+app.all("/api/auth/admin/impersonate-user", (_req, res) =>
+	res.status(404).json({ message: "Not found" }),
+);
 app.all("/api/auth/sign-in/*", authLimiter, toNodeHandler(auth));
+app.all(
+	[
+		"/api/auth/sign-up/*",
+		"/api/auth/forget-password",
+		"/api/auth/request-password-reset",
+		"/api/auth/reset-password",
+	],
+	signupLimiter,
+	toNodeHandler(auth),
+);
 app.all("/api/auth/*", toNodeHandler(auth));
 
 app.use(express.json());

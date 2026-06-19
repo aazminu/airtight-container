@@ -8,7 +8,7 @@ Living document for the security backlog after the 2026-05-25 audit + PR #9 depl
 
 - **PR #9 — merged + deployed** (`e04aa9c` then hotfix `8b02fc7` via PR #10). Covered: open email relay, stored XSS in invoice email, role-assignment escalation, SSH host-key TOFU, CORS allowlist boot guard, dropped root in containers, nginx security headers + dotfile/sourcemap deny, BCC moved to env var, deleted dead `Invoice.jsx` + `docs/schema.psql`, `npm audit fix` (server: 12 → 10 vulns; high cleared).
 - **PR #10** (`8b02fc7`) — merged + deployed. deploy.yml hotfix for the SSH known_hosts hostname mismatch.
-- **PRs #11 / #12** — superseded by a **2026-06-19 phased security sweep** (review re-validated everything below against current code + found new items). **Phase 1 (logging + error hygiene) shipped** on `feat/logging-foundation`: pino + pino-http structured logging (redaction of auth/cookie/token/secret, per-request correlation ids), centralized `errorBoundary` middleware, error-message hygiene sweep (25 `err.message` 5xx leaks genericized — Twilio operator-facing passthrough deliberately kept), SMS success-response token stripped, Docker json-file log rotation. Phases 2 (auth), 3 (validation/data-min), 4 (infra) below — in progress.
+- **PRs #11 / #12** — superseded by a **2026-06-19 phased security sweep** (review re-validated everything below against current code + found new items). **Phase 1 (logging + error hygiene) shipped** on `feat/logging-foundation`: pino + pino-http structured logging (redaction of auth/cookie/token/secret, per-request correlation ids), centralized `errorBoundary` middleware, error-message hygiene sweep (25 `err.message` 5xx leaks genericized — Twilio operator-facing passthrough deliberately kept), SMS success-response token stripped, Docker json-file log rotation. **Phase 2 (auth hardening) shipped** on `feat/auth-hardening`: Better Auth secret fail-fast + cookie hardening + impersonation block, sign-up/reset rate-limiting, `v2/sold` PATCH raised to `checkAdmin`, and the `v1/sold` `/available/:id` param-ignored bug fixed. Phases 3 (validation / data-min) + 4 (infra) below — pending.
 - **Audit transcripts** — the full ranked findings from the 2026-05-25 sweep aren't archived in this repo; recover from the session log if needed. The items below are paraphrased + grouped.
 
 ---
@@ -44,16 +44,14 @@ Schemas mostly already exist in `server/validation/`; just wire them through.
 - ✅ 25 `err.message`/`error.message` 5xx leaks across `routes/v2/{report,invoice,quote,sh_invoice,pnl}.js` genericized; Resend 502s → "Email could not be sent"; the Twilio SMS passthrough is intentionally kept (operator needs the trial-mode message) but now also logged.
 - Note: 400-level validation/format messages were left intact (safe + useful); only 5xx provider/DB leakage was sanitized.
 
-### Better Auth hardening
-`server/auth.js` is permissive:
+### Better Auth hardening — ✅ DONE (Phase 2, `feat/auth-hardening`)
+- ✅ `BETTER_AUTH_SECRET` fail-fast at boot in `auth.js`.
+- ✅ `advanced.defaultCookieAttributes = { httpOnly: true, sameSite: 'lax' }`; `secure` is driven by `advanced.useSecureCookies`, derived from the `BETTER_AUTH_URL` protocol (https → secure) so it's correct behind prod nginx **without** breaking local http dev — hardcoding `secure: true` would silently stop dev login (browser drops secure cookies over http).
+- ✅ Impersonation blocked at the Express layer (`app.all('/api/auth/admin/impersonate-user', → 404)` before the auth catch-all). Verified in 1.6.10 source that `impersonationSessionDuration: 0` does **not** disable it (0 is falsy → falls back to the 1h default), hence the hard block.
+- ⏸️ Google `hd` / email allowlist: deliberately **deferred + documented** in `auth.js`. New Google accounts land in `pending` (zero access until an admin promotes them); a hard allowlist carries login-lockout risk for marginal gain over the pending default. Revisit if signup spam appears.
 
-- Require `BETTER_AUTH_SECRET` at boot (fail-fast if unset).
-- Configure `advanced.defaultCookieAttributes` = `{ httpOnly: true, secure: true, sameSite: 'lax' }`.
-- Restrict Google sign-up by `hd` (hosted-domain) param, or post-validate `account.email` against an operator allowlist.
-- Disable / gate the `admin` plugin's `impersonate-user` endpoint (`impersonationSessionDuration: 0` or remove from plugin options).
-
-### Auth-limiter granularity
-`authLimiter` (20 / 15 min) covers signin + signup + password-reset in one bucket. Split into per-action buckets so credential stuffing on `/signin` doesn't share quota with legitimate signup traffic.
+### Auth-limiter granularity — ✅ DONE (Phase 2)
+The `/api/auth/*` catch-all carried **no** limit (only `sign-in/*` was limited), so sign-up + forget/reset-password were unthrottled (account enumeration + spam-registration at full network speed). Added a stricter `signupLimiter` (10 / 15 min) on `/api/auth/sign-up/*`, `/forget-password`, `/request-password-reset`, `/reset-password`, mounted before the catch-all.
 
 ---
 
@@ -119,3 +117,5 @@ Schemas mostly already exist in `server/validation/`; just wire them through.
 - **Pervasive IDOR** in v1 + v2 routes (any authenticated employee can read/edit any client/invoice/inventory). Acceptable per single-tenant design — there is one yard, all employees see all data. If multi-tenancy is ever added, every `:id` handler needs a tenant filter.
 - **Google Fonts on every page load.** Privacy policy doesn't list Google as a sub-processor for font loading. Low impact; disclose if you add a privacy-policy refresh.
 - **`/r/:token` route** — 30-day token TTL, distinct error strings on failure modes. Tightened by PR #12 above; current state is acceptable for B2B driver receipts.
+- **Employee can create (not send/edit) invoices, quotes, clients; employee batch S&H checkout** (`checkEmployee`). Intentional yard/sales workflow — employees draft + do yard checkout, admins finalize; every send/edit/delete path is `checkAdmin`. Documented 2026-06-19 (Phase 2).
+- **User role-change / delete session invalidation** — verified non-issues: no session `cookieCache` (auth.js) so `getSession` re-reads `user.role` from the DB on every request (role changes apply immediately, no force-revoke needed); the `session` FK is `ON DELETE CASCADE` (migrate.js) so deleting a user revokes their sessions in the same statement.
