@@ -8,7 +8,7 @@ Living document for the security backlog after the 2026-05-25 audit + PR #9 depl
 
 - **PR #9 — merged + deployed** (`e04aa9c` then hotfix `8b02fc7` via PR #10). Covered: open email relay, stored XSS in invoice email, role-assignment escalation, SSH host-key TOFU, CORS allowlist boot guard, dropped root in containers, nginx security headers + dotfile/sourcemap deny, BCC moved to env var, deleted dead `Invoice.jsx` + `docs/schema.psql`, `npm audit fix` (server: 12 → 10 vulns; high cleared).
 - **PR #10** (`8b02fc7`) — merged + deployed. deploy.yml hotfix for the SSH known_hosts hostname mismatch.
-- **PRs #11 / #12** — superseded by a **2026-06-19 phased security sweep** (review re-validated everything below against current code + found new items). **Phase 1 (logging + error hygiene) shipped** on `feat/logging-foundation`: pino + pino-http structured logging (redaction of auth/cookie/token/secret, per-request correlation ids), centralized `errorBoundary` middleware, error-message hygiene sweep (25 `err.message` 5xx leaks genericized — Twilio operator-facing passthrough deliberately kept), SMS success-response token stripped, Docker json-file log rotation. **Phase 2 (auth hardening) shipped** on `feat/auth-hardening`: Better Auth secret fail-fast + cookie hardening + impersonation block, sign-up/reset rate-limiting, `v2/sold` PATCH raised to `checkAdmin`, and the `v1/sold` `/available/:id` param-ignored bug fixed. **Phase 3 (validation / data-min) shipped** on `feat/input-validation`: SVG-upload XSS blocked, per-route SMS/email rate limits, email-recipient validation, `run-month-end` body validation, `acquisition_price` gated to admins, receipt-link oracle closed + generic SMS-not-configured message. The broad mass-assignment `validateBody` wiring and report-list `resolved_data` minimization are **deliberately deferred** (no existing schemas / client coupling — see sections below). Phase 4 (infra) below — pending.
+- **PRs #11 / #12** — superseded by a **2026-06-19 phased security sweep** (review re-validated everything below against current code + found new items). **Phase 1 (logging + error hygiene) shipped** on `feat/logging-foundation`: pino + pino-http structured logging (redaction of auth/cookie/token/secret, per-request correlation ids), centralized `errorBoundary` middleware, error-message hygiene sweep (25 `err.message` 5xx leaks genericized — Twilio operator-facing passthrough deliberately kept), SMS success-response token stripped, Docker json-file log rotation. **Phase 2 (auth hardening) shipped** on `feat/auth-hardening`: Better Auth secret fail-fast + cookie hardening + impersonation block, sign-up/reset rate-limiting, `v2/sold` PATCH raised to `checkAdmin`, and the `v1/sold` `/available/:id` param-ignored bug fixed. **Phase 3 (validation / data-min) shipped** on `feat/input-validation`: SVG-upload XSS blocked, per-route SMS/email rate limits, email-recipient validation, `run-month-end` body validation, `acquisition_price` gated to admins, receipt-link oracle closed + generic SMS-not-configured message. The broad mass-assignment `validateBody` wiring and report-list `resolved_data` minimization are **deliberately deferred** (no existing schemas / client coupling — see sections below). **Phase 4 (infra) shipped** on `feat/infra-hardening`: GHA actions SHA-pinned, non-blocking Trivy scan workflow, Dependabot (github-actions), loopback port binding + `cap_drop`/`no-new-privileges`/`pids_limit` on both compose services, nginx CSP (Report-Only). Deferred-with-reason: `read_only` + healthchecks (Puppeteer/no-curl, need a Docker smoke), base-image digest pinning (no docker/skopeo in authoring env), and the deploy-critical `deploy.yml` path/prune/`--user root` changes (current behavior correct, no staging to test). **Container-runtime hardening needs a `docker compose up` smoke before this branch merges.**
 - **Audit transcripts** — the full ranked findings from the 2026-05-25 sweep aren't archived in this repo; recover from the session log if needed. The items below are paraphrased + grouped.
 
 ---
@@ -54,19 +54,21 @@ The `/api/auth/*` catch-all carried **no** limit (only `sign-in/*` was limited),
 
 ## PR #12 — medium polish + supply-chain
 
-### Container + compose hardening
-- Bind backend `3001:3001` and frontend `8080:8080` to `127.0.0.1` (ufw blocks them today but defense-in-depth).
-- Add `read_only: true`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, `mem_limit`, `pids_limit` to both services.
-- Add healthchecks.
-- Drop `host.docker.internal:host-gateway` if possible (containers reaching the EC2 host's full network); otherwise document why it's needed.
+### Container + compose hardening — ⏳ PARTIAL (Phase 4, `feat/infra-hardening`)
+- ✅ Bound backend `3001` + frontend `8080` to `127.0.0.1` (host nginx proxies via localhost; inter-container traffic uses the compose network, so routing is unaffected).
+- ✅ `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, `pids_limit`, `mem_limit` (predated this) on both services. **Smoke-test `docker compose up -d` + a PDF render before merging** — Docker can't be run in the authoring env.
+- ⏭️ `read_only: true` deferred: Puppeteer/Chromium needs a writable `/tmp` + `/dev/shm`; doing it right needs dedicated tmpfs mounts + a tested change.
+- ⏭️ Healthchecks deferred: backend has no `/health` endpoint and the slim image has no curl/wget; a misconfigured check causes restart loops, so it needs a tested addition.
+- `host.docker.internal:host-gateway` retained — required because Postgres runs bare-metal off the compose network (documented inline).
 - ✅ **DONE (Phase 1):** log rotation `logging: { driver: json-file, options: { max-size: "10m", max-file: "5" }}` added to both compose services (closes the unbounded-log disk-exhaustion path — second one after PR #20's image accumulation).
 
-### Supply chain
-- Pin all Docker base images to SHA digests (`node:20-alpine@sha256:...`, `nginxinc/nginx-unprivileged:alpine@sha256:...`).
-- Pin all third-party GHA actions to commit SHAs with comments (e.g. `actions/checkout@b4ffde65...  # v4.2.2`).
-- Add Trivy or Grype scan step before image push; fail on HIGH/CRITICAL.
-- Add cosign image signing.
-- Enable Dependabot for the `.github/workflows/` ecosystem.
+### Supply chain — ⏳ PARTIAL (Phase 4)
+- ✅ Pinned all GHA actions in `deploy.yml` to commit SHAs (with `# vX` comments): `actions/checkout` v6, `docker/login-action` v4, `docker/build-push-action` v7.
+- ✅ Added a **non-blocking** Trivy scan in a separate `.github/workflows/security-scan.yml` (fs deps + Dockerfile/compose config, `ignore-unfixed`, `exit-code 0`) — kept out of `deploy.yml` so a finding never blocks a prod deploy; flip `exit-code` to `1` to gate once the baseline is clean.
+- ✅ Enabled Dependabot for the `github-actions` ecosystem (`.github/dependabot.yml`).
+- ⏭️ Base-image SHA-digest pinning deferred: no docker/skopeo/crane in the authoring env to resolve real digests (won't fabricate one — a wrong digest breaks the build). Resolve with `docker buildx imagetools inspect node:20-alpine` and pin.
+- ⏭️ cosign image signing deferred (lower priority; GHCR is private + scoped to the repo token).
+- ⏭️ `deploy.yml` `--user root` migration step, hardcoded `/home/ubuntu` paths, and the `system prune -af` strategy left **as-is on purpose**: that file is the deploy-critical path, the current behavior is correct and the prune was a deliberate fix for the #19 disk-full incident — changing it blind (no staging to test) risks a deploy outage for speculative gain.
 
 ### Data minimization
 - ✅ **DONE (Phase 3):** `GET /api/v1/inventory` no longer returns `acquisition_price` (internal cost) to non-admins — gated to `role === 'admin'`. Safe because the P&L panel reads cost from `/api/v2/pnl`, not this list.

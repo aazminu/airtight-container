@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Keep the pinned GHA action SHAs (deploy.yml + security-scan.yml) current.
+  # Dependabot bumps the SHA and the trailing `# vX` comment together, so the
+  # pins stay both immutable and maintained.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
