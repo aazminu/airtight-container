@@ -45,7 +45,7 @@ router.get("/", checkEmployee, async (req, res) => {
 			data: { invoices: enriched },
 		});
 	} catch (err) {
-		console.error("sh_invoice.get error:", err);
+		req.log.error({ err }, "sh_invoice list failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -75,7 +75,7 @@ router.get("/:id", checkEmployee, async (req, res) => {
 			data: { invoice: { ...invs[0], lines } },
 		});
 	} catch (err) {
-		console.error("sh_invoice.getOne error:", err);
+		req.log.error({ err }, "sh_invoice get failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -93,8 +93,8 @@ router.post("/run-month-end", checkAdmin, async (req, res) => {
 		const summary = await generateShMonthEnd(year, monthIndex);
 		res.status(200).json({ status: "success", summary });
 	} catch (err) {
-		console.error("sh_invoice.run-month-end error:", err);
-		res.status(500).json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "sh_invoice run-month-end failed");
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -109,6 +109,7 @@ router.put("/:id/send", checkAdmin, async (req, res) => {
 		);
 		res.status(200).json({ status: "success" });
 	} catch (err) {
+		req.log.error({ err }, "sh_invoice send failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });

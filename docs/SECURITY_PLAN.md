@@ -8,7 +8,7 @@ Living document for the security backlog after the 2026-05-25 audit + PR #9 depl
 
 - **PR #9 — merged + deployed** (`e04aa9c` then hotfix `8b02fc7` via PR #10). Covered: open email relay, stored XSS in invoice email, role-assignment escalation, SSH host-key TOFU, CORS allowlist boot guard, dropped root in containers, nginx security headers + dotfile/sourcemap deny, BCC moved to env var, deleted dead `Invoice.jsx` + `docs/schema.psql`, `npm audit fix` (server: 12 → 10 vulns; high cleared).
 - **PR #10** (`8b02fc7`) — merged + deployed. deploy.yml hotfix for the SSH known_hosts hostname mismatch.
-- **PRs #11 / #12** — not yet started. Scope below.
+- **PRs #11 / #12** — superseded by a **2026-06-19 phased security sweep** (review re-validated everything below against current code + found new items). **Phase 1 (logging + error hygiene) shipped** on `feat/logging-foundation`: pino + pino-http structured logging (redaction of auth/cookie/token/secret, per-request correlation ids), centralized `errorBoundary` middleware, error-message hygiene sweep (25 `err.message` 5xx leaks genericized — Twilio operator-facing passthrough deliberately kept), SMS success-response token stripped, Docker json-file log rotation. Phases 2 (auth), 3 (validation/data-min), 4 (infra) below — in progress.
 - **Audit transcripts** — the full ranked findings from the 2026-05-25 sweep aren't archived in this repo; recover from the session log if needed. The items below are paraphrased + grouped.
 
 ---
@@ -37,11 +37,12 @@ Add `validateBody(schema)` middleware to:
 
 Schemas mostly already exist in `server/validation/`; just wire them through.
 
-### Error message hygiene
-~20 sites do `res.status(500).json({ message: err.message || "Internal server error" })`. `err.message` from pg / Drizzle leaks SQL constraint names + column names; Twilio errors include phone numbers; Resend errors include API-side detail.
+### Error message hygiene — ✅ DONE (Phase 1, `feat/logging-foundation`)
+~20 sites did `res.status(500).json({ message: err.message || "Internal server error" })`. `err.message` from pg / Drizzle leaks SQL constraint names + column names; Twilio errors include phone numbers; Resend errors include API-side detail.
 
-- Centralize in a helper (e.g. `server/middleware/errorBoundary.js`): `console.error(err); res.status(500).json({ message: "Internal server error" })`.
-- Apply across `routes/v2/report.js`, `routes/v2/invoice.js`, `routes/v2/sh_invoice.js`, `routes/v2/pnl.js`, etc.
+- ✅ Centralized `server/middleware/errorBoundary.ts` (logs full err via pino, returns generic message) mounted last in `server.js`.
+- ✅ 25 `err.message`/`error.message` 5xx leaks across `routes/v2/{report,invoice,quote,sh_invoice,pnl}.js` genericized; Resend 502s → "Email could not be sent"; the Twilio SMS passthrough is intentionally kept (operator needs the trial-mode message) but now also logged.
+- Note: 400-level validation/format messages were left intact (safe + useful); only 5xx provider/DB leakage was sanitized.
 
 ### Better Auth hardening
 `server/auth.js` is permissive:
@@ -63,7 +64,7 @@ Schemas mostly already exist in `server/validation/`; just wire them through.
 - Add `read_only: true`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, `mem_limit`, `pids_limit` to both services.
 - Add healthchecks.
 - Drop `host.docker.internal:host-gateway` if possible (containers reaching the EC2 host's full network); otherwise document why it's needed.
-- Add log rotation: `logging: { driver: json-file, options: { max-size: "10m", max-file: "5" }}`.
+- ✅ **DONE (Phase 1):** log rotation `logging: { driver: json-file, options: { max-size: "10m", max-file: "5" }}` added to both compose services (closes the unbounded-log disk-exhaustion path — second one after PR #20's image accumulation).
 
 ### Supply chain
 - Pin all Docker base images to SHA digests (`node:20-alpine@sha256:...`, `nginxinc/nginx-unprivileged:alpine@sha256:...`).

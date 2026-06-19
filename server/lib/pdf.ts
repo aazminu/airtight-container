@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import db from '../db/index.js';
 import { putObject, getObjectBytes } from './s3.js';
+import { logger } from './logger.js';
 import { wrapPrintHtml, PAGINATED_PDF_OPTIONS } from './pdf-print.js';
 import { withPage, closeBrowser } from './puppeteer.js';
 
@@ -217,8 +218,7 @@ async function fetchInvoiceData(invoiceId: number): Promise<InvoiceData | null> 
 // ---- public API -----------------------------------------------------
 
 export async function renderInvoicePdf(invoiceId: number): Promise<Buffer> {
-  const log = (msg: string) =>
-    process.env.PDF_DEBUG && console.error(`[pdf] ${msg}`);
+  const log = (msg: string) => logger.debug(`[pdf] ${msg}`);
   log(`fetch invoice ${invoiceId}`);
   const data = await fetchInvoiceData(invoiceId);
   if (!data) throw new Error(`Invoice ${invoiceId} not found`);

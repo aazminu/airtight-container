@@ -11,6 +11,14 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file: .env
+    # Cap container logs so they can't silently fill the host disk (the
+    # EC2 box ran out of disk once already — see PR #20). Chromium/PDF
+    # render chatter on the backend makes this the likely second offender.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   frontend:
     image: ghcr.io/harrylynchh/airtight-frontend:latest
@@ -19,3 +27,8 @@ services:
       - "8080:8080"
     depends_on:
       - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

@@ -1,13 +1,16 @@
 import "dotenv/config";
-import { webcrypto } from "crypto";
+import { webcrypto, randomUUID } from "crypto";
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
 import express from "express";
 import { toNodeHandler } from "better-auth/node";
 import rateLimit from "express-rate-limit";
+import pinoHttp from "pino-http";
 import cors from "cors";
 import helmet from "helmet";
 import cron from "node-cron";
 import { auth } from "./auth.js";
+import { logger } from "./lib/logger.js";
+import { errorBoundary } from "./middleware/errorBoundary.js";
 import soldRoute from "./routes/v1/sold.js";
 import inventoryRoute from "./routes/v1/inventory.js";
 import releaseRoute_2 from "./routes/v2/release.js";
@@ -61,6 +64,32 @@ app.use(
 	})
 );
 
+// Structured request logging. Mounted before the auth tree so every
+// request — auth included — gets a correlation id (echoed back as the
+// x-request-id response header and available as req.log inside handlers).
+app.use(
+	pinoHttp({
+		logger,
+		genReqId: (req, res) => {
+			const existing = req.headers["x-request-id"];
+			const id =
+				typeof existing === "string" && existing ? existing : randomUUID();
+			res.setHeader("x-request-id", id);
+			return id;
+		},
+		customLogLevel: (req, res, err) => {
+			if (err || res.statusCode >= 500) return "error";
+			if (res.statusCode >= 400) return "warn";
+			return "info";
+		},
+		// get-session is polled on every page load; logging each one floods
+		// the stream with no signal. Everything else is logged.
+		autoLogging: {
+			ignore: (req) => (req.url ?? "").startsWith("/api/auth/get-session"),
+		},
+	}),
+);
+
 // Better Auth must be mounted before express.json().
 // Rate-limit only sign-in endpoints — the broader /api/auth/* tree
 // includes get-session, which the client hits on every page load,
@@ -102,12 +131,12 @@ app.use("/r", publicReceiptRoute);
 if (process.env.SH_MONTH_END_CRON !== "off") {
 	cron.schedule("0 1 1 * *", async () => {
 		const { year, monthIndex } = priorMonth();
-		console.log(`[sh-cron] firing month-end for ${year}-${monthIndex + 1}`);
+		logger.info({ year, month: monthIndex + 1 }, "[sh-cron] firing month-end");
 		try {
 			const summary = await generateShMonthEnd(year, monthIndex);
-			console.log("[sh-cron] done", summary);
+			logger.info({ summary }, "[sh-cron] done");
 		} catch (err) {
-			console.error("[sh-cron] failed", err);
+			logger.error({ err }, "[sh-cron] failed");
 		}
 	});
 }
@@ -122,23 +151,27 @@ if (process.env.SH_MONTH_END_CRON !== "off") {
 // edits have settled.
 if (process.env.OUTBOUND_FLIP_CRON !== "off") {
 	cron.schedule("0 5 * * *", async () => {
-		console.log("[outbound-cron] sweep starting");
+		logger.info("[outbound-cron] sweep starting");
 		try {
 			const result = await applyOutboundFromDeliverySheets();
 			if (result.flipped > 0) {
-				console.log(
-					`[outbound-cron] flipped ${result.flipped} container(s) to outbound:`,
-					result.flipped_ids,
+				logger.info(
+					{ flipped: result.flipped, ids: result.flipped_ids },
+					"[outbound-cron] flipped containers to outbound",
 				);
 			} else {
-				console.log("[outbound-cron] no containers due");
+				logger.info("[outbound-cron] no containers due");
 			}
 		} catch (err) {
-			console.error("[outbound-cron] failed", err);
+			logger.error({ err }, "[outbound-cron] failed");
 		}
 	});
 }
 
+// Terminal error handler — must come after all routes so anything that
+// throws past a handler lands here instead of leaking a stack/500 HTML.
+app.use(errorBoundary);
+
 app.listen(port, () => {
-	console.log(`Server is up and listening on port ${port}`);
+	logger.info({ port }, "server listening");
 });
