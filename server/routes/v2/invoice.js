@@ -1,4 +1,5 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import db from "../../db/index.js";
 import pool from "../../db/pool.js";
 import { Resend } from "resend";
@@ -11,6 +12,10 @@ import {
 } from "../../lib/invoice-ops.js";
 
 const router = express.Router();
+
+// Abuse cap on the paid email channel (Resend bills per send); per-IP,
+// generous for a single operator. Tune if it bites legitimate use.
+const emailLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 
 const composeAddress = (row) => {
 	const parts = [];
@@ -421,7 +426,7 @@ const escapeHtml = (s) =>
 		.replace(/"/g, "&quot;")
 		.replace(/'/g, "&#39;");
 
-router.post("/:id/email", checkAdmin, async (req, res) => {
+router.post("/:id/email", checkAdmin, emailLimiter, async (req, res) => {
 	const invoiceId = parseInt(req.params.id, 10);
 	if (!Number.isFinite(invoiceId)) {
 		return res.status(400).json({ message: "Invalid invoice id" });
@@ -442,6 +447,15 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 		const to = req.body?.to ?? inv.contact_email;
 		if (!to)
 			return res.status(400).json({ message: "No recipient email on file" });
+		// Validate a caller-supplied recipient: an unvalidated `to` both routes
+		// the invoice PDF to an arbitrary string and (with update_client_email
+		// below) can overwrite the client's email of record with garbage.
+		if (
+			req.body?.to !== undefined &&
+			!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(req.body.to))
+		) {
+			return res.status(400).json({ message: "Invalid recipient email" });
+		}
 
 		// Always re-render fresh so post-edit changes (e.g. modification
 		// line items) aren't stale: the cached S3 object is only updated on

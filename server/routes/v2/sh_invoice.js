@@ -88,6 +88,23 @@ router.post("/run-month-end", checkAdmin, async (req, res) => {
 		const p = priorMonth();
 		year = p.year;
 		monthIndex = p.monthIndex;
+	} else {
+		// Validate a caller-supplied period before it reaches the generator and
+		// the date math — reject non-integers / out-of-range values.
+		year = Number(year);
+		monthIndex = Number(monthIndex);
+		if (
+			!Number.isInteger(year) ||
+			year < 2000 ||
+			year > 2100 ||
+			!Number.isInteger(monthIndex) ||
+			monthIndex < 0 ||
+			monthIndex > 11
+		) {
+			return res
+				.status(400)
+				.json({ message: "year must be an integer and monthIndex 0–11" });
+		}
 	}
 	try {
 		const summary = await generateShMonthEnd(year, monthIndex);

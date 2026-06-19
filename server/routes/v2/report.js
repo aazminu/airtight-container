@@ -7,6 +7,7 @@
 
 import express from "express";
 import crypto from "crypto";
+import rateLimit from "express-rate-limit";
 import { desc, eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { db as drizzleDb } from "../../db/drizzle.js";
@@ -26,6 +27,13 @@ import { validateSmsConsent } from "../../lib/sms-consent.js";
 import { allocateDeliverySheetNumber } from "../../lib/delivery-sheet-number.js";
 
 const router = express.Router();
+
+// Abuse caps on the paid outbound channels — Twilio (SMS) and Resend (email)
+// bill per send, so a runaway loop or a stolen admin session could rack up
+// real cost / harass drivers. Per-IP, generous enough for a single operator's
+// bursts; tune if they ever bite legitimate use.
+const smsLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+const emailLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 
 // Default subject + body language per report_type. Operator can still
 // override the recipient list at email-send time; body text is fixed
@@ -622,7 +630,7 @@ router.get("/:id/pdf", checkEmployee, async (req, res) => {
 // Email the PDF to the addresses passed in `to` (single string or
 // array). Regenerates the PDF first if missing. Stamps emailed_at +
 // merges the recipient list into emailed_to.
-router.post("/:id/email", checkAdmin, async (req, res) => {
+router.post("/:id/email", checkAdmin, emailLimiter, async (req, res) => {
 	try {
 		const id = Number(req.params.id);
 		if (!Number.isInteger(id)) {
@@ -645,6 +653,11 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 			return res
 				.status(400)
 				.json({ message: "At least one recipient is required" });
+		}
+		if (trimmed.some((e) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))) {
+			return res
+				.status(400)
+				.json({ message: "One or more recipient emails are invalid" });
 		}
 		if (!row.resolved_data) {
 			return res
@@ -732,7 +745,7 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 const PUBLIC_BASE_URL =
 	process.env.PUBLIC_BASE_URL || "https://airtightshippingcontainer.com";
 
-router.post("/:id/sms", checkAdmin, async (req, res) => {
+router.post("/:id/sms", checkAdmin, smsLimiter, async (req, res) => {
 	try {
 		const id = Number(req.params.id);
 		if (!Number.isInteger(id)) {
@@ -750,9 +763,11 @@ router.post("/:id/sms", checkAdmin, async (req, res) => {
 		}
 
 		if (!isSmsConfigured()) {
+			// Don't name the exact env vars — that confirms the secret model to
+			// anyone who reaches this endpoint. Operators know where to look.
 			return res.status(503).json({
 				message:
-					"SMS sending is not configured on this server. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and either TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM_NUMBER.",
+					"SMS sending is not available on this server. Contact your administrator.",
 			});
 		}
 
