@@ -4,9 +4,25 @@
 
 ---
 
-## TL;DR — all 2026-06-06 work shipped; repo stabilized 2026-06-13
+## TL;DR — 2026-06-19 security + logging sweep on 4 local branches (NOT pushed / merged / deployed)
 
-**Live now:** prod stable, no work in flight. All five 2026-06-06 PRs are merged + deployed:
+**Work in flight (local commits only, nothing pushed):** a 4-phase adversarial-review-driven security + logging sweep. Each phase is a committed feature branch, **stacked in order off `main`** (each branches off the previous because later phases use the PR1 logger):
+- `feat/logging-foundation` — pino + pino-http structured logging (auth/cookie/token redaction, per-request `x-request-id` correlation), centralized `errorBoundary`, error-message hygiene sweep (25 `err.message` 5xx leaks genericized; Twilio passthrough kept), SMS-response token stripped, Docker json-file log rotation.
+- `feat/auth-hardening` — `BETTER_AUTH_SECRET` fail-fast, cookie hardening (`useSecureCookies` via URL protocol — safe in dev http + prod https), impersonate-user endpoint blocked, sign-up/forget-password rate limiting, `v2/sold` PATCH → `checkAdmin`, `v1/sold /available/:id` param-ignored bug fixed.
+- `feat/input-validation` — SVG-upload stored-XSS blocked, per-route SMS/email rate limits, email-recipient validation, `run-month-end` body validation, `acquisition_price` gated to admins, public receipt-link oracle closed + generic "SMS not available" 503.
+- `feat/infra-hardening` — GHA actions SHA-pinned, non-blocking Trivy scan workflow + Dependabot (github-actions), loopback port binding + `cap_drop`/`no-new-privileges`/`pids_limit` on both compose services, nginx CSP (Report-Only).
+
+All four: `tsc --noEmit` clean + **226 tests pass**; PR1 & PR2 also runtime-smoked locally (JSON logs + reqId, impersonate→404, dev login intact). **Branches are stacked — merge in order (or squash the lot). Nothing pushed/deployed; awaiting owner review.**
+
+**✅ 2026-06-20 — container hardening Docker-validated.** Installed Docker locally, built both images from `feat/infra-hardening`, and ran every workload under the exact compose constraints (`cap_drop:[ALL]` + `no-new-privileges` + `pids_limit` + `mem_limit:600m`): (A) Chromium rendered a valid PDF as non-root `app` with the app's real launch args; (B) nginx-unprivileged served the SPA + security headers (incl. the new CSP-Report-Only) as uid 101; (C) the Node backend booted to `"server listening"` on 3001 (pino JSON confirmed live in-container). No restarts/OOM/cap errors. The earlier-feared PDF-break did not occur. **The infra branch is safe to merge.**
+
+**Phase status + the deliberate deferrals (each with its reason):** see [docs/SECURITY_PLAN.md](SECURITY_PLAN.md) — Phases 1–4 are marked done/partial there (notably deferred: broad `validateBody` mass-assignment wiring, report-list `resolved_data` minimization, container `read_only`/healthchecks, base-image digest pinning).
+
+---
+
+## Previously — all 2026-06-06 work shipped; repo stabilized 2026-06-13
+
+**Live now:** prod stable. All five 2026-06-06 PRs are merged + deployed:
 - **#14** quote-promote `quote_lines` fix · **#15** Puppeteer consolidation + `mem_limit: 600m` (outage fix) · **#16** $0 price / copy-line-above / draft autosave · **#17** mod dropdown + per-mod quantity + negative prices + quote "Download PDF" · **#18** multi-page pagination for invoices + quotes (`server/lib/pdf-print.ts`).
 - #17 + #18 were combined into `integration/combined-16-17-18` and merged as **#19** (instead of the two separate stacks the old plan described). **#20** then fixed an EC2 disk-space deploy failure (prune images before pull).
 - Migration **0024** (per-mod quantity) landed with #19; latest in tree.

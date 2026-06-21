@@ -60,22 +60,30 @@ router.put("/:id", checkAdmin, async (req, res) => {
 			}
 		}
 		const role = permissionsToRole(next);
+		// Takes effect on the target's next request: there's no session cookie
+		// cache (see auth.js), so middleware/auth.js re-reads user.role from the
+		// DB on every getSession — no stale-role window, no need to force-revoke
+		// the user's sessions.
 		await db.query('UPDATE "user" SET role = $1 WHERE id = $2', [
 			role,
 			req.params.id,
 		]);
 		res.status(200).json({ status: "success" });
 	} catch (err) {
-		console.error("dashboard.put error:", err);
+		req.log.error({ err }, "dashboard role update failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
 router.delete("/:id", checkAdmin, async (req, res) => {
 	try {
+		// The session table FK is ON DELETE CASCADE (see migrate.js), so
+		// removing the user row revokes all their sessions in the same
+		// statement — no orphaned, still-valid sessions are left behind.
 		await db.query('DELETE FROM "user" WHERE id = $1', [req.params.id]);
 		res.status(200).json({ status: "success" });
 	} catch (err) {
+		req.log.error({ err }, "dashboard delete user failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });

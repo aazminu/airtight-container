@@ -32,24 +32,28 @@ router.get("/:token", async (req, res) => {
 			[req.params.token],
 		);
 		const row = rows[0];
-		if (!row) {
-			return res.status(404).send("Receipt link not found.");
-		}
-		if (row.report_type !== "delivery_sheet") {
-			return res.status(403).send("Not a delivery-sheet receipt link.");
-		}
-		if (row.revoked_at) {
-			return res
-				.status(410)
-				.send("This receipt link has been revoked by the operator.");
-		}
-		if (new Date(row.expires_at) < new Date()) {
-			return res.status(410).send("This receipt link has expired.");
-		}
+		// Uniform response for every "no usable link" case (missing, wrong
+		// report type, revoked, expired) so an unauthenticated caller can't use
+		// the status code / message to tell a real-but-revoked token from a
+		// nonexistent one. 128-bit tokens already make brute force infeasible;
+		// this just closes the existence oracle.
+		const unavailable = () =>
+			res
+				.status(404)
+				.send(
+					"This receipt link is not available. It may have expired or been revoked — contact the operator for a new one.",
+				);
+		if (!row) return unavailable();
+		if (row.report_type !== "delivery_sheet") return unavailable();
+		if (row.revoked_at) return unavailable();
+		if (new Date(row.expires_at) < new Date()) return unavailable();
 		if (!row.pdf_s3_key) {
+			// Distinct on purpose: the token IS valid, the PDF just hasn't
+			// finished rendering. Telling the legitimate holder to retry is
+			// worth more than hiding this transient state.
 			return res
 				.status(409)
-				.send("Receipt PDF is still being generated. Refresh in a moment.");
+				.send("Receipt is still being generated. Refresh in a moment.");
 		}
 
 		// First-access stamp (one-shot — subsequent opens don't update).
@@ -66,7 +70,7 @@ router.get("/:token", async (req, res) => {
 		const presigned = await presignedGet(row.pdf_s3_key, 60);
 		return res.redirect(302, presigned);
 	} catch (err) {
-		console.error("public/receipt error:", err);
+		req.log.error({ err }, "public receipt link failed");
 		return res.status(500).send("Internal server error.");
 	}
 });

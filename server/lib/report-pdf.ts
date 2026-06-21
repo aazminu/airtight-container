@@ -19,6 +19,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { putObject, getObjectBytes } from './s3.js';
+import { logger } from './logger.js';
 import { withPage, closeBrowser } from './puppeteer.js';
 
 // The browser now lives in lib/puppeteer.ts. Kept under the old name so
@@ -76,8 +77,7 @@ export async function renderReportPdf(
   reportType: ReportType,
   data: unknown,
 ): Promise<Buffer> {
-  const log = (msg: string) =>
-    process.env.PDF_DEBUG && console.error(`[report-pdf] ${msg}`);
+  const log = (msg: string) => logger.debug(`[report-pdf] ${msg}`);
   log(`render ${reportType}`);
   const Template = await getTemplate();
   const css = await getCss();

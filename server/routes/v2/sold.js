@@ -8,7 +8,7 @@
 
 import express from "express";
 import pool from "../../db/pool.js";
-import { checkEmployee } from "../../middleware/auth.js";
+import { checkAdmin } from "../../middleware/auth.js";
 
 const router = express.Router();
 
@@ -22,7 +22,11 @@ const ALLOWED_FIELDS = [
 	"delivery_zip",
 ];
 
-router.patch("/:inventory_id", checkEmployee, async (req, res) => {
+// Admin-only: the delivery-sheet stepper that calls this is itself
+// admin-gated (report create + every other sold-row write is checkAdmin), so
+// employee write access here was an inconsistent gap that let any employee
+// rewrite delivery address / carrier on any sold container.
+router.patch("/:inventory_id", checkAdmin, async (req, res) => {
 	const inventoryId = parseInt(req.params.inventory_id, 10);
 	if (!Number.isInteger(inventoryId) || inventoryId <= 0) {
 		return res

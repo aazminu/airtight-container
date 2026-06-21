@@ -1,4 +1,5 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import db from "../../db/index.js";
 import pool from "../../db/pool.js";
 import { Resend } from "resend";
@@ -11,6 +12,10 @@ import {
 } from "../../lib/invoice-ops.js";
 
 const router = express.Router();
+
+// Abuse cap on the paid email channel (Resend bills per send); per-IP,
+// generous for a single operator. Tune if it bites legitimate use.
+const emailLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 
 const composeAddress = (row) => {
 	const parts = [];
@@ -169,7 +174,7 @@ router.get("/", checkEmployee, async (req, res) => {
 			data: { invoices: grouped },
 		});
 	} catch (err) {
-		console.error("invoice.get error:", err);
+		req.log.error({ err }, "invoice list failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -195,7 +200,7 @@ router.get("/:id", checkEmployee, async (req, res) => {
 			data: { invoices: grouped },
 		});
 	} catch (err) {
-		console.error("invoice.getOne error:", err);
+		req.log.error({ err }, "invoice get failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -220,8 +225,8 @@ router.post("/", checkEmployee, async (req, res) => {
 		res.status(200).json({ status: "success", ...result });
 	} catch (err) {
 		await client.query("ROLLBACK");
-		console.error("invoice.post error:", err);
-		res.status(500).json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "invoice create failed");
+		res.status(500).json({ message: "Internal server error" });
 	} finally {
 		client.release();
 	}
@@ -259,8 +264,8 @@ router.put("/:id", checkAdmin, async (req, res) => {
 		res.status(200).json({ status: "success" });
 	} catch (err) {
 		await client.query("ROLLBACK");
-		console.error("invoice.put error:", err);
-		res.status(500).json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "invoice update failed");
+		res.status(500).json({ message: "Internal server error" });
 	} finally {
 		client.release();
 	}
@@ -279,7 +284,7 @@ router.delete("/:id", checkAdmin, async (req, res) => {
 		res.status(200).json({ status: "success" });
 	} catch (err) {
 		await client.query("ROLLBACK");
-		console.error("invoice.delete error:", err);
+		req.log.error({ err }, "invoice delete failed");
 		res.status(500).json({ message: "Internal server error" });
 	} finally {
 		client.release();
@@ -308,8 +313,8 @@ router.post("/:id/pdf", checkAdmin, async (req, res) => {
 		);
 		res.status(200).json({ status: "success", ...result });
 	} catch (err) {
-		console.error("invoice.pdf error:", err);
-		res.status(500).json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "invoice pdf render failed");
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -347,8 +352,8 @@ router.get("/:id/pdf", checkAdmin, async (req, res) => {
 		res.setHeader("Content-Length", pdfBytes.length);
 		res.end(pdfBytes);
 	} catch (err) {
-		console.error("invoice.pdf.download error:", err);
-		res.status(500).json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "invoice pdf download failed");
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -395,8 +400,8 @@ router.patch("/:id/status", checkAdmin, async (req, res) => {
 		);
 		res.status(200).json({ status: "success", data: { invoice: rows[0] } });
 	} catch (err) {
-		console.error("invoice.status error:", err);
-		res.status(500).json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "invoice status update failed");
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -421,7 +426,7 @@ const escapeHtml = (s) =>
 		.replace(/"/g, "&quot;")
 		.replace(/'/g, "&#39;");
 
-router.post("/:id/email", checkAdmin, async (req, res) => {
+router.post("/:id/email", checkAdmin, emailLimiter, async (req, res) => {
 	const invoiceId = parseInt(req.params.id, 10);
 	if (!Number.isFinite(invoiceId)) {
 		return res.status(400).json({ message: "Invalid invoice id" });
@@ -442,6 +447,15 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 		const to = req.body?.to ?? inv.contact_email;
 		if (!to)
 			return res.status(400).json({ message: "No recipient email on file" });
+		// Validate a caller-supplied recipient: an unvalidated `to` both routes
+		// the invoice PDF to an arbitrary string and (with update_client_email
+		// below) can overwrite the client's email of record with garbage.
+		if (
+			req.body?.to !== undefined &&
+			!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(req.body.to))
+		) {
+			return res.status(400).json({ message: "Invalid recipient email" });
+		}
 
 		// Always re-render fresh so post-edit changes (e.g. modification
 		// line items) aren't stale: the cached S3 object is only updated on
@@ -473,8 +487,8 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 			],
 		});
 		if (error) {
-			console.error("invoice.email resend error:", error);
-			return res.status(502).json({ message: error.message ?? "Resend failure" });
+			req.log.error({ err: error }, "invoice email resend failed");
+			return res.status(502).json({ message: "Email could not be sent" });
 		}
 		// Stamp sent_at and (if the invoice is still 'draft') promote
 		// it to 'awaiting'. Don't downgrade paid/delinquent/cancelled —
@@ -503,8 +517,8 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 		}
 		res.status(200).json({ status: "success", message_id: data?.id });
 	} catch (err) {
-		console.error("invoice.email error:", err);
-		res.status(500).json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "invoice email failed");
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 

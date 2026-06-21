@@ -50,7 +50,7 @@ router.get("/", checkEmployee, async (req, res) => {
 		const data = await resolvePnL({ granularity, period }, 0);
 		res.status(200).json({ status: "success", data });
 	} catch (err) {
-		console.error("pnl.live error:", err);
+		req.log.error({ err }, "pnl summary failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -87,7 +87,7 @@ router.get("/timeseries", checkEmployee, async (req, res) => {
 			data: { granularity, periods: series },
 		});
 	} catch (err) {
-		console.error("pnl.timeseries error:", err);
+		req.log.error({ err }, "pnl timeseries failed");
 		res.status(400).json({
 			message: err instanceof Error ? err.message : "Invalid request",
 		});
@@ -125,7 +125,7 @@ router.get("/top-clients", checkEmployee, async (req, res) => {
 		);
 		res.status(200).json({ status: "success", data: { clients: rows } });
 	} catch (err) {
-		console.error("pnl.top-clients error:", err);
+		req.log.error({ err }, "pnl top-clients failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -156,7 +156,7 @@ router.get("/breakdown", checkEmployee, async (req, res) => {
 		const rows = await resolvePnlBreakdown({ granularity, period });
 		res.status(200).json({ status: "success", data: { rows } });
 	} catch (err) {
-		console.error("pnl.breakdown error:", err);
+		req.log.error({ err }, "pnl breakdown failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -167,7 +167,7 @@ router.get("/yard", checkEmployee, async (_req, res) => {
 		const data = await resolveYardSnapshot();
 		res.status(200).json({ status: "success", data });
 	} catch (err) {
-		console.error("pnl.yard error:", err);
+		req.log.error({ err }, "pnl yard failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
