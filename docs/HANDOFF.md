@@ -14,7 +14,7 @@
 
 All four: `tsc --noEmit` clean + **226 tests pass**; PR1 & PR2 also runtime-smoked locally (JSON logs + reqId, impersonate→404, dev login intact). **Branches are stacked — merge in order (or squash the lot). Nothing pushed/deployed; awaiting owner review.**
 
-**⚠️ Before merging `feat/infra-hardening`:** run `docker compose up -d` + generate a PDF — the container-runtime hardening (`cap_drop`/`no-new-privileges`/`pids_limit`) could not be Docker-validated in the work env.
+**✅ 2026-06-20 — container hardening Docker-validated.** Installed Docker locally, built both images from `feat/infra-hardening`, and ran every workload under the exact compose constraints (`cap_drop:[ALL]` + `no-new-privileges` + `pids_limit` + `mem_limit:600m`): (A) Chromium rendered a valid PDF as non-root `app` with the app's real launch args; (B) nginx-unprivileged served the SPA + security headers (incl. the new CSP-Report-Only) as uid 101; (C) the Node backend booted to `"server listening"` on 3001 (pino JSON confirmed live in-container). No restarts/OOM/cap errors. The earlier-feared PDF-break did not occur. **The infra branch is safe to merge.**
 
 **Phase status + the deliberate deferrals (each with its reason):** see [docs/SECURITY_PLAN.md](SECURITY_PLAN.md) — Phases 1–4 are marked done/partial there (notably deferred: broad `validateBody` mass-assignment wiring, report-list `resolved_data` minimization, container `read_only`/healthchecks, base-image digest pinning).
 
