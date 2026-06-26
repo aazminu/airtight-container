@@ -6,16 +6,47 @@ services:
     # restarts THIS container in isolation instead of dragging the whole
     # 1 GB host into a hard lock (see docs/postmortem.md, 2026-06-04).
     mem_limit: 600m
+    pids_limit: 1024
+    # Defense-in-depth runtime hardening. NOTE: smoke-test with a local
+    # `docker compose up -d` + a PDF-generation check before merging to main
+    # (this repo deploys on push). read_only is intentionally omitted —
+    # Puppeteer/Chromium needs a writable /tmp + /dev/shm, which would require
+    # dedicated tmpfs mounts and its own tested change.
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
     ports:
-      - "3001:3001"
+      # Loopback-only: the host nginx proxies via localhost and inter-container
+      # traffic uses the compose network (service name), so this doesn't change
+      # routing. ufw already blocks external; this is belt-and-braces.
+      - "127.0.0.1:3001:3001"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file: .env
+    # Cap container logs so they can't silently fill the host disk (the
+    # EC2 box ran out of disk once already — see PR #20). Chromium/PDF
+    # render chatter on the backend makes this the likely second offender.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   frontend:
     image: ghcr.io/harrylynchh/airtight-frontend:latest
     restart: unless-stopped
+    pids_limit: 256
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

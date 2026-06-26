@@ -107,13 +107,24 @@ router.put("/deliverysheet/:id", checkAdmin, async (req, res) => {
 });
 
 router.put("/available/:id", checkAdmin, async (req, res) => {
+	// Historically this read req.body.inventory_id and ignored the :id route
+	// param entirely. Prefer the param (canonical) and fall back to the body
+	// for any legacy caller; validate a positive integer either way.
+	const fromParam = Number.parseInt(req.params.id, 10);
+	const inventoryId =
+		Number.isInteger(fromParam) && fromParam > 0
+			? fromParam
+			: Number(req.body?.inventory_id);
+	if (!Number.isInteger(inventoryId) || inventoryId <= 0) {
+		return res.status(400).json({ message: "invalid inventory id" });
+	}
 	try {
-		await db.query(
-			"UPDATE inventory SET state = 'available' where id = $1",
-			[req.body.inventory_id]
-		);
+		await db.query("UPDATE inventory SET state = 'available' WHERE id = $1", [
+			inventoryId,
+		]);
 		res.status(200).json({ status: "success" });
 	} catch (err) {
+		req.log.error({ err }, "sold set-available failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });

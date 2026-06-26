@@ -7,6 +7,7 @@
 
 import express from "express";
 import crypto from "crypto";
+import rateLimit from "express-rate-limit";
 import { desc, eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { db as drizzleDb } from "../../db/drizzle.js";
@@ -26,6 +27,13 @@ import { validateSmsConsent } from "../../lib/sms-consent.js";
 import { allocateDeliverySheetNumber } from "../../lib/delivery-sheet-number.js";
 
 const router = express.Router();
+
+// Abuse caps on the paid outbound channels — Twilio (SMS) and Resend (email)
+// bill per send, so a runaway loop or a stolen admin session could rack up
+// real cost / harass drivers. Per-IP, generous enough for a single operator's
+// bursts; tune if they ever bite legitimate use.
+const smsLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+const emailLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 
 // Default subject + body language per report_type. Operator can still
 // override the recipient list at email-send time; body text is fixed
@@ -94,7 +102,7 @@ router.get("/", checkEmployee, async (req, res) => {
 			data: { reports: rows },
 		});
 	} catch (err) {
-		console.error("reports.list error:", err);
+		req.log.error({ err }, "reports list failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -131,7 +139,7 @@ router.get("/pending-pickups", checkEmployee, async (_req, res) => {
 			.status(200)
 			.json({ status: "success", results: rows.length, data: { pending: rows } });
 	} catch (err) {
-		console.error("reports.pending-pickups error:", err);
+		req.log.error({ err }, "reports pending-pickups failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -151,7 +159,7 @@ router.get("/:id", checkEmployee, async (req, res) => {
 		}
 		res.status(200).json({ status: "success", data: { report: rows[0] } });
 	} catch (err) {
-		console.error("reports.get error:", err);
+		req.log.error({ err }, "reports get failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -187,7 +195,7 @@ router.get("/by-number/:number", checkEmployee, async (req, res) => {
 		}
 		res.status(200).json({ status: "success", data: { report, container } });
 	} catch (err) {
-		console.error("reports.by-number error:", err);
+		req.log.error({ err }, "reports by-number failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -215,7 +223,7 @@ router.post(
 				},
 			});
 		} catch (err) {
-			console.error("reports.preview error:", err);
+			req.log.error({ err }, "reports preview resolve failed");
 			res.status(400).json({
 				message:
 					err instanceof Error ? err.message : "Could not resolve preview",
@@ -304,7 +312,7 @@ router.post(
 				// Bad params (e.g. unknown container_id) — roll the row
 				// back so we don't leak half-resolved entries. Surface
 				// the resolver's message so the form can show it.
-				console.error("reports.resolve error:", resolveErr);
+				req.log.error({ err: resolveErr }, "reports resolve failed");
 				await drizzleDb.delete(reports).where(eq(reports.id, row.id));
 				return res.status(400).json({
 					message:
@@ -314,7 +322,7 @@ router.post(
 				});
 			}
 		} catch (err) {
-			console.error("reports.create error:", err);
+			req.log.error({ err }, "reports create failed");
 			res.status(500).json({ message: "Internal server error" });
 		}
 	},
@@ -384,10 +392,8 @@ router.patch("/:id", checkAdmin, async (req, res) => {
 			.status(200)
 			.json({ status: "success", data: { report: updated[0] } });
 	} catch (err) {
-		console.error("reports.patch error:", err);
-		res.status(500).json({
-			message: err instanceof Error ? err.message : "Internal server error",
-		});
+		req.log.error({ err }, "reports patch failed");
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -431,10 +437,8 @@ router.post("/:id/regenerate", checkAdmin, async (req, res) => {
 		// snapshot only.
 		res.status(200).json({ status: "success", data: { report: updated[0] } });
 	} catch (err) {
-		console.error("reports.regenerate error:", err);
-		res
-			.status(500)
-			.json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "reports regenerate failed");
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -518,7 +522,7 @@ router.post("/:id/complete-pickup", checkAdmin, async (req, res) => {
 		});
 	} catch (err) {
 		await client.query("ROLLBACK").catch(() => {});
-		console.error("reports.complete-pickup error:", err);
+		req.log.error({ err }, "reports complete-pickup failed");
 		return res.status(500).json({ message: "Internal server error" });
 	} finally {
 		client.release();
@@ -567,10 +571,8 @@ router.post("/:id/pdf", checkAdmin, async (req, res) => {
 			bytes: result.bytes,
 		});
 	} catch (err) {
-		console.error("reports.pdf error:", err);
-		res
-			.status(500)
-			.json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "reports pdf render failed");
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -620,17 +622,15 @@ router.get("/:id/pdf", checkEmployee, async (req, res) => {
 		);
 		res.send(bytes);
 	} catch (err) {
-		console.error("reports.pdfStream error:", err);
-		res
-			.status(500)
-			.json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "reports pdf stream failed");
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
 // Email the PDF to the addresses passed in `to` (single string or
 // array). Regenerates the PDF first if missing. Stamps emailed_at +
 // merges the recipient list into emailed_to.
-router.post("/:id/email", checkAdmin, async (req, res) => {
+router.post("/:id/email", checkAdmin, emailLimiter, async (req, res) => {
 	try {
 		const id = Number(req.params.id);
 		if (!Number.isInteger(id)) {
@@ -653,6 +653,11 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 			return res
 				.status(400)
 				.json({ message: "At least one recipient is required" });
+		}
+		if (trimmed.some((e) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))) {
+			return res
+				.status(400)
+				.json({ message: "One or more recipient emails are invalid" });
 		}
 		if (!row.resolved_data) {
 			return res
@@ -700,10 +705,8 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 			],
 		});
 		if (error) {
-			console.error("reports.email resend error:", error);
-			return res
-				.status(502)
-				.json({ message: error.message ?? "Resend failure" });
+			req.log.error({ err: error }, "reports email resend failed");
+			return res.status(502).json({ message: "Email could not be sent" });
 		}
 		// Merge into emailed_to + stamp emailed_at.
 		const existing = Array.isArray(row.emailed_to) ? row.emailed_to : [];
@@ -719,10 +722,8 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 			message_id: data?.id,
 		});
 	} catch (err) {
-		console.error("reports.email error:", err);
-		res
-			.status(500)
-			.json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "reports email failed");
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -744,7 +745,7 @@ router.post("/:id/email", checkAdmin, async (req, res) => {
 const PUBLIC_BASE_URL =
 	process.env.PUBLIC_BASE_URL || "https://airtightshippingcontainer.com";
 
-router.post("/:id/sms", checkAdmin, async (req, res) => {
+router.post("/:id/sms", checkAdmin, smsLimiter, async (req, res) => {
 	try {
 		const id = Number(req.params.id);
 		if (!Number.isInteger(id)) {
@@ -762,9 +763,11 @@ router.post("/:id/sms", checkAdmin, async (req, res) => {
 		}
 
 		if (!isSmsConfigured()) {
+			// Don't name the exact env vars — that confirms the secret model to
+			// anyone who reaches this endpoint. Operators know where to look.
 			return res.status(503).json({
 				message:
-					"SMS sending is not configured on this server. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and either TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM_NUMBER.",
+					"SMS sending is not available on this server. Contact your administrator.",
 			});
 		}
 
@@ -823,7 +826,7 @@ router.post("/:id/sms", checkAdmin, async (req, res) => {
 				row.resolved_data = reResolvedData;
 				row.pdf_s3_key = null;
 			} catch (e) {
-				console.error("reports.sms driver_contact persist error:", e);
+				req.log.error({ err: e }, "reports sms driver_contact persist failed");
 			}
 		}
 
@@ -893,7 +896,6 @@ router.post("/:id/sms", checkAdmin, async (req, res) => {
 		return res.status(200).json({
 			status: "success",
 			to,
-			token,
 			sms_sid: sendResult.sid,
 			sms_status: sendResult.status,
 		});
@@ -901,7 +903,7 @@ router.post("/:id/sms", checkAdmin, async (req, res) => {
 		// Twilio surfaces friendly messages on .message — surface them
 		// to the operator UI (so "this number isn't in your verified
 		// list" reaches the user during trial mode).
-		console.error("reports.sms error:", err);
+		req.log.error({ err }, "sms send failed");
 		return res
 			.status(502)
 			.json({ message: err.message || "SMS send failed" });
@@ -936,10 +938,8 @@ router.post("/:id/revoke-receipt-link", checkAdmin, async (req, res) => {
 		}
 		return res.status(200).json({ status: "success", data: result.rows[0] });
 	} catch (err) {
-		console.error("reports.revoke-receipt-link error:", err);
-		return res
-			.status(500)
-			.json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "reports revoke-receipt-link failed");
+		return res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -969,15 +969,15 @@ router.delete("/:id", checkAdmin, async (req, res) => {
 			try {
 				await deleteObject(pdfKey);
 			} catch (s3Err) {
-				console.error(
-					`reports.delete: row ${deleted[0].id} dropped but S3 cleanup failed for ${pdfKey}:`,
-					s3Err,
+				req.log.error(
+					{ err: s3Err, reportId: deleted[0].id, pdfKey },
+					"reports delete: row dropped but S3 cleanup failed",
 				);
 			}
 		}
 		res.status(200).json({ status: "success", data: { id: deleted[0].id } });
 	} catch (err) {
-		console.error("reports.delete error:", err);
+		req.log.error({ err }, "reports delete failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });

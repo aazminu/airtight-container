@@ -1,0 +1,37 @@
+name: Security scan
+
+# Non-blocking supply-chain visibility, deliberately SEPARATE from deploy.yml
+# so a finding never blocks a production deploy. Trivy reports fixable
+# HIGH/CRITICAL dependency vulns and flags Dockerfile/compose misconfig.
+# exit-code "0" keeps it report-only (results show in the job log / Actions
+# summary); flip to "1" once the baseline is clean to make it a real gate.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Trivy filesystem scan (dependencies)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Trivy config scan (Dockerfiles + compose)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: .
+          exit-code: "0"

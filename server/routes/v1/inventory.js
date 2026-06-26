@@ -93,13 +93,20 @@ router.get("/", checkEmployee, async (req, res) => {
 			.where(wantsPending ? eq(inventory.is_pending_audit, true) : undefined)
 			.orderBy(desc(inventory.date));
 		const enriched = wantsPending ? await attachPhotoUrls(rows) : rows;
+		// acquisition_price is internal cost — gate it to admins. Nothing
+		// employee-facing reads it from this list (the P&L panel pulls cost
+		// from /api/v2/pnl), so stripping it for non-admins is safe.
+		const projected =
+			req.user?.role === "admin"
+				? enriched
+				: enriched.map(({ acquisition_price, ...rest }) => rest);
 		res.status(200).json({
 			status: "success",
-			results: enriched.length,
-			data: { inventory: enriched },
+			results: projected.length,
+			data: { inventory: projected },
 		});
 	} catch (err) {
-		console.error("inventory.list error:", err);
+		req.log.error({ err }, "inventory list failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });

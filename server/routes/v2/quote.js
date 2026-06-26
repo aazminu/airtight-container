@@ -132,7 +132,7 @@ router.get("/", checkEmployee, async (req, res) => {
 			data: { quotes: grouped },
 		});
 	} catch (err) {
-		console.error("quote.get error:", err);
+		req.log.error({ err }, "quote list failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -156,7 +156,7 @@ router.get("/:id", checkEmployee, async (req, res) => {
 			data: { quotes: grouped },
 		});
 	} catch (err) {
-		console.error("quote.getOne error:", err);
+		req.log.error({ err }, "quote get failed");
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
@@ -170,8 +170,8 @@ router.post("/", checkEmployee, validateBody(createQuoteSchema), async (req, res
 		res.status(200).json({ status: "success", ...result });
 	} catch (err) {
 		await client.query("ROLLBACK");
-		console.error("quote.post error:", err);
-		res.status(500).json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "quote create failed");
+		res.status(500).json({ message: "Internal server error" });
 	} finally {
 		client.release();
 	}
@@ -208,8 +208,8 @@ router.put("/:id", checkAdmin, validateBody(updateQuoteSchema), async (req, res)
 		res.status(200).json({ status: "success" });
 	} catch (err) {
 		await client.query("ROLLBACK");
-		console.error("quote.put error:", err);
-		res.status(500).json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "quote update failed");
+		res.status(500).json({ message: "Internal server error" });
 	} finally {
 		client.release();
 	}
@@ -228,7 +228,7 @@ router.delete("/:id", checkAdmin, async (req, res) => {
 		res.status(200).json({ status: "success" });
 	} catch (err) {
 		await client.query("ROLLBACK");
-		console.error("quote.delete error:", err);
+		req.log.error({ err }, "quote delete failed");
 		res.status(500).json({ message: "Internal server error" });
 	} finally {
 		client.release();
@@ -257,8 +257,8 @@ router.post("/:id/pdf", checkAdmin, async (req, res) => {
 		]);
 		res.status(200).json({ status: "success", ...result });
 	} catch (err) {
-		console.error("quote.pdf error:", err);
-		res.status(500).json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "quote pdf render failed");
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -294,8 +294,8 @@ router.get("/:id/pdf", checkAdmin, async (req, res) => {
 		res.setHeader("Content-Length", pdfBytes.length);
 		res.end(pdfBytes);
 	} catch (err) {
-		console.error("quote.pdf.download error:", err);
-		res.status(500).json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "quote pdf download failed");
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -367,8 +367,8 @@ router.post("/:id/email", checkAdmin, validateBody(emailQuoteSchema), async (req
 			],
 		});
 		if (error) {
-			console.error("quote.email resend error:", error);
-			return res.status(502).json({ message: error.message ?? "Resend failure" });
+			req.log.error({ err: error }, "quote email resend failed");
+			return res.status(502).json({ message: "Email could not be sent" });
 		}
 		await db.query(
 			"UPDATE quotes SET sent_at = NOW(), status = 'sent' WHERE id = $1",
@@ -376,8 +376,8 @@ router.post("/:id/email", checkAdmin, validateBody(emailQuoteSchema), async (req
 		);
 		res.status(200).json({ status: "success", message_id: data?.id });
 	} catch (err) {
-		console.error("quote.email error:", err);
-		res.status(500).json({ message: err.message || "Internal server error" });
+		req.log.error({ err }, "quote email failed");
+		res.status(500).json({ message: "Internal server error" });
 	}
 });
 
@@ -424,8 +424,8 @@ router.post(
 			if (err.status) {
 				return res.status(err.status).json({ message: err.message });
 			}
-			console.error("quote.promote error:", err);
-			res.status(500).json({ message: err.message || "Internal server error" });
+			req.log.error({ err }, "quote promote failed");
+			res.status(500).json({ message: "Internal server error" });
 		} finally {
 			client.release();
 		}
