@@ -27,6 +27,7 @@
 }
 
 .items thead .colPrice,
+.items thead .colQty,
 .items thead .colTotal {
   text-align: right;
 }
@@ -75,7 +76,7 @@
   color: #5a6478;
 }
 
-.colQty { width: 4%; }
+.colQty { width: 4%; text-align: right; }
 .colDesc {
   width: 60%;
   text-wrap: pretty;
