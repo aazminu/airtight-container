@@ -73,12 +73,17 @@ export function ModificationRows<T extends ModLike>({
                 value={selectValue}
                 onChange={(e) => onSelect(idx, e.target.value)}
               >
-                <option value={CUSTOM}>Custom (write-in)</option>
                 {presets.map((p) => (
                   <option key={p.id} value={p.label}>
                     {p.label}
                   </option>
                 ))}
+                {/* Custom write-in sits last so it's adjacent to the
+                    free-text field it reveals, and is tinted red to read
+                    as the "none of the presets" escape hatch. */}
+                <option value={CUSTOM} className={styles.customOption}>
+                  Custom (write-in)
+                </option>
               </select>
               {selectValue === CUSTOM && (
                 <input

@@ -86,7 +86,7 @@ const attachQuoteMods = async (quotes) => {
 		.filter((id) => id != null);
 	if (lineIds.length === 0) return;
 	const { rows } = await db.query(
-		`SELECT id, quote_line_item_id, description, price, position
+		`SELECT id, quote_line_item_id, description, price, quantity, position
 		 FROM quote_line_modifications
 		 WHERE quote_line_item_id = ANY($1::int[])
 		 ORDER BY quote_line_item_id, position, id`,

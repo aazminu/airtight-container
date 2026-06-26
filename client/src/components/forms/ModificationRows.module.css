@@ -28,12 +28,25 @@
   font: inherit;
   font-size: 0.9rem;
   background: var(--bg-input);
+  /* Without an explicit color these native controls fall back to the
+     browser default (black), which is invisible on the dark input
+     background in dark mode. */
+  color: var(--text);
   width: 100%;
   box-sizing: border-box;
 }
 
 .qty {
   text-align: right;
+}
+
+/* The write-in option is tinted so it stands out from the presets as the
+   free-text escape hatch. Native <option> background/color is honored by
+   Chromium + Firefox on desktop; iOS/macOS render the picker natively and
+   ignore it, which degrades gracefully to a plain row. */
+.customOption {
+  background-color: var(--danger);
+  color: var(--accent-fg);
 }
 
 .select:focus,
