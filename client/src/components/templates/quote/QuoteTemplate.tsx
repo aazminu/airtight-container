@@ -45,9 +45,9 @@ export default function QuoteTemplate({ data }: QuoteTemplateProps) {
         <thead>
           <tr>
             <th className={styles.colN}>#</th>
-            <th className={styles.colQty}>Qty</th>
             <th className={styles.colDesc}>Description</th>
             <th className={styles.colPrice}>Unit price</th>
+            <th className={styles.colQty}>Qty</th>
             <th className={styles.colTotal}>Amount</th>
           </tr>
         </thead>
@@ -63,13 +63,13 @@ export default function QuoteTemplate({ data }: QuoteTemplateProps) {
                   <td className={styles.colN}>
                     {String(parentNo).padStart(2, '0')}
                   </td>
-                  <td className={styles.colQty}>{g.primary.qty}</td>
                   <td className={styles.colDesc}>{g.primary.description}</td>
                   <td className={styles.colPrice}>
                     {g.primary.unitPrice
                       ? fmtCurrency(g.primary.unitPrice)
                       : '—'}
                   </td>
+                  <td className={styles.colQty}>{g.primary.qty}</td>
                   <td className={styles.colTotal}>
                     {g.primary.lineTotal
                       ? fmtCurrency(g.primary.lineTotal)
@@ -83,12 +83,12 @@ export default function QuoteTemplate({ data }: QuoteTemplateProps) {
                     data-last={si === g.subs.length - 1}
                   >
                     <td className={styles.colN} />
-                    <td className={styles.colQty}>
-                      {sub.qty > 1 ? sub.qty : ''}
-                    </td>
                     <td className={styles.colDesc}>{sub.description}</td>
                     <td className={styles.colPrice}>
                       {sub.unitPrice ? fmtCurrency(sub.unitPrice) : ''}
+                    </td>
+                    <td className={styles.colQty}>
+                      {sub.qty > 1 ? sub.qty : ''}
                     </td>
                     <td className={styles.colTotal}>
                       {sub.lineTotal ? fmtCurrency(sub.lineTotal) : '—'}
