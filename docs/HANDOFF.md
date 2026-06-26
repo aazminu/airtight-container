@@ -4,6 +4,14 @@
 
 ---
 
+## TL;DR — 2026-06-25 quote/invoice mod-quantity display fix (branch `fix/quote-mod-quantity-display`, PR open, NOT merged)
+
+Operator reported a quote whose per-mod quantities didn't carry into the **UI display** or the **editor** (all qtys showed 1, so line items didn't sum to the total) — but the **PDF rendered correctly**. Root cause: the per-mod `quantity` column (migration 0024) was selected by every read path **except** the two GET routes that feed the UI/editor. `attachQuoteMods` in `server/routes/v2/quote.js` and `attachModifications` in `server/routes/v2/invoice.js` both omitted `quantity` from their `SELECT`; the PDF render (`lib/quote-pdf.ts`, `lib/pdf.ts`), totals recompute (`lib/quote-ops.ts`), and promote all included it — which is why the stored total was right while the displayed line items were short. Fix = add `quantity` to those two projections (one column each). Verified by reconciliation on the local DB: rebuilt subtotal with qty = stored subtotal ($112,060.00) vs. the old qty-as-1 result ($47,060.00).
+
+Same PR also tweaks the shared `ModificationRows` editor (used by both quote + invoice flows): (1) **dark-mode fix** — the preset/qty/write-in controls had no explicit `color`, so they fell back to black-on-dark; now `color: var(--text)`. (2) The **"Custom (write-in)" `<option>` moved to last** (adjacent to the free-text field it reveals) and tinted red (`var(--danger)`). 276 tests pass (server 226 + client 50), both typechecks clean. **Native `<option>` tint is honored by desktop Chromium/Firefox; iOS/macOS render the picker natively and ignore it (degrades to a plain row).** Recommend a quick visual spot-check of dark-mode text + the dropdown before merge. No DB migration; no test added for the route projection (no HTTP-route test harness exists yet) — a small follow-up if desired.
+
+---
+
 ## TL;DR — all 2026-06-06 work shipped; repo stabilized 2026-06-13
 
 **Live now:** prod stable, no work in flight. All five 2026-06-06 PRs are merged + deployed:
