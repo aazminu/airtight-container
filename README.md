@@ -1,45 +1,78 @@
 # Airtight Container
 
-Inventory management and invoicing system built for a real shipping-container yard in Manalapan, NJ. The business buys, stores, and sells shipping containers. This system tracks every container from arrival through hold, sale, and final delivery and handles all the billing.
+Inventory, invoicing, and billing platform for a working shipping-container yard in New Jersey. It runs the business: every container the yard buys, stores, sells, or delivers moves through this system, and every dollar it bills is generated here. I'm the sole engineer and operator. It replaced a spreadsheet workflow in 2024 and has been in daily production use since.
 
-Production app used daily by the yard staff. It replaced a spreadsheet workflow, so correctness matters more than novelty.
+~40k lines of TypeScript/JavaScript · 25 versioned schema migrations · 33 test suites (Vitest + Playwright) · deployed on push via GitHub Actions
+
+## The domain
+
+The yard buys shipping containers, stores them, modifies them, and sells or rents them. That decomposes into a handful of interlocking workflows:
+
+**Intake.** New containers are photographed on a tablet in the yard; AWS Textract OCRs the unit markings and pre-fills the ISO unit number (`LLLL ######-#`), size, and type, which staff confirm and enrich with condition, damage notes, and acquisition cost. OCR output is pinned by regression tests against captured Textract fixtures, so parser changes can't silently break intake.
+
+**Inventory.** Containers move one-way through `available > hold > sold > outbound`, with photos on S3 and per-unit P&L derived from acquisition cost against eventual sale and billing revenue.
+
+**Quotes to invoices.** Quotes get sequential business-facing numbers (`QYYYYMM###`) and promote into sales through a stepper that collects delivery details and previews the final invoice before committing. Invoices carry line items plus a separate _modifications_ layer (damage deductions, freight, premiums, with quantities and negative prices), autosave as drafts on every edit, and are validated with Zod on every write path before anything touches the database.
+
+**Storage & handling.** Stored containers are billed monthly, flat-rate, or daily in/out depending on configuration. A `node-cron` month-end job computes what each enrolled container owes and generates the invoices, tied to release events for auditability.
+
+**Outbound.** Releasing a container captures driver and pickup details, writes condition back to inventory, and produces a delivery report PDF keyed to the customer-facing document number rather than internal IDs.
+
+**Dashboard.** Spend, average acquisition price, per-container P&L, and S&H revenue, aggregated in PostgreSQL with CTEs and window functions and charted with Recharts.
+
+Yard-facing flows (intake, yard view, outbound) are tablet-first and localized in Spanish via react-i18next; admin surfaces are desktop-only English.
+
+## Architecture
+
+React 18 + Vite + TypeScript SPA, an Express 4 (ESM, Node 20) API, and PostgreSQL 16, all on a single EC2 host. The frontend is a static Vite build served by nginx in one container; the API runs in another; Postgres runs on the host; system nginx terminates TLS and proxies into the Compose stack.
+
+- **Schema:** Drizzle ORM with numbered SQL migrations (0000-0024).
+- **Auth:** Better Auth (email/password + Google OAuth) with three roles (pending, employee, admin) enforced by route middleware.
+- **Validation:** Zod schemas on every mutating route; parameterized queries throughout via `pg`.
+- **PDFs:** invoices, quotes, and delivery reports render server-side with Puppeteer against Vite-compiled HTML templates, then land on S3 behind pre-signed URLs.
+- **Observability:** structured JSON logging with pino/pino-http, request-ID correlation, and a centralized error boundary.
+- **Email/SMS:** transactional email via Resend; Twilio wired for driver SMS notifications.
+
+## Engineering highlights
+
+**Zero-touch deploys with transactional migrations.** Push to `main` and GitHub Actions builds both images, pushes to GHCR, and restarts the stack on EC2 over SSH. Before traffic cuts over, a migration runner executes on the new image inside a single transaction: `pg_dump` backup, apply pending migrations, run a validation script against the migrated schema, then commit (or roll back and abort the deploy). Applied versions are tracked in a `schema_migrations` table. There is no manual `psql` against production.
+
+**Stabilizing the PDF service.** Puppeteer originally launched a browser per render and the backend container OOM-crashed under load. The fix was consolidating to a single pooled, recycled browser instance with explicit container memory limits. The render workload was then re-validated inside the hardened container constraints (dropped capabilities, pid limits, non-root) to confirm Chromium still renders correctly under them.
+
+**Multi-page document pagination.** Long invoices and quotes paginate with correct `Page X of N` footers and no content bleeding into the footer region, which sounds trivial and is not, given the interaction between `@media print`, Puppeteer's margin model, and dynamic line-item heights. The pagination math lives in one module (`server/lib/pdf-print.ts`) shared by all document types.
+
+**OCR you can refactor against.** The Textract parsing layer has captured real-world fixtures checked into the repo and a regression suite that locks its behavior, so improving the parser for one container's paint job can't quietly regress another's.
+
+**Month-end billing as a correctness problem.** The S&H billing job has to be idempotent and auditable. It derives charges from release events and billing-mode configuration rather than mutating running totals, so a re-run or a mid-month mode change produces explainable invoices instead of drift.
+
+## Testing
+
+Vitest on both sides of the stack: validation-schema suites for every domain entity, unit tests for the business-logic layer (billing, quote promotion, phone/SMS normalization, OCR parsing, invoice operations), and Textract regression fixtures. Playwright covers the critical end-to-end paths. Server suite is ~226 tests; client adds ~50. `tsc --noEmit` and the full suite gate every change.
+
+## Development
+
+```bash
+cp server/.env.example server/.env   # fill in secrets
+./dev.sh                             # API on :3001, client on :3000 (Vite proxy)
+```
+
+Deploys are push-to-`main`. See `.github/workflows/deploy.yml`.
+
+## Repository layout
+
+```
+client/               React SPA (routes, components by role, i18n)
+server/
+  routes/v2/          domain API (inventory, invoice, quote, release, sh_*, ...)
+  lib/                business logic (pdf, textract, billing, sms, phone, logger)
+  validation/         Zod schemas per entity
+  db/migrations/      numbered SQL migrations (0000-0024)
+  tests/              Vitest suites + Textract fixtures
+  scripts/            migration runner, smoke tests, one-off data operations
+Dockerfile.*          backend / frontend images
+docker-compose.yml    two-container production stack
+```
 
 ---
 
-## What it does
-
-**Container tracking.** Every container has a record: unit number (formatted to ISO standard `LLLL ######-#`), size, condition, acquisition cost, damage notes, and status. Status flows one-way: available > hold > sold > outbound. The intake flow uses AWS Textract to OCR a photo of the container's markings and pre-fill the unit number and type.
-
-**Invoicing.** Invoices have line items (price, qty, description) and a separate modifications layer for things like damage deductions, freight charges, or premiums. Modifications have their own quantity field and support negative prices. Invoices autosave as drafts on every edit and survive navigation. The editor is a controlled React form; the backend validates every write with Zod before touching the database.
-
-**Quotes.** Quotes live in their own table with sequential numbering (`QYYYYMM###`) and can be promoted into a real sale through a 4-step stepper that collects delivery info and previews the resulting invoice before committing. They share the same modification system as invoices.
-
-**Storage & Handling billing.** S&H containers have configurable billing modes: monthly, flat-rate, or daily in/out. A `node-cron` job runs at month-end, calculates what each enrolled container owes, and generates invoices automatically. Billing is linked to release events for a clean audit trail.
-
-**Outbound / delivery.** Releasing a container is a 4-step stepper: capture driver details, pickup number, and container condition; write back to inventory; generate a delivery report PDF. The report uses the customer-facing AT number, not the internal DB id (this was caught after the original reports were going out wrong).
-
-**PDF generation.** Invoices, quotes, and delivery reports all render server-side via Puppeteer against Vite-compiled HTML templates. Multi-page layouts paginate correctly with `Page X of N` footers and don't bleed content into the page footer. Getting that right with `@media print` and Puppeteer's margin model took some iteration. PDFs are stored on S3 with pre-signed URLs.
-
-**Business stats.** The dashboard aggregates total spend, average acquisition price, per-container P&L, and S&H revenue using window functions and CTEs on the PostgreSQL side, then charts them with Recharts on the frontend.
-
----
-
-## How it's built
-
-The stack is React 18 + Vite + TypeScript on the frontend and Express 4 (ESM) on the backend, with PostgreSQL 16 running as a system service on EC2. Auth is Better Auth with email/password and Google OAuth. It mounts at `/api/auth/*` before `express.json()` because the library's request parsing breaks if body parsing runs first. Three roles: pending, employee, admin.
-
-Schema is managed with Drizzle ORM and drizzle-kit migrations as numbered SQL files. The deploy pipeline runs them transactionally on the new Docker image: `pg_dump` backup, apply pending migrations, run a validation script, then commit (or rollback and abort). Applied versions are tracked in a `schema_migrations` table. No manual `psql` in prod.
-
-The Docker Compose stack runs the frontend (nginx serving the Vite build) and backend as separate containers. System nginx on the EC2 host terminates SSL and proxies to the stack. CI/CD is GitHub Actions: build both images, push to GHCR, SSH to EC2, `docker compose pull && up -d`.
-
-Security is Helmet headers, `express-rate-limit` on all API routes, and Zod on every write path. Queries use the `pg` library with parameterized statements throughout. Transactional email goes through Resend. Twilio is wired for driver SMS but waiting on 10DLC carrier approval.
-
-Yard-facing flows (intake, outbound, yard view) are localized in Spanish via react-i18next and built for tablet. Admin views are desktop-only. Tests are Vitest (server + client unit) and Playwright (E2E).
-
----
-
-## Dev & deploy
-
-`./dev.sh` from repo root. Backend on `:3001`, frontend on `:3000` with a Vite proxy. Requires `server/.env` (see `server/.env.example`).
-
-Push to `main` to deploy. GHA builds both images, pushes to GHCR, SSHes to EC2, and restarts the stack. Migrations run automatically on the new image before traffic cuts over.
+_The yard's operational data (clients, pricing, financials) lives in the production database, not this repo. Test fixtures use synthetic or public data._
