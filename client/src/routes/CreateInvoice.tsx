@@ -13,6 +13,7 @@ import { AddClientModal } from '../components/forms/AddClientModal';
 import { DoorOrientationField } from '../components/forms/DoorOrientationField';
 import { useDirtyForm } from '../lib/useDirtyForm';
 import { useDraftPersistence } from '../lib/useDraftPersistence';
+import { easternDateToISO, todayEastern } from '../lib/dates';
 import InvoiceTemplate from '../components/templates/invoice/InvoiceTemplate';
 import { fmtCurrency, fmtDate } from '../components/templates/invoice/format';
 import type {
@@ -125,7 +126,9 @@ const customerCityState = (c: ClientRow | null): string => {
   return c.street ?? '';
 };
 
-const todayISO = (): string => new Date().toISOString().substring(0, 10);
+// Default the invoice date to today's calendar day in Eastern time — a
+// naive UTC substring rolls to tomorrow for late-evening ET creation.
+const todayISO = todayEastern;
 
 // User-facing percent ↔ stored decimal rate. We display "3.5" but
 // persist 0.035, and similarly for tax rates so server math stays
@@ -449,9 +452,7 @@ export default function CreateInvoice() {
       invoice_number: 'PLACEHOLDER',
       invoice_taxed: invoiceTaxed,
       invoice_credit: invoiceCredit,
-      invoice_date: invoiceDate
-        ? new Date(invoiceDate).toISOString()
-        : new Date().toISOString(),
+      invoice_date: easternDateToISO(invoiceDate) ?? new Date().toISOString(),
       sent_at: null,
       pdf_s3_key: null,
       deleted_at: null,
@@ -592,6 +593,7 @@ export default function CreateInvoice() {
           client_id: selectedClient.id,
           invoice_taxed: invoiceTaxed,
           invoice_credit: invoiceCredit,
+          invoice_date: easternDateToISO(invoiceDate),
           tax_rate: taxRate,
           cc_fee_rate: ccFeeRate,
           ship_to_same_as_billing: shipSameAsBilling,

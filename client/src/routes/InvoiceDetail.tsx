@@ -272,6 +272,7 @@ export default function InvoiceDetail() {
             modifications: c.modifications.map((m, i) => ({
               description: m.description,
               price: m.price,
+              quantity: m.quantity ?? 1,
               position: i,
             })),
           })),

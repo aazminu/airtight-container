@@ -6,6 +6,7 @@ import type {
 } from '../templates/invoice/types';
 import { AddressFields, Button, CurrencyInput, IconButton } from '../ui';
 import { fmtCurrency } from '../templates/invoice/format';
+import { easternDateToISO, isoToEasternDate } from '../../lib/dates';
 import { ModificationRows } from './ModificationRows';
 import { DoorOrientationField } from './DoorOrientationField';
 import styles from './InvoiceEditor.module.css';
@@ -44,13 +45,6 @@ const TAX_PRESETS: Array<{ label: string; rate: string }> = [
 
 const isPreset = (rate: string | null) =>
   rate != null && TAX_PRESETS.some((p) => p.rate && p.rate === rate);
-
-const asISODate = (iso: string | null | undefined): string => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return '';
-  return d.toISOString().substring(0, 10);
-};
 
 export default function InvoiceEditor({
   initial,
@@ -167,11 +161,17 @@ export default function InvoiceEditor({
     for (const c of draft.containers) {
       subtotal += Number(c.sale_price ?? 0);
       subtotal += Number(c.trucking_rate ?? 0);
+      // Presence, not sign — a container with per-mod line items uses their
+      // sum even when it nets to zero/negative (discount lines). Mirrors
+      // recomputeTotals in server/lib/invoice-ops.ts.
+      const hasMods = c.modifications.some(
+        (m) => (m.description ?? '').trim() !== '',
+      );
       const perMod = c.modifications.reduce(
         (sum, m) => sum + Number(m.price ?? 0) * (m.quantity || 1),
         0,
       );
-      if (perMod > 0) subtotal += perMod;
+      if (hasMods) subtotal += perMod;
       else subtotal += Number(c.modification_price ?? 0);
     }
     const taxRate = Number(draft.tax_rate ?? 0);
@@ -328,11 +328,13 @@ export default function InvoiceEditor({
             <input
               type="date"
               className={styles.input}
-              value={asISODate(draft.invoice_date)}
+              value={isoToEasternDate(draft.invoice_date)}
               onChange={(e) =>
                 updateInvoice(
                   'invoice_date',
-                  e.target.value ? new Date(e.target.value).toISOString() : draft.invoice_date,
+                  e.target.value
+                    ? easternDateToISO(e.target.value) ?? draft.invoice_date
+                    : draft.invoice_date,
                 )
               }
             />

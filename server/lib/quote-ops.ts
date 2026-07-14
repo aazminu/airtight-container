@@ -294,6 +294,10 @@ export interface PromoteQuoteBody {
 interface QuotePromoteRow {
   client_id: number;
   deleted_at: Date | string | null;
+  quote_taxed: boolean;
+  quote_credit: boolean;
+  tax_rate: string | null;
+  cc_fee_rate: string | null;
 }
 
 interface QuoteLineForPromote {
@@ -326,7 +330,8 @@ export async function promoteQuoteToInvoice(
   body: PromoteQuoteBody,
 ): Promise<{ id: number; invoice_number: number }> {
   const { rows: qRows } = await client.query<QuotePromoteRow>(
-    'SELECT client_id, deleted_at FROM quotes WHERE id = $1',
+    `SELECT client_id, deleted_at, quote_taxed, quote_credit, tax_rate, cc_fee_rate
+       FROM quotes WHERE id = $1`,
     [quoteId],
   );
   const quote = qRows[0];
@@ -421,15 +426,22 @@ export async function promoteQuoteToInvoice(
     };
   });
 
+  // Carry the quote's tax + credit-card-fee settings onto the invoice.
+  // Without this every promoted invoice came out untaxed with a null
+  // rate, silently dropping the tax/CC fee the customer was quoted.
   const created = await createInvoice(client, {
     client_id: quote.client_id,
-    invoice_taxed: false,
-    invoice_credit: false,
+    invoice_taxed: quote.quote_taxed,
+    invoice_credit: quote.quote_credit,
     containers: invoiceContainers.map((c) => ({ inventory_id: c.inventory_id })),
   });
 
   await updateInvoiceFull(client, created.id, {
     client_id: quote.client_id,
+    invoice_taxed: quote.quote_taxed,
+    invoice_credit: quote.quote_credit,
+    tax_rate: quote.tax_rate,
+    cc_fee_rate: quote.cc_fee_rate,
     ship_to_same_as_billing: body.ship_to_same_as_billing,
     ship_to_name: body.ship_to_name,
     ship_to_street: body.ship_to_street,

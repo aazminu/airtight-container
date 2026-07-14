@@ -4,7 +4,21 @@
 
 ---
 
-## TL;DR — 2026-06-19 security + logging sweep on 4 local branches (NOT pushed / merged / deployed)
+## TL;DR — 2026-07-14 invoicing bug sweep (PR: `fix/invoice-edit-drops-mod-quantity`, pushed)
+
+Triggered by a bookkeeper report: editing invoice **202607003**'s date changed its total ($6600.09 → $2860.09). Root cause — the invoice-edit save dropped per-mod `quantity`, so the server reset every line to qty 1 and recomputed the total down. Confirmed against prod (total = exact sum of its 78 line items at qty 1). A sonnet-agent sweep of the whole invoicing path found more; all fixed on the branch + committed (`ee7d338`) and opened as a PR:
+
+- **Money:** quote→invoice promote now carries the quote's tax + CC-fee (was making every promoted invoice untaxed → undercharge); discount/zero-net modification lines no longer dropped from the subtotal (presence-check, not `> 0`).
+- **Dates:** CreateInvoice sends `invoice_date`; invoice dates read/written in Eastern time (UTC-midnight off-by-one fixed); `monthPrefix` uses the Eastern month like quote numbering.
+- **Integrity/hardening:** blank ship-to/delivery normalized to null (delivery-sheet address cascade fix); `tax_rate`/`cc_fee_rate` use COALESCE; Zod validation on POST/PUT `/api/v2/invoice` (mod quantity ≥ 1).
+
+Tests green: **236 server / 57 client**, client build clean (+10 server, +7 client new tests). **Deferred (owner decision):** exclude cancelled invoices from P&L/dashboard revenue (`AND status <> 'cancelled'`), and a float→integer-cents tax-rounding refactor.
+
+**Two landmines surfaced:** (1) the prod DB is **`containers_prod`**, not `containers` (a stale `containers` copy also exists on the host); (2) the security-sweep pino logging does **not** capture request bodies or field diffs on *successful* writes, so this data-corruption bug left no forensic trail — worth logging write diffs on invoice/quote mutations.
+
+---
+
+## Also in flight — 2026-06-19 security + logging sweep on 4 local branches (NOT pushed / merged / deployed)
 
 **Work in flight (local commits only, nothing pushed):** a 4-phase adversarial-review-driven security + logging sweep. Each phase is a committed feature branch, **stacked in order off `main`** (each branches off the previous because later phases use the PR1 logger):
 - `feat/logging-foundation` — pino + pino-http structured logging (auth/cookie/token redaction, per-request `x-request-id` correlation), centralized `errorBoundary`, error-message hygiene sweep (25 `err.message` 5xx leaks genericized; Twilio passthrough kept), SMS-response token stripped, Docker json-file log rotation.
