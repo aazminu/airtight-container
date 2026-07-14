@@ -10,6 +10,11 @@ import {
 	updateInvoiceFull,
 	deleteInvoiceCascade,
 } from "../../lib/invoice-ops.js";
+import { validateBody } from "../../middleware/validate.js";
+import {
+	createInvoiceSchema,
+	updateInvoiceSchema,
+} from "../../validation/invoice.js";
 
 const router = express.Router();
 
@@ -207,7 +212,7 @@ router.get("/:id", checkEmployee, async (req, res) => {
 
 // PR 3.5 + 3.10: number generation + container insertion live in
 // lib/invoice-ops.ts so tests can exercise them outside the HTTP stack.
-router.post("/", checkEmployee, async (req, res) => {
+router.post("/", checkEmployee, validateBody(createInvoiceSchema), async (req, res) => {
 	const clientId = req.body.client_id ?? req.body.contact_id;
 	if (!clientId) {
 		return res.status(400).json({ message: "client_id is required" });
@@ -244,7 +249,7 @@ const getDeletedAt = async (invoiceId) => {
 	return rows[0].deleted_at;
 };
 
-router.put("/:id", checkAdmin, async (req, res) => {
+router.put("/:id", checkAdmin, validateBody(updateInvoiceSchema), async (req, res) => {
 	const invoiceId = parseInt(req.params.id, 10);
 	if (!Number.isFinite(invoiceId)) {
 		return res.status(400).json({ message: "Invalid invoice id" });

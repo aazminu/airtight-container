@@ -23,12 +23,27 @@ interface ModRow {
 // Builds a fake client. Records every (sql, params) and answers the
 // reads that promoteQuoteToInvoice + the invoice-ops it calls issue.
 function fakeClient(opts: {
-  quote?: { client_id: number; deleted_at: Date | string | null };
+  quote?: {
+    client_id: number;
+    deleted_at: Date | string | null;
+    quote_taxed?: boolean;
+    quote_credit?: boolean;
+    tax_rate?: string | null;
+    cc_fee_rate?: string | null;
+  };
   lines: LineRow[];
   mods?: ModRow[];
 }) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
-  const quote = opts.quote ?? { client_id: 42, deleted_at: null };
+  const quote = {
+    client_id: 42,
+    deleted_at: null,
+    quote_taxed: false,
+    quote_credit: false,
+    tax_rate: null,
+    cc_fee_rate: null,
+    ...opts.quote,
+  };
   const mods = opts.mods ?? [];
 
   const query = vi.fn(async (sql: string, params: unknown[] = []) => {
@@ -87,7 +102,54 @@ function soldInsertFor(
     }))[0];
 }
 
+// The createInvoice INSERT carries [invoice_number, client_id,
+// invoice_taxed, invoice_credit]; updateInvoiceFull's SET client_id
+// UPDATE carries [client_id, invoice_taxed, invoice_credit, invoice_date,
+// tax_rate, cc_fee_rate, ...].
+function invoiceInsert(calls: Array<{ sql: string; params: unknown[] }>) {
+  return calls.find((c) => c.sql.includes('INTO invoices'));
+}
+function invoiceUpdate(calls: Array<{ sql: string; params: unknown[] }>) {
+  return calls.find(
+    (c) => c.sql.includes('UPDATE invoices') && c.sql.includes('SET client_id'),
+  );
+}
+
 describe('promoteQuoteToInvoice', () => {
+  it('carries the quote tax + credit-card-fee settings onto the promoted invoice', async () => {
+    const { client, calls } = fakeClient({
+      quote: {
+        client_id: 42,
+        deleted_at: null,
+        quote_taxed: true,
+        quote_credit: true,
+        tax_rate: '0.06625',
+        cc_fee_rate: '0.03',
+      },
+      lines: [{ id: 1, sale_price: '1000', trucking_rate: null, destination: null }],
+    });
+    await promoteQuoteToInvoice(client, 5, { containers: [{ inventory_id: 11 }] });
+
+    const ins = invoiceInsert(calls);
+    expect(ins?.params[2]).toBe(true); // invoice_taxed
+    expect(ins?.params[3]).toBe(true); // invoice_credit
+
+    const upd = invoiceUpdate(calls);
+    expect(upd?.params[1]).toBe(true); // invoice_taxed
+    expect(upd?.params[2]).toBe(true); // invoice_credit
+    expect(upd?.params[4]).toBe('0.06625'); // tax_rate
+    expect(upd?.params[5]).toBe('0.03'); // cc_fee_rate
+  });
+
+  it('leaves the promoted invoice untaxed when the quote is untaxed', async () => {
+    const { client, calls } = fakeClient({
+      lines: [{ id: 1, sale_price: '1000', trucking_rate: null, destination: null }],
+    });
+    await promoteQuoteToInvoice(client, 5, { containers: [{ inventory_id: 11 }] });
+    expect(invoiceInsert(calls)?.params[2]).toBe(false);
+    expect(invoiceUpdate(calls)?.params[4]).toBeNull();
+  });
+
   it('maps quote lines onto containers positionally', async () => {
     const { client, calls } = fakeClient({
       lines: [

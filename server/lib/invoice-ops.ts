@@ -7,11 +7,22 @@
 // + BEGIN/COMMIT/ROLLBACK around these.
 
 import type { PoolClient } from 'pg';
+import { easternMonthPrefix } from './quote-number.js';
 
 // Stable advisory-lock key for sales-invoice number sequencing. Hex
 // derived from "AIRSEQ#" ASCII so the value is namespaced. Postgres
 // pg_advisory_xact_lock takes bigint; we pass as a decimal string.
 const SALES_INVOICE_SEQ_LOCK_KEY = 0x4149_5253_4551_4e23n.toString();
+
+// Collapse blank/whitespace-only text to null so the `??`/COALESCE
+// fallbacks downstream (notably the delivery-sheet address cascade in
+// report-resolvers/delivery.ts) treat a cleared field as unset rather
+// than as a present empty string that short-circuits the cascade.
+function blankToNull(v: string | null | undefined): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s === '' ? null : s;
+}
 
 export interface IncomingModification {
   description?: string;
@@ -96,9 +107,10 @@ export async function getNextInvoiceNumber(
 }
 
 export function monthPrefix(date: Date = new Date()): number {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  return parseInt(`${y}${m}`, 10);
+  // Eastern-time YYYYMM so an invoice created late-evening ET on the last
+  // day of a month keeps that month's sequence instead of rolling into the
+  // next with the container's UTC clock. Mirrors quote numbering.
+  return parseInt(easternMonthPrefix(date), 10);
 }
 
 /**
@@ -147,7 +159,11 @@ export async function recomputeTotals(
     subtotal += Number(r.sale_price ?? 0);
     subtotal += Number(r.trucking_rate ?? 0);
     const perMod = r.sold_id != null ? modsBySold.get(r.sold_id) : undefined;
-    if (perMod !== undefined && perMod > 0) {
+    if (perMod !== undefined) {
+      // Presence, not sign: a container that has per-mod line items uses
+      // their sum even when it nets to zero or negative (discount/credit
+      // lines). Only fall back to the legacy scalar when there are no
+      // per-mod rows at all — otherwise a discount silently vanishes.
       subtotal += perMod;
     } else {
       subtotal += Number(r.modification_price ?? 0);
@@ -203,8 +219,8 @@ export async function updateInvoiceFull(
          invoice_taxed = COALESCE($2, invoice_taxed),
          invoice_credit = COALESCE($3, invoice_credit),
          invoice_date = COALESCE($4, invoice_date),
-         tax_rate = $5,
-         cc_fee_rate = $6,
+         tax_rate = COALESCE($5, tax_rate),
+         cc_fee_rate = COALESCE($6, cc_fee_rate),
          ship_to_same_as_billing = COALESCE($7, ship_to_same_as_billing),
          ship_to_name = $8,
          ship_to_street = $9,
@@ -220,11 +236,11 @@ export async function updateInvoiceFull(
       body.tax_rate ?? null,
       body.cc_fee_rate ?? null,
       body.ship_to_same_as_billing ?? null,
-      body.ship_to_name ?? null,
-      body.ship_to_street ?? null,
-      body.ship_to_city ?? null,
-      body.ship_to_state ?? null,
-      body.ship_to_zip ?? null,
+      blankToNull(body.ship_to_name),
+      blankToNull(body.ship_to_street),
+      blankToNull(body.ship_to_city),
+      blankToNull(body.ship_to_state),
+      blankToNull(body.ship_to_zip),
       invoiceId,
     ],
   );
@@ -337,11 +353,11 @@ export async function updateInvoiceFull(
         ct.invoice_notes ?? null,
         ct.outbound_trucking_company_id ?? null,
         ct.door_orientation ?? null,
-        ct.delivery_name ?? null,
-        ct.delivery_street ?? null,
-        ct.delivery_city ?? null,
-        ct.delivery_state ?? null,
-        ct.delivery_zip ?? null,
+        blankToNull(ct.delivery_name),
+        blankToNull(ct.delivery_street),
+        blankToNull(ct.delivery_city),
+        blankToNull(ct.delivery_state),
+        blankToNull(ct.delivery_zip),
       ],
     );
 
