@@ -4,17 +4,17 @@
 
 ---
 
-## TL;DR — 2026-07-14 invoicing bug sweep (PR: `fix/invoice-edit-drops-mod-quantity`, pushed)
+## TL;DR — 2026-07-15 "Container Man" outbound investigation (PR #27 `fix/release-create-500-and-intake-dup-guard`, open/not deployed)
 
-Triggered by a bookkeeper report: editing invoice **202607003**'s date changed its total ($6600.09 → $2860.09). Root cause — the invoice-edit save dropped per-mod `quantity`, so the server reset every line to qty 1 and recomputed the total down. Confirmed against prod (total = exact sum of its 78 line items at qty 1). A sonnet-agent sweep of the whole invoicing path found more; all fixed on the branch + committed (`ee7d338`) and opened as a PR:
+Triggered by an operator report: building the **CONTAINER MAN** (Mike O'Toole) project — *"created a release, I see the boxes in inventory, but it only lets me show **some** of them out."* Diagnosed against prod (`containers_prod`) + backend logs. **The outbound flow is not broken** — "only some" is data: of the 12 unit numbers on the customer's list, **4 were never intook** (`CBHU 428666-1`, `HDMU 472231-7`, `KKFU 133342-6`, `MRKU 006042-5` — invisible to every show-out flow) and **2 had duplicate `available` rows** (one physical box entered twice under different releases; `inventory.unit_number` has no unique constraint). The rest are `available` and showable; some are filed under older depot releases, not CONTAINER MAN.
 
-- **Money:** quote→invoice promote now carries the quote's tax + CC-fee (was making every promoted invoice untaxed → undercharge); discount/zero-net modification lines no longer dropped from the subtotal (presence-check, not `> 0`).
-- **Dates:** CreateInvoice sends `invoice_date`; invoice dates read/written in Eastern time (UTC-midnight off-by-one fixed); `monthPrefix` uses the Eastern month like quote numbering.
-- **Integrity/hardening:** blank ship-to/delivery normalized to null (delivery-sheet address cascade fix); `tax_rate`/`cc_fee_rate` use COALESCE; Zod validation on POST/PUT `/api/v2/invoice` (mod quantity ≥ 1).
+**Real bug found in the logs + fixed (PR #27):** `POST /api/v2/release` swallowed a `23505` on `release_number_value` into an opaque, *unlogged* 500 — the operator hit it **7× in one burst** re-submitting the existing release name, reading the blank 500 as "broken." Now returns `409 "That release number already exists."` (mirrors pickup) + logs other failures. **Also added an intake dup-guard:** `POST /api/v1/inventory/add` now refuses a new row when the unit # is already in inventory as `available` (prior `sold`/`outbound` copies don't block — boxes churn). Logic in `server/lib/intake-guard.ts`, BEGIN/ROLLBACK tests. **243 server tests (+7), tsc clean.**
 
-Tests green: **236 server / 57 client**, client build clean (+10 server, +7 client new tests). **Deferred (owner decision):** exclude cancelled invoices from P&L/dashboard revenue (`AND status <> 'cancelled'`), and a float→integer-cents tax-rounding refactor.
+**Prod data cleanup — DONE this session:** deleted the 2 phantom `available` rows (`741` TCKU 426283-8 / Triton and `961` UACU 834096-1 / AUDIT-5-29-26), keeping the CONTAINER MAN copies (`996`, `995`) per owner call. Swept prod: **no other duplicate-`available` unit numbers remain.** CONTAINER MAN roster = 994/995/996.
 
-**Two landmines surfaced:** (1) the prod DB is **`containers_prod`**, not `containers` (a stale `containers` copy also exists on the host); (2) the security-sweep pino logging does **not** capture request bodies or field diffs on *successful* writes, so this data-corruption bug left no forensic trail — worth logging write diffs on invoice/quote mutations.
+**Operator follow-up (not code):** the 4 never-intook numbers need real `/intake` if those boxes are physically in the yard for Mike — nothing in the system to show out otherwise.
+
+**Prior 2026-07-14 invoicing bug sweep shipped** (per-mod quantity drop + money/date fixes) — its PR merged; no longer open. Landmine still true: prod DB is **`containers_prod`**, not `containers`.
 
 ---
 

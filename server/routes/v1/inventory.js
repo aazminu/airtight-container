@@ -2,6 +2,7 @@ import express from "express";
 import { desc, eq } from "drizzle-orm";
 import db from "../../db/index.js";
 import { db as drizzleDb } from "../../db/drizzle.js";
+import { findAvailableDuplicate } from "../../lib/intake-guard.js";
 import {
 	inventory,
 	sale_companies,
@@ -152,6 +153,18 @@ router.post("/add", checkEmployee, async (req, res) => {
 	try {
 		const { container, release } = req.body;
 		const releaseId = release[0].release_number_id;
+
+		// Refuse a second live copy of a unit number that's already sitting in
+		// the yard as 'available'. Prior copies that have left (sold/outbound)
+		// don't block — boxes churn. See lib/intake-guard.js.
+		const dupId = await findAvailableDuplicate(db, container.unit_number);
+		if (dupId !== null) {
+			return res.status(409).json({
+				code: "duplicate_available_unit",
+				message: `Unit ${container.unit_number?.trim?.() ?? container.unit_number} is already in inventory as available (id ${dupId}). Show that one out or remove it before adding another.`,
+				details: { existing_inventory_id: dupId },
+			});
+		}
 
 		// release_number_id comes from the picker; sale_company_id is inherited
 		// from the release since every container's sale_company should match its
