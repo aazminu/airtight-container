@@ -158,6 +158,17 @@ router.post("/", checkAdmin, async (req, res) => {
 			data: results.rows,
 		});
 	} catch (err) {
+		// release_number_value is globally UNIQUE (mirrors pickup semantics).
+		// A duplicate name previously fell through to an opaque, unlogged 500
+		// that the operator read as "it's broken" and retried — a burst of
+		// those is what surfaced this. Return the same clean 409 the pickup
+		// create handler does.
+		if (err.code === "23505") {
+			return res.status(409).json({
+				message: "That release number already exists.",
+			});
+		}
+		console.error("release.create error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });
