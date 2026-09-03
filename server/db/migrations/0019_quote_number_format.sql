@@ -11,8 +11,6 @@
 -- Q || replace(prefix, '-', '') || lpad(right(suffix, 3), 3, '0').
 -- If the old suffix > 999, error out (would lose information).
 
-BEGIN;
-
 DO $$
 DECLARE
   bad_count int;
@@ -37,5 +35,3 @@ UPDATE quotes
                    || split_part(quote_number, '-', 2)
                    || LPAD(split_part(quote_number, '-', 3)::int::text, 3, '0')
  WHERE quote_number ~ '^Q-\d{6}-\d{4}$';
-
-COMMIT;

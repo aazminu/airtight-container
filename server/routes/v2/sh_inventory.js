@@ -3,6 +3,10 @@ import db from "../../db/index.js";
 import { checkEmployee, checkAdmin } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
 import {
+	findLiveShDuplicate,
+	lockUnitNumber,
+} from "../../lib/intake-guard.js";
+import {
 	createShInventorySchema,
 	auditShInventorySchema,
 	checkoutShInventorySchema,
@@ -164,11 +168,34 @@ router.post(
 	checkEmployee,
 	validateBody(createShInventorySchema),
 	async (req, res) => {
+		const client = await db.pool.connect();
 		try {
 			const b = req.body.box;
 			const photos = b.photos && b.photos.length ? b.photos : null;
 
-			const result = await db.query(
+			await client.query("BEGIN");
+
+			// Serialize concurrent intakes for the same unit number (mirrors
+			// sales: routes/v1/inventory.js POST /add) so a double-tap can't
+			// pass the duplicate check twice before either INSERT commits.
+			await lockUnitNumber(client, b.unit_number);
+
+			// Refuse a second live (pending/in_storage) row for a unit number
+			// already on-site. A box already checked out doesn't block —
+			// S&H boxes churn too. Without this, sh-month-end bills per row,
+			// so a duplicate live row double-bills one physical box every
+			// month. See lib/intake-guard.ts.
+			const dupId = await findLiveShDuplicate(client, b.unit_number);
+			if (dupId !== null) {
+				await client.query("ROLLBACK");
+				return res.status(409).json({
+					code: "duplicate_live_unit",
+					message: `Unit ${b.unit_number?.trim?.() ?? b.unit_number} is already in S&H storage (id ${dupId}). Check that one out before adding another.`,
+					details: { existing_sh_inventory_id: dupId },
+				});
+			}
+
+			const result = await client.query(
 				`INSERT INTO sh_inventory (
 					unit_number, size, damage, notes, release_number_id,
 					intake_date, state, is_pending_audit, photos
@@ -193,7 +220,7 @@ router.post(
 			// arrivals overshoot it, bump to match so the summary report
 			// can't report a nonsense filled/quota ratio. Combined count
 			// covers both sales + S&H since a release can hold mixed kinds.
-			await db.query(
+			await client.query(
 				`UPDATE release_numbers
 				 SET release_number_count = filled.cnt
 				 FROM (
@@ -214,7 +241,7 @@ router.post(
 			// pre-loaded container numbers and one matches the new box, mark
 			// the enumeration row used. No-op when no enumeration exists.
 			if (b.unit_number) {
-				await db.query(
+				await client.query(
 					`UPDATE release_number_containers
 					 SET is_used = true
 					 WHERE release_number_id = $1 AND container_number = $2`,
@@ -222,13 +249,17 @@ router.post(
 				);
 			}
 
+			await client.query("COMMIT");
 			res.status(201).json({
 				status: "success",
 				data: { id: result.rows[0].id },
 			});
 		} catch (err) {
+			await client.query("ROLLBACK").catch(() => {});
 			console.error("sh_inventory.post error:", err);
 			res.status(500).json({ message: "Internal server error" });
+		} finally {
+			client.release();
 		}
 	},
 );

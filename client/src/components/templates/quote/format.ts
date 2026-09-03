@@ -35,7 +35,7 @@ export const buildQuoteLineGroups = (data: QuoteData): QuoteLineGroup[] => {
       });
     }
     const truck = Number(line.trucking_rate ?? 0);
-    if (Number.isFinite(truck) && truck > 0) {
+    if (Number.isFinite(truck) && truck !== 0) {
       subs.push({
         qty: 1,
         description: `Delivery to ${line.destination ?? '—'}`,

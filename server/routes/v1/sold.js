@@ -67,6 +67,15 @@ router.post("/", checkAdmin, async (req, res) => {
 		]);
 		res.status(200).json({ status: "success" });
 	} catch (err) {
+		// inventory_id is UNIQUE on sold — double-submitting "Mark Sold", or
+		// re-selling a container that already has a sold row, previously fell
+		// through to an opaque, unlogged 500. Mirror the release/pickup 409.
+		if (err.code === "23505") {
+			return res.status(409).json({
+				message: "This container has already been marked sold.",
+			});
+		}
+		console.error("sold.create error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });

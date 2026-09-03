@@ -10,7 +10,7 @@
 import type { PoolClient } from 'pg';
 // `default` import to play nicely with pool.js's CJS-shape export.
 import pool from '../db/pool.js';
-import { storageDaysForMonth } from './sh.js';
+import { easternMidnightUtc, easternYearMonth, storageDaysForMonth } from './sh.js';
 
 type ShBillingMode = 'in_out_daily' | 'flat_monthly' | 'non_billable';
 
@@ -124,8 +124,8 @@ const buildLinesForBox = (
   const intake = new Date(box.intake_date);
   const checkout = box.checkout_date ? new Date(box.checkout_date) : null;
   const lines: InvoiceLineSpec[] = [];
-  const inThisMonth =
-    intake.getFullYear() === year && intake.getMonth() === monthIndex;
+  const intakeYM = easternYearMonth(intake);
+  const inThisMonth = intakeYM.year === year && intakeYM.month === monthIndex;
   if (inThisMonth && box.in_fee != null) {
     lines.push({
       sh_box_id: box.id,
@@ -136,10 +136,11 @@ const buildLinesForBox = (
       description: `Intake fee · ${box.unit_number}`,
     });
   }
+  const checkoutYM = checkout ? easternYearMonth(checkout) : null;
   const outThisMonth =
-    checkout != null &&
-    checkout.getFullYear() === year &&
-    checkout.getMonth() === monthIndex;
+    checkoutYM != null &&
+    checkoutYM.year === year &&
+    checkoutYM.month === monthIndex;
   if (outThisMonth && box.out_fee != null) {
     lines.push({
       sh_box_id: box.id,
@@ -194,13 +195,17 @@ export async function generateShMonthEnd(
   // Boxes that overlapped this month: arrived on/before month end AND
   // (still in storage OR checked out on/after the month started).
   //
-  // monthStart is midnight on day 1; nextMonthStart is midnight on day 1 of
-  // the next month and used with a strict `<` so boxes intaked late on the
-  // last day of the month (e.g., a 5pm intake on May 31) are correctly
-  // included. The earlier `monthIndex + 1, 0` produced midnight on the LAST
-  // day of the month and silently dropped late-day intakes.
-  const monthStart = new Date(year, monthIndex, 1);
-  const nextMonthStart = new Date(year, monthIndex + 1, 1);
+  // monthStart is Eastern midnight on day 1; nextMonthStart is Eastern
+  // midnight on day 1 of the next month, used with a strict `<` so boxes
+  // intaked late on the last day of the month (e.g., a 9pm EDT intake on
+  // May 31) are correctly included. These used to be built from the
+  // process's own local getters — fine for "midnight on the LAST day of
+  // the month vs. the FIRST day of the next" bugs, but the process runs in
+  // UTC in prod, so a UTC midnight boundary still cut off anything intaked
+  // or checked out in the last 4-5 hours of an Eastern day. easternMidnightUtc
+  // resolves the real UTC instant for Eastern midnight instead.
+  const monthStart = easternMidnightUtc(year, monthIndex, 1);
+  const nextMonthStart = easternMidnightUtc(year, monthIndex + 1, 1);
   const client = await pool.connect();
   try {
     // Skip boxes with NULL client_id (still on the audit floor —

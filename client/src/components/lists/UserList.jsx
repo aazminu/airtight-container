@@ -77,19 +77,30 @@ function UserList() {
 				new_permissions: newPermission,
 			}),
 			credentials: "include",
-		}).then((res) => {
-			if (!res.ok) {
+		})
+			.then((res) => {
+				if (!res.ok) {
+					setPopup("ERROR Unable to change permissions");
+					return undefined;
+				}
+				setAccounts((current) => {
+					return current.map((acct) =>
+						acct.id === account.id
+							? { ...acct, permissions: newPermission }
+							: acct
+					);
+				});
+			})
+			.catch(() => {
 				setPopup("ERROR Unable to change permissions");
-				return undefined;
-			}
-			setAccounts((current) => {
-				return current.map((acct) =>
-					acct.id === account.id
-						? { ...acct, permissions: newPermission }
-						: acct
+				setAccounts((current) =>
+					current.map((acct) =>
+						acct.id === account.id
+							? { ...acct, permissions: account.permissions }
+							: acct
+					)
 				);
 			});
-		});
 	};
 	return (
 		<div className="accountSettingsWrapper">

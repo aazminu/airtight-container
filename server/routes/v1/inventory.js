@@ -2,7 +2,10 @@ import express from "express";
 import { desc, eq } from "drizzle-orm";
 import db from "../../db/index.js";
 import { db as drizzleDb } from "../../db/drizzle.js";
-import { findAvailableDuplicate } from "../../lib/intake-guard.js";
+import {
+	findAvailableDuplicate,
+	lockUnitNumber,
+} from "../../lib/intake-guard.js";
 import {
 	inventory,
 	sale_companies,
@@ -122,10 +125,15 @@ router.get("/:id", checkEmployee, async (req, res) => {
 			[req.params.id]
 		);
 		const enriched = await attachPhotoUrls(results.rows);
+		// acquisition_price is internal cost — gate it to admins, same as GET /.
+		const projected =
+			req.user?.role === "admin"
+				? enriched
+				: enriched.map(({ acquisition_price, ...rest }) => rest);
 		res.status(200).json({
 			status: "success",
-			results: enriched.length,
-			data: { inventory: enriched },
+			results: projected.length,
+			data: { inventory: projected },
 		});
 	} catch (err) {
 		console.error("inventory.detail error:", err);
@@ -150,15 +158,24 @@ router.put("/state", checkEmployee, async (req, res) => {
 });
 
 router.post("/add", checkEmployee, async (req, res) => {
+	const client = await db.pool.connect();
 	try {
 		const { container, release } = req.body;
 		const releaseId = release[0].release_number_id;
 
+		await client.query("BEGIN");
+
+		// Serialize concurrent intakes for the same unit number (a double-tap
+		// on a spotty yard iPad) so the check below and the INSERT further down
+		// can't both see a clear yard and both commit. See lib/intake-guard.ts.
+		await lockUnitNumber(client, container.unit_number);
+
 		// Refuse a second live copy of a unit number that's already sitting in
 		// the yard as 'available'. Prior copies that have left (sold/outbound)
 		// don't block — boxes churn. See lib/intake-guard.js.
-		const dupId = await findAvailableDuplicate(db, container.unit_number);
+		const dupId = await findAvailableDuplicate(client, container.unit_number);
 		if (dupId !== null) {
+			await client.query("ROLLBACK");
 			return res.status(409).json({
 				code: "duplicate_available_unit",
 				message: `Unit ${container.unit_number?.trim?.() ?? container.unit_number} is already in inventory as available (id ${dupId}). Show that one out or remove it before adding another.`,
@@ -177,7 +194,7 @@ router.post("/add", checkEmployee, async (req, res) => {
 		const photos = Array.isArray(container.photos) && container.photos.length
 			? container.photos
 			: null;
-		await db.query(
+		await client.query(
 			`INSERT INTO inventory (
 				date, unit_number, size, damage, trucking_company,
 				state, notes, acquisition_price,
@@ -208,7 +225,7 @@ router.post("/add", checkEmployee, async (req, res) => {
 		// release summary report can't report a nonsense filled/quota ratio.
 		// Counts BOTH kinds: a release can hold mixed sales + S&H boxes
 		// (migration 0021), so the bump must reflect both.
-		await db.query(
+		await client.query(
 			`UPDATE release_numbers
 			 SET release_number_count = filled.cnt
 			 FROM (
@@ -229,7 +246,7 @@ router.post("/add", checkEmployee, async (req, res) => {
 		// numbers and one matches the new box's unit_number, mark it used.
 		// No-op when the release has no enumeration loaded.
 		if (container.unit_number) {
-			await db.query(
+			await client.query(
 				`UPDATE release_number_containers
 				 SET is_used = true
 				 WHERE release_number_id = $1 AND container_number = $2`,
@@ -237,10 +254,14 @@ router.post("/add", checkEmployee, async (req, res) => {
 			);
 		}
 
+		await client.query("COMMIT");
 		res.status(200).json({ status: "success" });
 	} catch (err) {
+		await client.query("ROLLBACK").catch(() => {});
 		console.error("inventory.add error:", err);
 		res.status(500).json({ message: "Internal server error" });
+	} finally {
+		client.release();
 	}
 });
 
@@ -292,6 +313,33 @@ router.put(
 			// is being corrected to a different real container.
 			const proposedNorm = (b.unit_number ?? "").trim().toUpperCase();
 			const oldNormForCheck = (oldUnit ?? "").trim().toUpperCase();
+
+			// Don't let an audit-time rename recreate the double-'available'
+			// bug the intake guard was built to prevent (e.g. correcting an
+			// OCR misread into a unit number that's already sitting in the
+			// yard under a different row). Excludes this row itself so a
+			// no-op rename, or renaming into the row's own current number,
+			// never self-conflicts. Checked before the enumeration-conflict
+			// gate below and not skippable via confirm_unit_rename — that
+			// flag only confirms touching enumeration data, not a physical
+			// duplicate.
+			if (proposedNorm && proposedNorm !== oldNormForCheck) {
+				await lockUnitNumber(client, proposedNorm);
+				const dupId = await findAvailableDuplicate(
+					client,
+					proposedNorm,
+					Number(req.params.id),
+				);
+				if (dupId !== null) {
+					await client.query("ROLLBACK");
+					return res.status(409).json({
+						code: "duplicate_available_unit",
+						message: `Unit ${proposedNorm} is already in inventory as available (id ${dupId}). Show that one out or remove it before renaming into it.`,
+						details: { existing_inventory_id: dupId },
+					});
+				}
+			}
+
 			if (
 				proposedNorm &&
 				proposedNorm !== oldNormForCheck &&
@@ -409,13 +457,34 @@ router.put(
 );
 
 router.put("/:id", checkAdmin, async (req, res) => {
+	const client = await db.pool.connect();
 	try {
+		await client.query("BEGIN");
+
+		// Same physical-duplicate guard as intake and the audit route: this
+		// UPDATE rewrites unit_number unconditionally, so without the check an
+		// admin edit can recreate a second 'available' row for one container.
+		await lockUnitNumber(client, req.body.unit_number);
+		const dupId = await findAvailableDuplicate(
+			client,
+			req.body.unit_number,
+			Number(req.params.id),
+		);
+		if (dupId !== null) {
+			await client.query("ROLLBACK");
+			return res.status(409).json({
+				code: "duplicate_available_unit",
+				message: `Unit ${req.body.unit_number?.trim?.() ?? req.body.unit_number} is already in inventory as available (id ${dupId}). Show that one out or remove it before renaming into it.`,
+				details: { existing_inventory_id: dupId },
+			});
+		}
+
 		// acceptance_number / sale_company in req.body are accepted but ignored —
 		// the source of truth is release_number_id / sale_company_id (both
 		// non-null after PR 1.6). Phase 2's audit flow will let admins reassign
 		// the release; for now the legacy edit form can only tweak the other
 		// fields without breaking anything if those inputs are filled in.
-		const results = await db.query(
+		const results = await client.query(
 			"UPDATE inventory SET unit_number = $1, size = $2, damage = $3, trucking_company = $4, state = $5, acquisition_price = $6 where id = $7 returning *",
 			[
 				req.body.unit_number,
@@ -427,13 +496,18 @@ router.put("/:id", checkAdmin, async (req, res) => {
 				req.params.id,
 			]
 		);
+		await client.query("COMMIT");
 		res.status(200).json({
 			status: "success",
 			results: results.rows.length,
 			data: { inventory: results.rows },
 		});
 	} catch (err) {
+		await client.query("ROLLBACK").catch(() => {});
+		console.error("inventory.update error:", err);
 		res.status(500).json({ message: "Internal server error" });
+	} finally {
+		client.release();
 	}
 });
 

@@ -153,16 +153,20 @@ app.use("/r", publicReceiptRoute);
 // dev/CI environments shouldn't fire it accidentally. Admins can still
 // trigger ad-hoc via POST /api/v2/sh-invoice/run-month-end.
 if (process.env.SH_MONTH_END_CRON !== "off") {
-	cron.schedule("0 1 1 * *", async () => {
-		const { year, monthIndex } = priorMonth();
-		logger.info({ year, month: monthIndex + 1 }, "[sh-cron] firing month-end");
-		try {
-			const summary = await generateShMonthEnd(year, monthIndex);
-			logger.info({ summary }, "[sh-cron] done");
-		} catch (err) {
-			logger.error({ err }, "[sh-cron] failed");
-		}
-	});
+	cron.schedule(
+		"0 1 1 * *",
+		async () => {
+			const { year, monthIndex } = priorMonth();
+			logger.info({ year, month: monthIndex + 1 }, "[sh-cron] firing month-end");
+			try {
+				const summary = await generateShMonthEnd(year, monthIndex);
+				logger.info({ summary }, "[sh-cron] done");
+			} catch (err) {
+				logger.error({ err }, "[sh-cron] failed");
+			}
+		},
+		{ timezone: "America/New_York" },
+	);
 }
 
 // PR 9.7: daily sweep that flips 'sold' containers to 'outbound' once
@@ -174,22 +178,26 @@ if (process.env.SH_MONTH_END_CRON !== "off") {
 // at the start of the work day, late enough that any cross-midnight
 // edits have settled.
 if (process.env.OUTBOUND_FLIP_CRON !== "off") {
-	cron.schedule("0 5 * * *", async () => {
-		logger.info("[outbound-cron] sweep starting");
-		try {
-			const result = await applyOutboundFromDeliverySheets();
-			if (result.flipped > 0) {
-				logger.info(
-					{ flipped: result.flipped, ids: result.flipped_ids },
-					"[outbound-cron] flipped containers to outbound",
-				);
-			} else {
-				logger.info("[outbound-cron] no containers due");
+	cron.schedule(
+		"0 5 * * *",
+		async () => {
+			logger.info("[outbound-cron] sweep starting");
+			try {
+				const result = await applyOutboundFromDeliverySheets();
+				if (result.flipped > 0) {
+					logger.info(
+						{ flipped: result.flipped, ids: result.flipped_ids },
+						"[outbound-cron] flipped containers to outbound",
+					);
+				} else {
+					logger.info("[outbound-cron] no containers due");
+				}
+			} catch (err) {
+				logger.error({ err }, "[outbound-cron] failed");
 			}
-		} catch (err) {
-			logger.error({ err }, "[outbound-cron] failed");
-		}
-	});
+		},
+		{ timezone: "America/New_York" },
+	);
 }
 
 // Terminal error handler — must come after all routes so anything that
