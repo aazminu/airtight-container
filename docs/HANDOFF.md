@@ -4,7 +4,7 @@
 
 ---
 
-## TL;DR — 2026-09-03 Places autofill outage (RESOLVED) + full-codebase audit sweep (branch `fix/audit-sweep`, committed, NOT pushed)
+## TL;DR — 2026-09-03 Places autofill outage (RESOLVED) + full-codebase audit sweep (PR #31 `fix/audit-sweep`, open/not merged)
 
 **Operator report: address autofill dead, addresses missing from invoices.** Root cause was Google Cloud, **not code** — the key baked into the deployed bundle was always correct (verified byte-identical to `client/.env`). Places API (New) was unauthorized on project `712517083908`; the free trial had ended. Owner upgraded billing and enabled the API. Verified end-to-end against the live key: autocomplete, the `$rpc/google.maps.places.v1.Places/AutocompletePlaces` endpoint the widget actually calls, and `fetchFields(addressComponents)` all return correctly. **No redeploy needed — operators just reload.** Diagnostic that pins this class of failure: a referrer block names itself (`API_KEY_HTTP_REFERRER_BLOCKED`); a bare `PERMISSION_DENIED` means the referrer passed and the API is unauthorized.
 
@@ -12,7 +12,7 @@
 - `https://www.airtightshippingcontainer.com` is **not** in the key's HTTP-referrer allowlist but **does** serve the app (200, no redirect), so autofill stays broken on the `www.` host. Fix: add `https://www.airtightshippingcontainer.com/*` to the key restrictions and/or 301 www→apex in `nginx.frontend.conf`.
 - `server/lib/pdf.ts:80` never selects `ship_to_*`, so an invoice-level ship-to shows in the web UI (`routes/v2/invoice.js:149` selects it) but vanishes on the PDF. Unrelated to the outage.
 
-**Audit sweep — `fix/audit-sweep`, stacked on `fix/release-create-500-and-intake-dup-guard` (PR #27)** because it extends `intake-guard.ts`. Commit `eb5f8a3`, 28 files, +1061/−170. **Committed locally, not pushed, no PR.** Server 265 tests / client 57, green under both local TZ and `TZ=UTC`; `tsc` clean both sides.
+**Audit sweep — PR #31 `fix/audit-sweep`.** Originally stacked on PR #27 because it extends `intake-guard.ts`; #27 has since merged, so this was rebased onto `main` and stands alone. Commit `4919c21`, 28 files, +1061/−170. **Open, not merged, not deployed.** Server 265 tests / client 57, green under both local TZ and `TZ=UTC`; `tsc` clean both sides.
 
 Highest-value fixes: `QuoteEditor` `keySeq` reset every render so all new quote lines shared one id (editing or deleting one hit them all); print templates dropped negative credit lines while still subtracting them from the total; S&H billing derived day/month boundaries from the container's UTC clock, double-billing storage days and putting checkout fees in the wrong month (now Eastern via `Intl`, DST-safe, both crons pinned); **CI had no test gate at all** — added a `test` job with a `postgres:16` service that `deploy` now `needs:`.
 
