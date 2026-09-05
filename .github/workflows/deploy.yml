@@ -2,6 +2,10 @@ name: Deploy
 on:
   push:
     branches: [main]
+  # Run the test job on PRs too, so a broken suite is caught before it reaches
+  # main. `deploy` is gated to push events below -- a PR must never deploy.
+  pull_request:
+    branches: [main]
 
 jobs:
   test:
@@ -48,14 +52,18 @@ jobs:
         working-directory: server
         run: npm ci
 
-      # Better Auth's own tables first (migration 0000 has an FK to
-      # "user"), then the numbered migrations that build the rest of the
-      # schema. Same runner deploy.yml already trusts to migrate prod.
+      # The migration chain is not self-contained: 0000 ALTERs v1 tables that
+      # predate the runner, so it cannot build an empty database. Better Auth's
+      # tables first (reports.generated_by has an FK to "user"), then the
+      # checked-in schema baseline, then --baseline-on-empty records 0000-0024
+      # as applied without running them and applies anything newer -- so new
+      # migrations still get exercised here. See server/db/ci-baseline.sql.
       - name: Set up server database schema
         working-directory: server
         run: |
           node migrate.js
-          npx tsx scripts/migrate.ts --no-backup
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f db/ci-baseline.sql
+          npx tsx scripts/migrate.ts --no-backup --baseline-on-empty 0024
 
       - name: Run server tests
         working-directory: server
@@ -71,6 +79,7 @@ jobs:
 
   deploy:
     needs: test
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
