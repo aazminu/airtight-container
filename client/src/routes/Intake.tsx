@@ -254,24 +254,10 @@ export default function Intake() {
     !(isShDetailsStep && !shDetailsValid) &&
     submitState !== 'submitting';
 
-  const back = () => {
-    if (step === 1) setKind(null);
-    setStep((s) => Math.max(0, s - 1));
-    setSubmitState('idle');
-    setSubmitError(null);
-  };
-
-  const next = () => setStep((s) => Math.min(labels.length - 1, s + 1));
-
-  const choose = (k: Exclude<Kind, null>) => {
-    setKind(k);
-    setStep(1);
-  };
-
-  const resetForNextBox = () => {
-    clearDraft();
-    setSalesForm(EMPTY_SALES);
-    setShForm(EMPTY_SH);
+  // Shared by back() (leaving the photo step to Choose) and choose()
+  // (switching kind): photos/OCR/release-match are tied to the physical
+  // container just photographed and must not follow a kind switch.
+  const clearPhotos = () => {
     if (doorPhoto?.previewUrl) URL.revokeObjectURL(doorPhoto.previewUrl);
     otherPhotos.forEach(
       (p) => p.previewUrl && URL.revokeObjectURL(p.previewUrl),
@@ -280,6 +266,31 @@ export default function Intake() {
     setOtherPhotos([]);
     setOcr(null);
     setReleaseMatch(null);
+  };
+
+  const back = () => {
+    if (step === 1) {
+      setKind(null);
+      clearPhotos();
+    }
+    setStep((s) => Math.max(0, s - 1));
+    setSubmitState('idle');
+    setSubmitError(null);
+  };
+
+  const next = () => setStep((s) => Math.min(labels.length - 1, s + 1));
+
+  const choose = (k: Exclude<Kind, null>) => {
+    clearPhotos();
+    setKind(k);
+    setStep(1);
+  };
+
+  const resetForNextBox = () => {
+    clearDraft();
+    setSalesForm(EMPTY_SALES);
+    setShForm(EMPTY_SH);
+    clearPhotos();
     setSubmitState('idle');
     setSubmitError(null);
     setKind(null);

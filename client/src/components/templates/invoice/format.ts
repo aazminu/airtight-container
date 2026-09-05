@@ -121,7 +121,7 @@ export const buildLineGroups = (data: InvoiceData): InvoiceLineGroup[] => {
       }
     } else {
       const legacyMod = Number(c.modification_price ?? 0);
-      if (Number.isFinite(legacyMod) && legacyMod > 0) {
+      if (Number.isFinite(legacyMod) && legacyMod !== 0) {
         subs.push({
           qty: 1,
           description: 'Modification',
@@ -131,7 +131,7 @@ export const buildLineGroups = (data: InvoiceData): InvoiceLineGroup[] => {
       }
     }
     const truck = Number(c.trucking_rate ?? 0);
-    if (Number.isFinite(truck) && truck > 0) {
+    if (Number.isFinite(truck) && truck !== 0) {
       subs.push({
         qty: 1,
         description: `Delivery to ${c.destination ?? '—'}`,

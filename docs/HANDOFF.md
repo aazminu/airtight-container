@@ -4,7 +4,25 @@
 
 ---
 
-## TL;DR — 2026-07-15 "Container Man" outbound investigation (PR #27 `fix/release-create-500-and-intake-dup-guard`, open/not deployed)
+## TL;DR — 2026-09-03 Places autofill outage (RESOLVED) + full-codebase audit sweep (PR #31 `fix/audit-sweep`, open/not merged)
+
+**Operator report: address autofill dead, addresses missing from invoices.** Root cause was Google Cloud, **not code** — the key baked into the deployed bundle was always correct (verified byte-identical to `client/.env`). Places API (New) was unauthorized on project `712517083908`; the free trial had ended. Owner upgraded billing and enabled the API. Verified end-to-end against the live key: autocomplete, the `$rpc/google.maps.places.v1.Places/AutocompletePlaces` endpoint the widget actually calls, and `fetchFields(addressComponents)` all return correctly. **No redeploy needed — operators just reload.** Diagnostic that pins this class of failure: a referrer block names itself (`API_KEY_HTTP_REFERRER_BLOCKED`); a bare `PERMISSION_DENIED` means the referrer passed and the API is unauthorized.
+
+**Two residual items from that diagnosis — NEITHER DONE:**
+- `https://www.airtightshippingcontainer.com` is **not** in the key's HTTP-referrer allowlist but **does** serve the app (200, no redirect), so autofill stays broken on the `www.` host. Fix: add `https://www.airtightshippingcontainer.com/*` to the key restrictions and/or 301 www→apex in `nginx.frontend.conf`.
+- `server/lib/pdf.ts:80` never selects `ship_to_*`, so an invoice-level ship-to shows in the web UI (`routes/v2/invoice.js:149` selects it) but vanishes on the PDF. Unrelated to the outage.
+
+**Audit sweep — PR #31 `fix/audit-sweep`.** Originally stacked on PR #27 because it extends `intake-guard.ts`; #27 has since merged, so this was rebased onto `main` and stands alone. Commit `4919c21`, 28 files, +1061/−170. **Open, not merged, not deployed.** Server 265 tests / client 57, green under both local TZ and `TZ=UTC`; `tsc` clean both sides.
+
+Highest-value fixes: `QuoteEditor` `keySeq` reset every render so all new quote lines shared one id (editing or deleting one hit them all); print templates dropped negative credit lines while still subtracting them from the total; S&H billing derived day/month boundaries from the container's UTC clock, double-billing storage days and putting checkout fees in the wrong month (now Eastern via `Intl`, DST-safe, both crons pinned); **CI had no test gate at all** — added a `test` job with a `postgres:16` service that `deploy` now `needs:`.
+
+**NEEDS OWNER CONFIRMATION BEFORE MERGE:** the P&L fix makes `revenue` exclude the trucking pass-through (`report-resolvers/pnl.ts:234`). It matches the report's own "Trucking pass-through (not in profit)" row label and makes profit correct, but the "Sales Revenue" headline in `PnLTemplate.tsx:47` now reads **lower** by the trucking total, and old P&L PDFs won't reconcile against new ones.
+
+**Deliberate residual gaps (not blockers):** `createdInvoice` in `CreateInvoice.tsx` is in-memory only — a full browser reload mid-error still mints a new invoice number; closing it means adding the field to `draftSnapshot`. The CI fresh-DB migration bootstrap was never rehearsed live (sandbox blocks `CREATE DATABASE`) — **watch the first real CI run.** HTTP-level tests for the `/company` endpoints in `release.js`/`pickup.js` were blocked by a vitest/Vite resolution quirk (`middleware/validate.js` is `.ts`-only and fails to resolve once the better-auth chain is mocked); a DB-level constraint test was substituted.
+
+---
+
+## Previously — 2026-07-15 "Container Man" outbound investigation (PR #27 `fix/release-create-500-and-intake-dup-guard`, open/not deployed)
 
 Triggered by an operator report: building the **CONTAINER MAN** (Mike O'Toole) project — *"created a release, I see the boxes in inventory, but it only lets me show **some** of them out."* Diagnosed against prod (`containers_prod`) + backend logs. **The outbound flow is not broken** — "only some" is data: of the 12 unit numbers on the customer's list, **4 were never intook** (`CBHU 428666-1`, `HDMU 472231-7`, `KKFU 133342-6`, `MRKU 006042-5` — invisible to every show-out flow) and **2 had duplicate `available` rows** (one physical box entered twice under different releases; `inventory.unit_number` has no unique constraint). The rest are `available` and showable; some are filed under older depot releases, not CONTAINER MAN.
 

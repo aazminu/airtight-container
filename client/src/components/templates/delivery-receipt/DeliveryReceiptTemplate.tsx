@@ -52,7 +52,7 @@ export default function DeliveryReceiptTemplate({ data }: Props) {
       </header>
 
       <div className={styles.metaRow}>
-        <span className={styles.label}>Pickup Number</span>
+        <span className={styles.label}>Delivery Number</span>
         <span className={styles.value}>
           {data.delivery_sheet_number ?? `#${data.delivery_id}`}
         </span>

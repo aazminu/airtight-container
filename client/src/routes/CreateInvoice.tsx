@@ -178,6 +178,12 @@ export default function CreateInvoice() {
     | { kind: 'error'; message: string }
     | { kind: 'done'; id: number; invoice_number: number }
   >({ kind: 'idle' });
+  // Set the moment step 1 mints a real invoice number, before steps 2/3
+  // run. A retry after a step 2/3 failure resumes from here instead of
+  // minting a second number for the same containers.
+  const [createdInvoice, setCreatedInvoice] = useState<
+    { id: number; invoice_number: number } | null
+  >(null);
   useDirtyForm(
     submitState.kind !== 'done' &&
       (selectedIds.length > 0 || selectedClient !== null),
@@ -245,6 +251,7 @@ export default function CreateInvoice() {
     setInvoiceDate(todayISO());
     setShipSameAsBilling(true);
     setShipTo({ name: '', street: '', city: '', state: '', zip: '' });
+    setCreatedInvoice(null);
   };
 
   const loadTruckingCompanies = async () => {
@@ -541,51 +548,74 @@ export default function CreateInvoice() {
     setSubmitState({ kind: 'submitting' });
     try {
       // 1) Create invoice (server assigns invoice_number via advisory lock).
-      const createRes = await fetch('/api/v2/invoice', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contact_id: selectedClient.id,
-          invoice_taxed: invoiceTaxed,
-          invoice_credit: invoiceCredit,
-          containers: selectedIds.map((id) => ({ id })),
-        }),
-      });
-      if (!createRes.ok) {
-        const body = await createRes.json().catch(() => null);
-        throw new Error(body?.message ?? 'Create failed');
+      // Skipped when a prior attempt already minted one (createdInvoice set)
+      // so retrying after a step 2/3 failure can't mint a second number for
+      // the same containers.
+      const isRetry = createdInvoice !== null;
+      let created = createdInvoice;
+      if (!created) {
+        const createRes = await fetch('/api/v2/invoice', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contact_id: selectedClient.id,
+            invoice_taxed: invoiceTaxed,
+            invoice_credit: invoiceCredit,
+            containers: selectedIds.map((id) => ({ id })),
+          }),
+        });
+        if (!createRes.ok) {
+          const body = await createRes.json().catch(() => null);
+          throw new Error(body?.message ?? 'Create failed');
+        }
+        created = (await createRes.json()) as {
+          id: number;
+          invoice_number: number;
+        };
+        setCreatedInvoice(created);
       }
-      const created = (await createRes.json()) as {
-        id: number;
-        invoice_number: number;
-      };
+      const invoiceId = created.id;
+      const invoiceNumber = created.invoice_number;
 
       // 2) Mark each container sold (legacy v1 endpoint — sold-row create
       //    + inventory.state flip). Done with the server-assigned number.
-      await Promise.all(
-        selectedIds.map((id) => {
+      const soldResults = await Promise.all(
+        selectedIds.map(async (id) => {
           const d = drafts[id]!;
-          return fetch('/api/v1/inventory/sold', {
+          const res = await fetch('/api/v1/inventory/sold', {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               id,
               sale_price: d.sale_price,
-              release_number: created.invoice_number,
+              release_number: invoiceNumber,
               trucking_rate: d.trucking_rate,
               modification_price: 0,
               invoice_notes: d.invoice_notes,
             }),
           });
+          return {
+            unit_number: d.unit_number,
+            // A retry reuses the invoice number, so containers the
+            // failed attempt already flipped answer 409 — that's the
+            // state we want, not a failure worth surfacing again.
+            ok: res.ok || (isRetry && res.status === 409),
+          };
         }),
       );
+      const failedSold = soldResults.filter((r) => !r.ok);
+      if (failedSold.length > 0) {
+        throw new Error(
+          `Invoice #${invoiceNumber} was created, but marking ${failedSold.length} of ${selectedIds.length} container(s) sold failed (${failedSold.map((f) => f.unit_number).join(', ')}). Check inventory state before retrying — some containers may already be marked sold.`,
+        );
+      }
 
       // 3) Push the full edit shape (mods, tax_rate, cc_fee_rate) via
       //    PUT /:id so the snapshot totals + per-mod line items persist.
       //    POST + per-sold above only handles the legacy scalars.
-      const putRes = await fetch(`/api/v2/invoice/${created.id}`, {
+      const putRes = await fetch(`/api/v2/invoice/${invoiceId}`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -636,7 +666,8 @@ export default function CreateInvoice() {
       }
 
       clearDraft();
-      setSubmitState({ kind: 'done', id: created.id, invoice_number: created.invoice_number });
+      setCreatedInvoice(null);
+      setSubmitState({ kind: 'done', id: invoiceId, invoice_number: invoiceNumber });
       setStep(4);
     } catch (e) {
       setSubmitState({
@@ -1077,6 +1108,7 @@ export default function CreateInvoice() {
                         setInvoiceTaxed(false);
                         setInvoiceCredit(false);
                         setSubmitState({ kind: 'idle' });
+                        setCreatedInvoice(null);
                         setStep(0);
                       }}
                     >

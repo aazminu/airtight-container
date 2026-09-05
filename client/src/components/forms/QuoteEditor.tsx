@@ -24,6 +24,8 @@ interface QuoteEditorProps {
   onSave: (updated: QuoteData) => Promise<void> | void;
 }
 
+let keySeq = -1;
+
 // Inline editor for an existing quote. Modeled on the CreateQuote Lines
 // + Details steps (free-text lines + per-line mods + tax/cc + notes),
 // flattened into a single form. Does NOT import CreateInvoice /
@@ -88,7 +90,6 @@ export default function QuoteEditor({ initial, onCancel, onSave }: QuoteEditorPr
     return { subtotal, tax, cc, total: subtotal + tax + cc };
   }, [draft]);
 
-  let keySeq = -1;
   const newKey = () => keySeq--;
 
   const updateLine = (id: number, patch: Partial<QuoteData['lines'][number]>) => {

@@ -185,6 +185,14 @@ router.post("/company", checkAdmin, async (req, res) => {
 			data: { inventory: results.rows },
 		});
 	} catch (err) {
+		// sale_company_name is globally UNIQUE — same constraint-violation
+		// class as the release-number creation handler above.
+		if (err.code === "23505") {
+			return res.status(409).json({
+				message: "That company already exists.",
+			});
+		}
+		console.error("release.createCompany error:", err);
 		res.status(500).json({ message: "Internal server error" });
 	}
 });

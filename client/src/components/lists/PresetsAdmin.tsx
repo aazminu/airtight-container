@@ -163,13 +163,14 @@ export default function PresetsAdmin<T extends PresetRecord>({
     const swapIdx = idx + direction;
     if (idx < 0 || swapIdx < 0 || swapIdx >= presets.length) return;
     const other = presets[swapIdx];
+    const previous = presets;
     const optimistic = presets.slice();
     optimistic[idx] = { ...preset, position: other.position };
     optimistic[swapIdx] = { ...other, position: preset.position };
     optimistic.sort((a, b) => a.position - b.position || a.id - b.id);
     sync(optimistic);
     try {
-      await Promise.all([
+      const [resA, resB] = await Promise.all([
         fetch(`${apiPath}/${preset.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -183,7 +184,9 @@ export default function PresetsAdmin<T extends PresetRecord>({
           body: JSON.stringify({ position: preset.position }),
         }),
       ]);
+      if (!resA.ok || !resB.ok) throw new Error('Something went wrong');
     } catch {
+      sync(previous);
       setPopup('ERROR Unable to reorder presets');
     }
   };

@@ -4,7 +4,73 @@ on:
     branches: [main]
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # The server suite includes integration tests (S&H billing, invoice
+    # sequencing, intake dedup, etc.) that run real SQL against
+    # DATABASE_URL rather than mocking `pg` — this service is that DB.
+    # TZ=America/New_York matches the local dev / prod-mirroring DB's own
+    # `timezone` setting: several tests insert bare DATE literals and rely
+    # on the session zone to land them on the Eastern calendar day the
+    # test comments describe.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: containers
+          TZ: America/New_York
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/containers
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      # Better Auth's own tables first (migration 0000 has an FK to
+      # "user"), then the numbered migrations that build the rest of the
+      # schema. Same runner deploy.yml already trusts to migrate prod.
+      - name: Set up server database schema
+        working-directory: server
+        run: |
+          node migrate.js
+          npx tsx scripts/migrate.ts --no-backup
+
+      - name: Run server tests
+        working-directory: server
+        run: npm test
+
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci --legacy-peer-deps
+
+      - name: Run client tests
+        working-directory: client
+        run: npm test
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read

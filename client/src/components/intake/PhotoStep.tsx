@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import {
   ocrIntakePhoto,
@@ -40,18 +40,31 @@ export function PhotoStep({ kind, mode, photos, onChange, onOcr }: Props) {
   const isDoors = mode === 'doors';
   const reachedMax = isDoors && photos.length >= 1;
 
+  // Concurrent uploads (mode="other" allows starting a second before the
+  // first resolves) must patch their own placeholder in the latest array,
+  // not rebuild from the `photos` prop as of when the upload started —
+  // that snapshot is stale by completion time and clobbers siblings.
+  const photosRef = useRef(photos);
+  photosRef.current = photos;
+
   const addPhoto = async (file: File) => {
     setTopLevelError(null);
     const previewUrl = URL.createObjectURL(file);
     const placeholder: IntakePhoto = { key: '', previewUrl, uploading: true };
-    const optimistic = [...photos, placeholder];
-    onChange(optimistic);
+    photosRef.current = [...photosRef.current, placeholder];
+    onChange(photosRef.current);
+
+    const replace = (next: IntakePhoto) => {
+      photosRef.current = photosRef.current.map((p) =>
+        p === placeholder ? next : p,
+      );
+      onChange(photosRef.current);
+    };
 
     try {
       const { url, key } = await presignIntakePhoto(kind, file.type);
       await uploadToS3(url, file, file.type);
-      const completed: IntakePhoto = { key, previewUrl, uploading: false };
-      onChange([...photos, completed]);
+      replace({ key, previewUrl, uploading: false });
 
       if (isDoors && onOcr) {
         try {
@@ -65,10 +78,7 @@ export function PhotoStep({ kind, mode, photos, onChange, onOcr }: Props) {
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Upload failed';
-      onChange([
-        ...photos,
-        { key: '', previewUrl, uploading: false, error: message },
-      ]);
+      replace({ key: '', previewUrl, uploading: false, error: message });
       setTopLevelError(message);
     }
   };

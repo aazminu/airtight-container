@@ -20,9 +20,19 @@ export const Provider = (props) => {
 		if (isPublic) return;
 
 		fetch("/api/auth/get-session", { credentials: "include" })
-			.then((res) => res.json())
+			.then((res) => {
+				if (res.status === 401) {
+					window.location.href = "/auth";
+					return null;
+				}
+				// Non-401 server errors are transient (proxy hiccup, 5xx) —
+				// not proof the session is gone, so don't log the user out.
+				if (!res.ok) return null;
+				return res.json();
+			})
 			.then((data) => {
-				if (!data || !data.user) {
+				if (!data) return;
+				if (!data.user) {
 					window.location.href = "/auth";
 					return;
 				}
@@ -32,7 +42,8 @@ export const Provider = (props) => {
 				});
 			})
 			.catch(() => {
-				window.location.href = "/auth";
+				// Network blip or bad JSON — keep whatever session state we
+				// already have rather than bouncing to /auth.
 			});
 	}, []);
 

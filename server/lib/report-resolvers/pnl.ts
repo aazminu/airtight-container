@@ -226,12 +226,13 @@ export async function resolvePnL(
   for (const r of invoiceRows) {
     invoiceSubtotalById.set(r.invoice_id, NUM(r.subtotal));
   }
-  // Revenue = sum of distinct invoice subtotals. Note: this includes
-  // modification revenue too (it's baked into invoice subtotal). To
-  // get the "container revenue only" line we subtract mod_revenue.
+  // Revenue = sum of distinct invoice subtotals, minus the two
+  // pass-throughs baked into that subtotal: mod_revenue (reported on its
+  // own line) and trucking (delivery cost passed straight through to the
+  // buyer — see the "informational, not in profit" note in the header).
   let invoiceSubtotalSum = 0;
   for (const v of invoiceSubtotalById.values()) invoiceSubtotalSum += v;
-  const revenue = invoiceSubtotalSum - modRevenue;
+  const revenue = invoiceSubtotalSum - modRevenue - trucking;
 
   // ---- S&H aggregate --------------------------------------------------
   // Pending-review invoices count toward revenue (owner decision).
