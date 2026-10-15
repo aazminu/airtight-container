@@ -143,9 +143,14 @@ describe('Eastern-timezone boundaries (regression)', () => {
   });
 });
 
-import { buildLinesForBox, priorMonth, type ShInventoryRow } from '../../lib/sh-month-end.js';
+import {
+  buildLinesForBox,
+  generateShMonthEnd,
+  priorMonth,
+  type ShInventoryRow,
+} from '../../lib/sh-month-end.js';
 
-describe('buildLinesForBox & priorMonth', () => {
+describe('buildLinesForBox, priorMonth & generateShMonthEnd', () => {
   const baseBox: ShInventoryRow = {
     id: 42,
     client_id: 7,
@@ -217,6 +222,22 @@ describe('buildLinesForBox & priorMonth', () => {
     ]);
   });
 
+  it('supports anniversary billing mode with 30-day cycle proration even in 31-day months', () => {
+    const lines = buildLinesForBox(
+      {
+        ...baseBox,
+        billing_mode: 'anniversary',
+        intake_date: '2026-05-17T12:00:00Z', // May 17..31 = 15 days in 31-day month
+        checkout_date: null,
+        flat_rate: '150.00',
+      },
+      2026,
+      4, // May
+    );
+    expect(lines[0].amount).toBe('75.00');
+    expect(lines[0].days_count).toBe(15);
+  });
+
   it('normalizes in_out_daily amounts and skips zero fees', () => {
     const lines = buildLinesForBox(
       {
@@ -252,18 +273,63 @@ describe('buildLinesForBox & priorMonth', () => {
   });
 
   it('computes priorMonth in America/New_York timezone even near UTC midnight', () => {
-    // 2026-05-01T02:00:00Z is still 10:00pm EDT on April 30, 2026 in New York,
-    // so priorMonth at that instant is March 2026 (monthIndex 2).
     expect(priorMonth(new Date('2026-05-01T02:00:00Z'))).toEqual({
       year: 2026,
       monthIndex: 2,
     });
-    // 2026-05-01T05:00:00Z is 1:00am EDT on May 1, 2026 in New York,
-    // so priorMonth is April 2026 (monthIndex 3).
     expect(priorMonth(new Date('2026-05-01T05:00:00Z'))).toEqual({
       year: 2026,
       monthIndex: 3,
     });
   });
+
+  it('generateShMonthEnd is idempotent across repeated batch runs for the same billing month', async () => {
+    const createdInvoices = new Map<string, number>();
+    const insertedLines: unknown[] = [];
+
+    const fakePool = {
+      connect: async () =>
+        ({
+          query: async (sql: string, params?: unknown[]) => {
+            if (sql.includes('FROM sh_inventory')) {
+              return { rows: [baseBox] };
+            }
+            if (sql.includes('SELECT id FROM sh_invoices')) {
+              const key = `${params?.[0]}:${params?.[1]}`;
+              return {
+                rows: createdInvoices.has(key)
+                  ? [{ id: createdInvoices.get(key) }]
+                  : [],
+              };
+            }
+            if (sql.includes('COALESCE(MAX(invoice_number)')) {
+              return { rows: [{ next: 202604001 }] };
+            }
+            if (sql.includes('INSERT INTO sh_invoices')) {
+              const key = `${params?.[0]}:${params?.[1]}`;
+              createdInvoices.set(key, 99);
+              return { rows: [{ id: 99 }] };
+            }
+            if (sql.includes('INSERT INTO sh_invoice_lines')) {
+              insertedLines.push(params);
+              return { rows: [] };
+            }
+            return { rows: [] };
+          },
+          release: () => {},
+        }) as unknown as import('pg').PoolClient,
+    };
+
+    const firstRun = await generateShMonthEnd(2026, 3, fakePool);
+    expect(firstRun.invoicesCreated).toBe(1);
+    expect(firstRun.invoicesSkipped).toBe(0);
+    expect(insertedLines.length).toBe(2);
+
+    const secondRun = await generateShMonthEnd(2026, 3, fakePool);
+    expect(secondRun.invoicesCreated).toBe(0);
+    expect(secondRun.invoicesSkipped).toBe(1);
+    expect(insertedLines.length).toBe(2); // zero duplicate line items
+  });
 });
+
 
