@@ -12,9 +12,9 @@ import type { PoolClient } from 'pg';
 import pool from '../db/pool.js';
 import { easternMidnightUtc, easternYearMonth, storageDaysForMonth } from './sh.js';
 
-type ShBillingMode = 'in_out_daily' | 'flat_monthly' | 'non_billable';
+export type ShBillingMode = 'in_out_daily' | 'flat_monthly' | 'non_billable';
 
-interface ShInventoryRow {
+export interface ShInventoryRow {
   id: number;
   client_id: number;
   unit_number: string;
@@ -28,7 +28,7 @@ interface ShInventoryRow {
   state: string;
 }
 
-interface InvoiceLineSpec {
+export interface InvoiceLineSpec {
   sh_box_id: number;
   line_type: 'in_fee' | 'out_fee' | 'storage_days' | 'flat_month';
   days_count: number | null;
@@ -78,7 +78,7 @@ const nextShInvoiceNumber = async (
   return n;
 };
 
-const buildLinesForBox = (
+export const buildLinesForBox = (
   box: ShInventoryRow,
   year: number,
   monthIndex: number,
@@ -94,12 +94,13 @@ const buildLinesForBox = (
   // the resolved math so the line tells the operator how we got there.
   if (box.billing_mode === 'flat_monthly') {
     if (box.flat_rate == null) return [];
+    const monthly = Number(box.flat_rate);
+    if (!Number.isFinite(monthly) || monthly <= 0) return [];
     const intakeDate = new Date(box.intake_date);
     const checkoutDate = box.checkout_date ? new Date(box.checkout_date) : null;
     const billedDays = storageDaysForMonth(intakeDate, checkoutDate, year, monthIndex);
     if (billedDays <= 0) return [];
-    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-    const monthly = Number(box.flat_rate);
+    const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0, 12)).getUTCDate();
     const amount =
       billedDays >= daysInMonth
         ? monthly.toFixed(2)
@@ -126,13 +127,13 @@ const buildLinesForBox = (
   const lines: InvoiceLineSpec[] = [];
   const intakeYM = easternYearMonth(intake);
   const inThisMonth = intakeYM.year === year && intakeYM.month === monthIndex;
-  if (inThisMonth && box.in_fee != null) {
+  if (inThisMonth && box.in_fee != null && Number(box.in_fee) > 0) {
     lines.push({
       sh_box_id: box.id,
       line_type: 'in_fee',
       days_count: null,
       rate: box.in_fee,
-      amount: box.in_fee,
+      amount: Number(box.in_fee).toFixed(2),
       description: `Intake fee · ${box.unit_number}`,
     });
   }
@@ -141,17 +142,17 @@ const buildLinesForBox = (
     checkoutYM != null &&
     checkoutYM.year === year &&
     checkoutYM.month === monthIndex;
-  if (outThisMonth && box.out_fee != null) {
+  if (outThisMonth && box.out_fee != null && Number(box.out_fee) > 0) {
     lines.push({
       sh_box_id: box.id,
       line_type: 'out_fee',
       days_count: null,
       rate: box.out_fee,
-      amount: box.out_fee,
+      amount: Number(box.out_fee).toFixed(2),
       description: `Check-out fee · ${box.unit_number}`,
     });
   }
-  if (box.daily_rate != null) {
+  if (box.daily_rate != null && Number(box.daily_rate) > 0) {
     const days = storageDaysForMonth(intake, checkout, year, monthIndex);
     if (days > 0) {
       const rate = Number(box.daily_rate);
@@ -301,12 +302,15 @@ export async function generateShMonthEnd(
   return summary;
 }
 
-// Returns {year, monthIndex} of the month JUST BEFORE `now`. Cron
-// fires on the 1st of a month to bill the month that ended.
+// Returns {year, monthIndex} of the month JUST BEFORE `now` in the
+// yard's America/New_York timezone. Cron fires on the 1st of a month
+// to bill the month that ended.
 export function priorMonth(now: Date = new Date()): {
   year: number;
   monthIndex: number;
 } {
-  const prior = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  return { year: prior.getFullYear(), monthIndex: prior.getMonth() };
+  const { year, month } = easternYearMonth(now);
+  return month === 0
+    ? { year: year - 1, monthIndex: 11 }
+    : { year, monthIndex: month - 1 };
 }

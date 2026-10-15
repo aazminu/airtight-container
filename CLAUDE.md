@@ -79,7 +79,7 @@ Other docs you may need:
 
 - **Local dev:** `./dev.sh` from repo root. Spins backend on `:3001`, client on `:3000`. Requires `server/.env` (copy from `server/.env.example` and fill in `BETTER_AUTH_SECRET`, `DATABASE_URL`, `GOOGLE_CLIENT_*`, `CORS_ORIGIN`, `RESEND`).
 - **Local Postgres** is the prod-mirroring DB used during dev. Connection details are in `server/.env`. You can query it via `psql` or by writing a one-off `tsx server/scripts/foo.ts` script and running it.
-- **Deploy:** push to `main`. GHA builds both images, pushes to `ghcr.io/harrylynchh/airtight-{backend,frontend}`, SSHes to EC2, restarts the compose stack. Secrets: `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY` in GitHub.
+- **Deploy:** push to `main`. GHA builds both images, pushes to `ghcr.io/aazminu/airtight-{backend,frontend}`, SSHes to EC2, restarts the compose stack. Secrets: `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY` in GitHub.
 - **EC2 `.env`:** lives at `~/airtight-container/.env` on the host. Never committed.
 
 ---
