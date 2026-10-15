@@ -1,6 +1,6 @@
 services:
   backend:
-    image: ghcr.io/harrylynchh/airtight-backend:latest
+    image: ghcr.io/aazminu/airtight-backend:latest
     restart: unless-stopped
     # Cap the blast radius: a PDF/Chromium memory spike OOM-kills and
     # restarts THIS container in isolation instead of dragging the whole
@@ -34,7 +34,7 @@ services:
         max-file: "5"
 
   frontend:
-    image: ghcr.io/harrylynchh/airtight-frontend:latest
+    image: ghcr.io/aazminu/airtight-frontend:latest
     restart: unless-stopped
     pids_limit: 256
     cap_drop:

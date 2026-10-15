@@ -142,3 +142,128 @@ describe('Eastern-timezone boundaries (regression)', () => {
     expect(countStorageDays(intake, checkout)).toBe(3);
   });
 });
+
+import { buildLinesForBox, priorMonth, type ShInventoryRow } from '../../lib/sh-month-end.js';
+
+describe('buildLinesForBox & priorMonth', () => {
+  const baseBox: ShInventoryRow = {
+    id: 42,
+    client_id: 7,
+    unit_number: 'ATCU-1001',
+    intake_date: '2026-04-01T12:00:00Z',
+    checkout_date: null,
+    in_fee: '65.00',
+    out_fee: '65.00',
+    daily_rate: '2.50',
+    flat_rate: '150.00',
+    billing_mode: 'in_out_daily',
+    state: 'in_storage',
+  };
+
+  it('returns empty lines for non_billable boxes', () => {
+    const lines = buildLinesForBox(
+      { ...baseBox, billing_mode: 'non_billable' },
+      2026,
+      3,
+    );
+    expect(lines).toEqual([]);
+  });
+
+  it('bills full flat_monthly rate when in storage for the entire month', () => {
+    const lines = buildLinesForBox(
+      {
+        ...baseBox,
+        billing_mode: 'flat_monthly',
+        intake_date: '2026-03-15T12:00:00Z',
+        checkout_date: null,
+        flat_rate: '150.00',
+      },
+      2026,
+      3, // April (30 days)
+    );
+    expect(lines).toEqual([
+      {
+        sh_box_id: 42,
+        line_type: 'flat_month',
+        days_count: 30,
+        rate: '150.00',
+        amount: '150.00',
+        description: 'Flat monthly storage · ATCU-1001',
+      },
+    ]);
+  });
+
+  it('pro-rates flat_monthly rate for mid-month arrival or checkout', () => {
+    const lines = buildLinesForBox(
+      {
+        ...baseBox,
+        billing_mode: 'flat_monthly',
+        intake_date: '2026-04-16T12:00:00Z', // Apr 16..30 = 15 of 30 days
+        checkout_date: null,
+        flat_rate: '150.00',
+      },
+      2026,
+      3,
+    );
+    expect(lines).toEqual([
+      {
+        sh_box_id: 42,
+        line_type: 'flat_month',
+        days_count: 15,
+        rate: '150.00',
+        amount: '75.00',
+        description: 'Flat monthly storage · ATCU-1001 · 15 of 30 days pro-rated',
+      },
+    ]);
+  });
+
+  it('normalizes in_out_daily amounts and skips zero fees', () => {
+    const lines = buildLinesForBox(
+      {
+        ...baseBox,
+        billing_mode: 'in_out_daily',
+        intake_date: '2026-04-10T12:00:00Z',
+        checkout_date: '2026-04-12T12:00:00Z',
+        in_fee: '65',
+        out_fee: '0.00',
+        daily_rate: '3',
+      },
+      2026,
+      3,
+    );
+    expect(lines).toEqual([
+      {
+        sh_box_id: 42,
+        line_type: 'in_fee',
+        days_count: null,
+        rate: '65',
+        amount: '65.00',
+        description: 'Intake fee · ATCU-1001',
+      },
+      {
+        sh_box_id: 42,
+        line_type: 'storage_days',
+        days_count: 3,
+        rate: '3',
+        amount: '9.00',
+        description: 'Storage · ATCU-1001 · 3 days',
+      },
+    ]);
+  });
+
+  it('computes priorMonth in America/New_York timezone even near UTC midnight', () => {
+    // 2026-05-01T02:00:00Z is still 10:00pm EDT on April 30, 2026 in New York,
+    // so priorMonth at that instant is March 2026 (monthIndex 2).
+    expect(priorMonth(new Date('2026-05-01T02:00:00Z'))).toEqual({
+      year: 2026,
+      monthIndex: 2,
+    });
+    // 2026-05-01T05:00:00Z is 1:00am EDT on May 1, 2026 in New York,
+    // so priorMonth is April 2026 (monthIndex 3).
+    expect(priorMonth(new Date('2026-05-01T05:00:00Z'))).toEqual({
+      year: 2026,
+      monthIndex: 3,
+    });
+  });
+});
+

@@ -22,8 +22,8 @@ The EC2 instance hard-locked because the **backend container's Puppeteer / headl
 - **Working dir:** `~/airtight-container` (docker compose project).
 - **Services on the host:** PostgreSQL 16, nginx, Docker/containerd, two Node containers, amazon-ssm-agent, snapd.
 - **Containers:**
-  - `airtight-container-frontend-1` — `ghcr.io/harrylynchh/airtight-frontend:latest`, serves on `8080`. nginx-based static/frontend.
-  - `airtight-container-backend-1` — `ghcr.io/harrylynchh/airtight-backend:latest`, serves on `3001`. **This is the culprit.**
+  - `airtight-container-frontend-1` — `ghcr.io/aazminu/airtight-frontend:latest`, serves on `8080`. nginx-based static/frontend.
+  - `airtight-container-backend-1` — `ghcr.io/aazminu/airtight-backend:latest`, serves on `3001`. **This is the culprit.**
 
 ### Backend dependencies (from package.json)
 ```
