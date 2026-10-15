@@ -372,7 +372,7 @@ Tracked separately from feature work but interleaved across phases:
 - `sanitize-html` on any user-supplied rich text (WYSIWYG reach goal)
 - `helmet` middleware + CSP
 - Tighten Resend wrapper at [server.js:47](../server/server.js#L47): force allowlist of senders, validate `to` matches a known client email or whitelisted internal email
-- BCC list (`vagabond7257@gmail.com`, `hlynch02@tufts.edu`, etc.) **stays** per user (intentional for personal logs)
+- BCC list (`SEND_BCC` environment variable) **stays** configurable per operator environment (intentional for operational audit logs)
 - Audit auth role checks on every route — current code mixes `checkEmployee` and `checkAdmin` inconsistently (e.g., [v2/invoice.js](../server/routes/v2/invoice.js) lets employees create+modify but only admins delete; v1 has mismatched expectations)
 - CSRF: Better Auth handles cookie security; verify SameSite + secure flags in prod env
 - Rate limiting on more than just auth + email (intake submit, invoice generate)
