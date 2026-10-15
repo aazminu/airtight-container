@@ -12,7 +12,11 @@ import type { PoolClient } from 'pg';
 import pool from '../db/pool.js';
 import { easternMidnightUtc, easternYearMonth, storageDaysForMonth } from './sh.js';
 
-export type ShBillingMode = 'in_out_daily' | 'flat_monthly' | 'non_billable';
+export type ShBillingMode =
+  | 'in_out_daily'
+  | 'flat_monthly'
+  | 'anniversary'
+  | 'non_billable';
 
 export interface ShInventoryRow {
   id: number;
@@ -87,12 +91,10 @@ export const buildLinesForBox = (
   // invoicing entirely. No lines, ever.
   if (box.billing_mode === 'non_billable') return [];
 
-  // Flat-monthly boxes get one line per billing month, pro-rated by
-  // days-in-month. A box arriving mid-month or checking out mid-month
-  // is billed only for the days it was actually under storage. The
-  // unit "rate" is the flat monthly amount; days_count + amount carry
-  // the resolved math so the line tells the operator how we got there.
-  if (box.billing_mode === 'flat_monthly') {
+  // Flat-monthly and anniversary boxes get one line per billing month.
+  // In flat_monthly (MONTH_END) mode, proration uses calendar days in month.
+  // In anniversary mode, proration uses a 30-day standard cycle.
+  if (box.billing_mode === 'flat_monthly' || box.billing_mode === 'anniversary') {
     if (box.flat_rate == null) return [];
     const monthly = Number(box.flat_rate);
     if (!Number.isFinite(monthly) || monthly <= 0) return [];
@@ -100,15 +102,15 @@ export const buildLinesForBox = (
     const checkoutDate = box.checkout_date ? new Date(box.checkout_date) : null;
     const billedDays = storageDaysForMonth(intakeDate, checkoutDate, year, monthIndex);
     if (billedDays <= 0) return [];
-    const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0, 12)).getUTCDate();
-    const amount =
-      billedDays >= daysInMonth
-        ? monthly.toFixed(2)
-        : ((monthly * billedDays) / daysInMonth).toFixed(2);
-    const description =
-      billedDays >= daysInMonth
-        ? `Flat monthly storage · ${box.unit_number}`
-        : `Flat monthly storage · ${box.unit_number} · ${billedDays} of ${daysInMonth} days pro-rated`;
+    const calendarDays = new Date(Date.UTC(year, monthIndex + 1, 0, 12)).getUTCDate();
+    const cycleDays = box.billing_mode === 'anniversary' ? 30 : calendarDays;
+    const isFullMonth = billedDays >= calendarDays || billedDays >= cycleDays;
+    const amount = isFullMonth
+      ? monthly.toFixed(2)
+      : ((monthly * billedDays) / cycleDays).toFixed(2);
+    const description = isFullMonth
+      ? `Flat monthly storage · ${box.unit_number}`
+      : `Flat monthly storage · ${box.unit_number} · ${billedDays} of ${cycleDays} days pro-rated`;
     return [
       {
         sh_box_id: box.id,
@@ -179,10 +181,12 @@ export const buildLinesForBox = (
  *
  * @param year         e.g. 2026
  * @param monthIndex   0-11 (so April = 3)
+ * @param dbPool       optional pool override for testing
  */
 export async function generateShMonthEnd(
   year: number,
   monthIndex: number,
+  dbPool: { connect: () => Promise<PoolClient> } = pool,
 ): Promise<MonthEndSummary> {
   const billingMonth = billingMonthDate(year, monthIndex);
   const summary: MonthEndSummary = {
@@ -193,21 +197,9 @@ export async function generateShMonthEnd(
     errors: [],
   };
 
-  // Boxes that overlapped this month: arrived on/before month end AND
-  // (still in storage OR checked out on/after the month started).
-  //
-  // monthStart is Eastern midnight on day 1; nextMonthStart is Eastern
-  // midnight on day 1 of the next month, used with a strict `<` so boxes
-  // intaked late on the last day of the month (e.g., a 9pm EDT intake on
-  // May 31) are correctly included. These used to be built from the
-  // process's own local getters — fine for "midnight on the LAST day of
-  // the month vs. the FIRST day of the next" bugs, but the process runs in
-  // UTC in prod, so a UTC midnight boundary still cut off anything intaked
-  // or checked out in the last 4-5 hours of an Eastern day. easternMidnightUtc
-  // resolves the real UTC instant for Eastern midnight instead.
   const monthStart = easternMidnightUtc(year, monthIndex, 1);
   const nextMonthStart = easternMidnightUtc(year, monthIndex + 1, 1);
-  const client = await pool.connect();
+  const client = await dbPool.connect();
   try {
     // Skip boxes with NULL client_id (still on the audit floor —
     // migration 0020 makes the column nullable). Non-billable boxes
